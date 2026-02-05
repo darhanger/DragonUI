@@ -660,12 +660,19 @@ local function ApplyMicromenuSystem()
                     local texture = region:GetTexture()
                     if texture then
                         local textureLower = tostring(texture):lower()
-                        if textureLower:find("background") or textureLower:find("border") or textureLower:find("frame") or
-                            textureLower:find("highlight") or textureLower:find("green") or textureLower:find("glow") or
-                            textureLower:find("flash") or textureLower:find("shine") then
-                            region:Hide()
-                            if region.SetAlpha then
-                                region:SetAlpha(0)
+                        
+                        -- Skip item icons - don't hide them
+                        if textureLower:find("interface\\icons\\") then
+                            -- This is an item icon - don't hide it
+                        else
+                            -- Hide only UI elements, not icons
+                            if textureLower:find("background") or textureLower:find("border") or textureLower:find("frame") or
+                                textureLower:find("highlight") or textureLower:find("green") or textureLower:find("glow") or
+                                textureLower:find("flash") or textureLower:find("shine") then
+                                region:Hide()
+                                if region.SetAlpha then
+                                    region:SetAlpha(0)
+                                end
                             end
                         end
                     end
@@ -1202,21 +1209,28 @@ local function ApplyMicromenuSystem()
             KeyRingButton:Hide();
         end
 
+        -- Update icons immediately using real item textures
         for _, bags in pairs(bagslots) do
             local icon = _G[bags:GetName() .. 'IconTexture']
             if icon then
-                local empty = icon:GetTexture() == 'interface\\paperdoll\\UI-PaperDoll-Slot-Bag'
-                if empty then
-                    icon:SetAlpha(0)
-                else
+                local inventorySlot = bags:GetID()
+                local itemTexture = GetInventoryItemTexture("player", inventorySlot)
+                
+                if itemTexture then
+                    icon:SetTexture(itemTexture)
+                    icon:Show()
                     icon:SetAlpha(1)
+                    pcall(function()
+                        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                    end)
+                else
+                    icon:SetTexture(nil)
+                    icon:Hide()
                 end
             end
         end
 
         HideUnwantedBagFrames()
-        ScheduleHideFrames(0.3)
-        ScheduleHideFrames(1.0)
     end
 
     local function setupMicroButtons(xOffset)
@@ -1826,6 +1840,8 @@ end
     -- ============================================================================
 
     addon.package:RegisterEvents(function(self, event)
+        if not IsModuleEnabled() then return end
+        
         if event == 'BAG_UPDATE' then
             if HasKey() then
                 if not KeyRingButton:IsShown() then
@@ -1842,52 +1858,64 @@ end
     end, 'BAG_UPDATE');
 
     addon.package:RegisterEvents(function(self, event)
-        local updateFrame = CreateFrame("Frame")
-        local elapsed = 0
-        updateFrame:SetScript("OnUpdate", function(self, dt)
-            elapsed = elapsed + dt
-            if elapsed >= 1 then
-                self:SetScript("OnUpdate", nil)
-
-                for i, bags in pairs(bagslots) do
-                    local icon = _G[bags:GetName() .. 'IconTexture']
-                    if icon then
-                        PaperDollItemSlotButton_Update(bags)
-
-                        local empty = icon:GetTexture() == 'interface\\paperdoll\\UI-PaperDoll-Slot-Bag'
-                        if empty then
-                            icon:SetAlpha(0)
-                        else
-                            icon:SetAlpha(1)
-                        end
-                    end
+        if not IsModuleEnabled() then return end
+        
+        -- Update bag icons immediately on login/reload
+        for i, bags in pairs(bagslots) do
+            local icon = _G[bags:GetName() .. 'IconTexture']
+            if icon then
+                local inventorySlot = bags:GetID()
+                local itemTexture = GetInventoryItemTexture("player", inventorySlot)
+                
+                if itemTexture then
+                    icon:SetTexture(itemTexture)
+                    icon:Show()
+                    icon:SetAlpha(1)
+                    pcall(function()
+                        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                    end)
+                else
+                    icon:SetTexture(nil)
+                    icon:Hide()
                 end
-
-                if KeyRingButton and HasKey() then
-                    KeyRingButton:Show()
-                end
-
-                ScheduleHideFrames(0.2)
-                ScheduleHideFrames(0.5)
             end
-        end)
+        end
+
+        if KeyRingButton and HasKey() then
+            KeyRingButton:Show()
+        end
+
+        HideUnwantedBagFrames()
     end, 'PLAYER_ENTERING_WORLD');
 
     addon.package:RegisterEvents(function(self, event, bagID)
-        if bagID then
+        if not IsModuleEnabled() then return end
+        
+        -- Validate bagID is in valid range (0-3 for bags)
+        if bagID and bagID >= 0 and bagID <= 3 then
             local bagSlot = bagslots[bagID + 1]
             if bagSlot then
                 local icon = _G[bagSlot:GetName() .. 'IconTexture']
                 if icon then
-                    local empty = icon:GetTexture() == 'interface\\paperdoll\\UI-PaperDoll-Slot-Bag'
-                    if empty then
-                        icon:SetAlpha(0)
-                    else
+                    local inventorySlot = bagSlot:GetID()
+                    local itemTexture = GetInventoryItemTexture("player", inventorySlot)
+                    
+                    if itemTexture then
+                        icon:SetTexture(itemTexture)
+                        icon:Show()
                         icon:SetAlpha(1)
+                        pcall(function()
+                            icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                        end)
+                    else
+                        icon:SetTexture(nil)
+                        icon:Hide()
                     end
                 end
             end
         end
+        
+        HideUnwantedBagFrames()
     end, 'BAG_UPDATE');
 
     addon.package:RegisterEvents(function()
