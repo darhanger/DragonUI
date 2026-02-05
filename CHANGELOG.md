@@ -19,8 +19,8 @@
 - Standardized module initialization patterns across all modules
 
 ### Fixed
-- Target of Target not working on The Bronzebeard server (thanks xius)
-- Bag icons displaying incorrectly (thanks mikki33)
-- Quest tracker visual fixes (thanks mikki33)
+- Target of Target not working on Bronzebeard private server (thanks xius)
+- Bag icons displaying incorrectly (thanks @mikki33)
+- Quest tracker visual fixes (thanks @mikki33)
 - Combat lockdown handling improved across modules
 - `mainbars.lua` module scope issue (MainbarsModule now at file level)
