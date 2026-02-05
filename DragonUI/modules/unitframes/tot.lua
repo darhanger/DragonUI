@@ -2,7 +2,6 @@ local addon = select(2, ...)
 
 -- ============================================================================
 -- DRAGONUI TARGET OF TARGET FRAME MODULE - WoW 3.3.5a
--- Improved private server compatibility by xius
 -- ============================================================================
 
 local Module = {
@@ -20,7 +19,7 @@ local Module = {
 -- Cache Blizzard frames
 local TargetFrameToT = _G.TargetFrameToT
 
--- Texture paths (ToT específicas)
+-- Texture paths
 local TEXTURES = {
     BACKGROUND = "Interface\\AddOns\\DragonUI\\Textures\\UI-HUD-UnitFrame-TargetofTarget-PortraitOn-BACKGROUND",
     BORDER = "Interface\\AddOns\\DragonUI\\Textures\\UI-HUD-UnitFrame-TargetofTarget-PortraitOn-BORDER",
@@ -28,7 +27,7 @@ local TEXTURES = {
     BOSS = "Interface\\AddOns\\DragonUI\\Textures\\uiunitframeboss2x"
 }
 
--- Boss classifications (coordenadas ToT más pequeñas)
+-- Boss classifications
 local BOSS_COORDS = {
     elite = {0.001953125, 0.314453125, 0.322265625, 0.630859375, 60, 59, 3, 1},
     rare = {0.00390625, 0.31640625, 0.64453125, 0.953125, 60, 59, 3, 1},
@@ -119,11 +118,11 @@ local function ShouldShowToT()
 end
 
 -- ============================================================================
--- BAR MANAGEMENT (IGUAL QUE TARGET/FOCUS)
+-- BAR MANAGEMENT
 -- ============================================================================
 
 local function SetupBarHooks()
-    -- Health bar hooks (igual que tu target.lua)
+    -- Health bar hooks
     if not TargetFrameToTHealthBar.DragonUI_Setup then
         local healthTexture = TargetFrameToTHealthBar:GetStatusBarTexture()
         if healthTexture then
@@ -149,11 +148,11 @@ local function SetupBarHooks()
     local config = GetConfig()
     local texturePath
     
-    -- NUEVO: Decidir qué textura usar basado en classcolor
+    -- Decide which texture to use based on classcolor setting
     if config.classcolor and UnitIsPlayer("targettarget") then
-        texturePath = TEXTURES.BAR_PREFIX .. "Health-Status"  -- Versión Status para colores de clase
+        texturePath = TEXTURES.BAR_PREFIX .. "Health-Status"
     else
-        texturePath = TEXTURES.BAR_PREFIX .. "Health"         -- Versión normal
+        texturePath = TEXTURES.BAR_PREFIX .. "Health"
     end
 
     -- Update texture
@@ -186,7 +185,7 @@ end)
         TargetFrameToTHealthBar.DragonUI_Setup = true
     end
 
-    -- Power bar hooks (igual que tu target.lua)
+    -- Power bar hooks
     if not TargetFrameToTManaBar.DragonUI_Setup then
         local powerTexture = TargetFrameToTManaBar:GetStatusBarTexture()
         if powerTexture then
@@ -401,7 +400,7 @@ local function InitializeFrame()
         TargetFrameToTTextureFrameName:SetTextColor(1.0, 0.82, 0.0, 1.0)
         TargetFrameToTTextureFrameName:SetDrawLayer("BORDER", 1)
 
-        --  TRUNCADO AUTOMÁTICO COMO RETAILUI
+        -- Auto truncation
         TargetFrameToTTextureFrameName:SetWidth(65)
         TargetFrameToTTextureFrameName:SetJustifyH("LEFT")
     end
@@ -533,7 +532,7 @@ if not Module.eventsFrame then
     Module.eventsFrame:RegisterEvent("ADDON_LOADED")
     Module.eventsFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
     Module.eventsFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
-    Module.eventsFrame:RegisterEvent("UNIT_TARGET") -- Crucial para ToT
+    Module.eventsFrame:RegisterEvent("UNIT_TARGET")
     Module.eventsFrame:RegisterEvent("UNIT_CLASSIFICATION_CHANGED")
     Module.eventsFrame:RegisterEvent("UNIT_FACTION")
     Module.eventsFrame:SetScript("OnEvent", OnEvent)
@@ -578,18 +577,18 @@ local function RefreshFrame()
 end
 
 local function ResetFrame()
-    -- Reset a valores por defecto de la DB
+    -- Reset to default values
     addon:SetConfigValue("unitframe", "tot", "x", 22)
     addon:SetConfigValue("unitframe", "tot", "y", -15)
     addon:SetConfigValue("unitframe", "tot", "scale", 1.0)
 
-    -- Aplicar al frame de Blizzard
+    -- Apply to Blizzard frame
     TargetFrameToT:ClearAllPoints()
     TargetFrameToT:SetPoint("BOTTOMRIGHT", TargetFrame, "BOTTOMRIGHT", 22, -15)
     TargetFrameToT:SetScale(1.0)
 end
 
--- Export API (igual que target/focus)
+-- Export API
 addon.TargetOfTarget = {
     Refresh = RefreshFrame,
     RefreshToTFrame = RefreshFrame,

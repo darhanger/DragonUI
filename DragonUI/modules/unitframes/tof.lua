@@ -2,7 +2,6 @@ local addon = select(2, ...)
 
 -- ============================================================================
 -- DRAGONUI FOCUS OF TARGET FRAME MODULE - WoW 3.3.5a
--- Improved private server compatibility by xius
 -- ============================================================================
 
 local Module = {
@@ -114,11 +113,11 @@ local function ShouldShowFoT()
 end
 
 -- ============================================================================
--- BAR MANAGEMENT (IGUAL QUE TOT PERO PARA FOCUS)
+-- BAR MANAGEMENT
 -- ============================================================================
 
 local function SetupBarHooks()
-    -- Health bar hooks (IGUAL que ToT pero para "focustarget")
+    -- Health bar hooks
     if not FocusFrameToTHealthBar.DragonUI_Setup then
         local healthTexture = FocusFrameToTHealthBar:GetStatusBarTexture()
         if healthTexture then
@@ -144,11 +143,11 @@ local function SetupBarHooks()
             local config = GetConfig()
             local texturePath
 
-            -- NUEVO: Decidir qué textura usar basado en classcolor
+            -- Decide which texture to use based on classcolor setting
             if config.classcolor and UnitIsPlayer("focustarget") then
-                texturePath = TEXTURES.BAR_PREFIX .. "Health-Status" -- Versión Status para colores de clase
+                texturePath = TEXTURES.BAR_PREFIX .. "Health-Status"
             else
-                texturePath = TEXTURES.BAR_PREFIX .. "Health" -- Versión normal
+                texturePath = TEXTURES.BAR_PREFIX .. "Health"
             end
 
             -- Update texture
@@ -181,7 +180,7 @@ local function SetupBarHooks()
         FocusFrameToTHealthBar.DragonUI_Setup = true
     end
 
-    -- Power bar hooks (IGUAL que ToT pero para "focustarget")
+    -- Power bar hooks
     if not FocusFrameToTManaBar.DragonUI_Setup then
         local powerTexture = FocusFrameToTManaBar:GetStatusBarTexture()
         if powerTexture then
@@ -515,7 +514,7 @@ if not Module.eventsFrame then
     Module.eventsFrame:RegisterEvent("ADDON_LOADED")
     Module.eventsFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
     Module.eventsFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
-    Module.eventsFrame:RegisterEvent("UNIT_TARGET") -- Crucial para FoT
+    Module.eventsFrame:RegisterEvent("UNIT_TARGET")
     Module.eventsFrame:RegisterEvent("UNIT_CLASSIFICATION_CHANGED")
     Module.eventsFrame:RegisterEvent("UNIT_FACTION")
     Module.eventsFrame:SetScript("OnEvent", OnEvent)
@@ -555,12 +554,12 @@ local function RefreshFrame()
 end
 
 local function ResetFrame()
-    -- Reset a valores por defecto de la DB
+    -- Reset to default values
     addon:SetConfigValue("unitframe", "fot", "x", -8)
     addon:SetConfigValue("unitframe", "fot", "y", -30)
     addon:SetConfigValue("unitframe", "fot", "scale", 1.0)
 
-    -- Aplicar inmediatamente
+    -- Apply immediately
     local config = GetConfig()
     FocusFrameToT:ClearAllPoints()
     FocusFrameToT:SetPoint(config.anchor or "BOTTOMRIGHT", FocusFrame, config.anchorParent or "BOTTOMRIGHT", config.x,
@@ -568,7 +567,7 @@ local function ResetFrame()
     FocusFrameToT:SetScale(config.scale)
 end
 
--- Export API (igual que target/focus)
+-- Export API
 addon.TargetOfFocus = {
     Refresh = RefreshFrame,
     RefreshToFFrame = RefreshFrame,
