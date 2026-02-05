@@ -2,9 +2,10 @@
 ..\FrameXML\UI.xsd">
     
     <!-- DragonUI Core Files -->
-    <!-- Load order is important: api first (utilities), then module_base -->
+    <!-- Load order: api (utilities) -> movers -> module_base -->
     
     <Script file="api.lua"/>
+    <Script file="movers.lua"/>
     <Script file="module_base.lua"/>
     
 </Ui>
