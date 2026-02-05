@@ -1,14 +1,13 @@
 # DragonUI - Experimental Branch
 
-## What's different?
+Addon structure reorganization to facilitate future development.
 
-- **Modular Options**: Configuration UI now in separate `DragonUI_Options` addon
-- **Code Cleanup**: Better organized internals for easier maintenance
-- **Bug Fixes**: ToT on private servers, bag icons, quest tracker visuals, and more
+## Main changes
 
-## Installation
+- `DragonUI_Options/` - Separate addon for the configuration panel
+- `core/` - Centralized utilities, movers, commands and API
+- `modules/actionbars/` - Consolidated action bar modules
+- Standardized module registry system
 
-Copy both `DragonUI` and `DragonUI_Options` folders into `Interface/AddOns/`
-
----
+This branch serves as the new development base.
 
