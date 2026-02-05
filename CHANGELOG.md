@@ -4,6 +4,7 @@
 
 ### Added
 - `DragonUI_Options` as separate addon (loads on demand for faster startup)
+<img width="236" height="58" alt="image" src="https://github.com/user-attachments/assets/a6b7239b-fd9e-41f2-b8f4-c2ad7c844e78" />
 - `core/api.lua` with centralized utility functions
 - `core/movers.lua` with unified frame movement system
 - `core/commands.lua` with slash command handling
