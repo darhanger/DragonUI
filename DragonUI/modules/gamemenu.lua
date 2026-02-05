@@ -98,41 +98,22 @@ end
 
 -- Función para abrir la interfaz de configuración de DragonUI
 local function OpenDragonUIConfig()
-    -- Cerrar el game menu primero
+    -- Close game menu first
     HideUIPanel(GameMenuFrame)
     
-    -- Intentar múltiples métodos para abrir la configuración
+    -- Use ToggleOptionsUI which handles LoadOnDemand addon loading
+    if addon and addon.ToggleOptionsUI then
+        addon:ToggleOptionsUI()
+        return
+    end
     
-    -- Método 1: Comando slash directo
+    -- Fallback: Try slash command
     if SlashCmdList and SlashCmdList["DRAGONUI"] then
-        SlashCmdList["DRAGONUI"]("")
+        SlashCmdList["DRAGONUI"]("config")
         return
     end
     
-    -- Método 2: Función del addon directamente
-    if addon and addon.OpenConfigDialog then
-        addon.OpenConfigDialog()
-        return
-    end
-    
-    -- Método 3: A través de AceConfigDialog
-    if addon and addon.core then
-        local AceConfigDialog = LibStub and LibStub("AceConfigDialog-3.0", true)
-        if AceConfigDialog then
-            AceConfigDialog:Open("DragonUI")
-            return
-        end
-    end
-    
-    -- Método 4: Simular comando slash manualmente
-    if ChatFrameEditBox then
-        ChatFrameEditBox:SetText("/dragonui")
-        ChatEdit_SendText(ChatFrameEditBox, 0)
-        return
-    end
-    
-    
-    
+    print("|cFFFF0000[DragonUI]|r Unable to open configuration")
 end
 
 -- Función principal para crear el botón DragonUI
