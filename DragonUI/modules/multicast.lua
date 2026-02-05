@@ -496,6 +496,7 @@ local function ApplyMulticastSystem()
     InitializeMulticast()
 
     MulticastModule.applied = true
+    MulticastModule.initialized = true
 end
 -- =============================================================================
 -- UNIFIED REFRESH FUNCTION

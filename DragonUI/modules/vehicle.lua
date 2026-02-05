@@ -4,8 +4,10 @@ local class = addon._class;
 local unpack = unpack;
 local ipairs = ipairs;
 local RegisterStateDriver = RegisterStateDriver;
+local UnregisterStateDriver = UnregisterStateDriver;
 local UnitVehicleSkin = UnitVehicleSkin;
 local UIParent = UIParent;
+local InCombatLockdown = InCombatLockdown;
 local _G = getfenv(0);
 
 -- ============================================================================
@@ -16,6 +18,7 @@ local _G = getfenv(0);
 local VehicleModule = {
     initialized = false,
     applied = false,
+    pendingApply = false,    -- Deferred apply if in combat
     stateDrivers = {},       -- Track registered state drivers
     events = {},             -- Track registered events
     frames = {}              -- Track created frames
@@ -511,6 +514,16 @@ end
 local function ApplyVehicleSystem()
     if VehicleModule.applied or not IsModuleEnabled() then return end
     
+    -- CRITICAL: Don't modify secure frames during combat (ElvUI pattern)
+    if InCombatLockdown() then
+        VehicleModule.pendingApply = true
+        -- Register event dynamically - will be unregistered after execution
+        if VehicleModule.eventFrame then
+            VehicleModule.eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+        end
+        return
+    end
+    
     -- Check dependencies
     if not CheckDependencies() then
         return
@@ -569,10 +582,16 @@ local function ApplyVehicleSystem()
     SetupBonusBarVehicle()
     
     VehicleModule.applied = true
+    VehicleModule.pendingApply = false
 end
 
 local function RestoreVehicleSystem()
     if not VehicleModule.applied then return end
+    
+    -- CRITICAL: Don't modify secure frames during combat
+    if InCombatLockdown() then
+        return
+    end
     
     -- Unregister all events
     for event, frame in pairs(VehicleModule.events) do
@@ -640,6 +659,9 @@ end
 function addon.RefreshVehicle()
     if not IsModuleEnabled() or not VehicleModule.applied then return end
     
+    -- CRITICAL: Don't modify frames during combat
+    if InCombatLockdown() then return end
+    
     local btnsize = config.additional.size
     local barstyle = config.additional.vehicle.artstyle
     local x_position = config.additional.vehicle.x_position
@@ -687,8 +709,11 @@ end
 
 -- Auto-initialize when addon loads
 local initFrame = CreateFrame("Frame")
+VehicleModule.eventFrame = initFrame  -- Store reference for dynamic event registration
+
 initFrame:RegisterEvent("ADDON_LOADED")
 initFrame:RegisterEvent("PLAYER_LOGIN")
+-- NOTE: PLAYER_REGEN_ENABLED is registered dynamically only when needed (ElvUI pattern)
 initFrame:SetScript("OnEvent", function(self, event, addonName)
     if event == "ADDON_LOADED" and addonName == "DragonUI" then
         VehicleModule.initialized = true
@@ -721,5 +746,14 @@ initFrame:SetScript("OnEvent", function(self, event, addonName)
         end
         
         self:UnregisterEvent("PLAYER_LOGIN")
+    elseif event == "PLAYER_REGEN_ENABLED" then
+        -- Combat ended - unregister first, then apply pending changes (ElvUI pattern)
+        self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+        if VehicleModule.pendingApply and IsModuleEnabled() then
+            VehicleModule.pendingApply = false
+            WaitForDependencies(function()
+                ApplyVehicleSystem()
+            end)
+        end
     end
 end)

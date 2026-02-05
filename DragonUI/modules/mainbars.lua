@@ -1,5 +1,30 @@
 local addon = select(2, ...)
 addon._dir = "Interface\\AddOns\\DragonUI\\assets\\"
+
+-- ============================================================================
+-- MODULE STATE TRACKING (AT FILE SCOPE - FOLLOWING ELVUI PATTERN)
+-- ============================================================================
+-- This module table is defined at file scope to be accessible from outside
+-- the initialization function, following the pattern used by other DragonUI
+-- modules (stance.lua, petbar.lua, vehicle.lua, etc.)
+
+local MainbarsModule = {
+    initialized = false,
+    applied = false,
+    originalStates = {},
+    registeredEvents = {},
+    hooks = {},
+    stateDrivers = {},
+    frames = {},
+    eventFrames = {},
+    originalScales = {},
+    originalPositions = {},
+    originalTextures = {},
+    originalVisibility = {},
+    actionBarFrames = nil
+}
+addon.MainbarsModule = MainbarsModule  -- Expose globally for external access
+
 -- ============================================================================
 -- CONFIGURATION FUNCTIONS (ALWAYS AVAILABLE)
 -- ============================================================================
@@ -71,27 +96,15 @@ local function InitializeMainbars()
     if not IsModuleEnabled() then
         return -- DO NOTHING if disabled
     end
+    
+    -- Check if already initialized
+    if MainbarsModule.initialized then
+        return
+    end
 
     -- ============================================================================
     -- EVERYTHING BELOW ONLY RUNS IF MODULE IS ENABLED
     -- ============================================================================
-
-    -- MODULE STATE TRACKING
-    local MainbarsModule = {
-        initialized = false,
-        applied = false,
-        originalStates = {},
-        registeredEvents = {},
-        hooks = {},
-        stateDrivers = {},
-        frames = {},
-        eventFrames = {},
-        originalScales = {},
-        originalPositions = {},
-        originalTextures = {},
-        originalVisibility = {},
-        actionBarFrames = nil
-    }
 
     -- CORE COMPONENTS
     local config = addon.config;
@@ -1238,6 +1251,10 @@ end
             end
         end
     end)
+
+    -- Mark module as initialized
+    MainbarsModule.initialized = true
+    MainbarsModule.applied = true
 
 end
 

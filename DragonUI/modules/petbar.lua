@@ -433,6 +433,7 @@ local function ApplyPetbarSystem()
     RegisterBottomBarHooks()
     
     PetbarModule.applied = true
+    PetbarModule.initialized = true
     
     -- Update editor frame registration with actual anchor frame
     UpdateEditorFrameRegistration()

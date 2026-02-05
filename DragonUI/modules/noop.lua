@@ -1,9 +1,27 @@
 local addon = select(2,...);
 local pairs = pairs;
 local hooksecurefunc = hooksecurefunc;
+local InCombatLockdown = InCombatLockdown;
+
+-- Module state tracking
+local NoopModule = {
+    initialized = false,
+    applied = false,
+    pendingApply = false
+}
 
 -- Function to apply all noop changes
 local function ApplyNoopChanges()
+    -- CRITICAL: Don't modify secure frames during combat (ElvUI pattern)
+    if InCombatLockdown() then
+        NoopModule.pendingApply = true
+        -- Register event dynamically - will be unregistered after execution
+        if NoopModule.eventFrame then
+            NoopModule.eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+        end
+        return false
+    end
+    
     MainMenuBar:EnableMouse(false)
     PetActionBarFrame:EnableMouse(false)
     ShapeshiftBarFrame:EnableMouse(false)
@@ -81,6 +99,10 @@ local function ApplyNoopChanges()
             PlayerTalentFrame:UnregisterEvent('ACTIVE_TALENT_GROUP_CHANGED')
         end)
     end
+    
+    NoopModule.applied = true
+    NoopModule.pendingApply = false
+    return true
 end
 
 -- Check if noop module is enabled
@@ -91,26 +113,37 @@ end
 
 -- Initialize noop when addon and config are ready
 local function InitializeNoop()
-    if IsNoopEnabled() then
+    if IsNoopEnabled() and not NoopModule.applied then
         ApplyNoopChanges()
     end
 end
 
--- Event frame to handle initialization
+-- Event frame to handle initialization and combat deferral
 local initFrame = CreateFrame("Frame")
 initFrame:RegisterEvent("ADDON_LOADED")
 initFrame:RegisterEvent("PLAYER_LOGIN")
+-- NOTE: PLAYER_REGEN_ENABLED is registered dynamically only when needed
 initFrame:SetScript("OnEvent", function(self, event, addonName)
     if event == "ADDON_LOADED" and addonName == "DragonUI" then
         -- Config should be available now
+        NoopModule.initialized = true
         InitializeNoop()
         self:UnregisterEvent("ADDON_LOADED")
     elseif event == "PLAYER_LOGIN" then
         -- Backup check in case config wasn't ready before
         InitializeNoop()
         self:UnregisterEvent("PLAYER_LOGIN")
+    elseif event == "PLAYER_REGEN_ENABLED" then
+        -- Combat ended - apply pending changes if needed
+        self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+        if NoopModule.pendingApply and IsNoopEnabled() then
+            ApplyNoopChanges()
+        end
     end
 end)
+
+-- Store frame reference for registering events later
+NoopModule.eventFrame = initFrame
 
 -- Public API for options
 function addon.RefreshNoopSystem()
