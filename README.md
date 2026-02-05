@@ -13,3 +13,7 @@ Copy `DragonUI` and `DragonUI_Options` folders to `Interface/AddOns/`
 - `/dragonui` - Open configuration
 - `/duiedit` - Toggle editor mode
 
+## Changes
+
+See [CHANGELOG.md](CHANGELOG.md) for recent updates.
+
