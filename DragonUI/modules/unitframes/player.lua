@@ -1323,6 +1323,74 @@ local function CreatePlayerFrameTextures()
     UpdatePlayerDragonDecoration()
 end
 
+-- ============================================================================
+-- CLASS PORTRAIT SYSTEM
+-- ============================================================================
+
+-- Class icon texture coordinates (matches WoW's CLASS_ICON_TCOORDS)
+local CLASS_ICON_TEXTURE = "Interface\\TargetingFrame\\UI-Classes-Circles"
+
+-- Class portrait textures (created once, reused)
+local classPortraitBg = nil
+local classPortraitIcon = nil
+
+-- Apply class portrait if enabled in config
+local function UpdatePlayerClassPortrait()
+    local config = GetPlayerConfig()
+    if not config then return end
+    
+    local useClassPortrait = config.classPortrait
+    
+    if useClassPortrait then
+        -- Get player's class
+        local _, classFileName = UnitClass("player")
+        if classFileName and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[classFileName] then
+            local coords = CLASS_ICON_TCOORDS[classFileName]
+            
+            -- Create black background circle if it doesn't exist
+            if not classPortraitBg then
+                classPortraitBg = PlayerFrame:CreateTexture(nil, "BACKGROUND", nil, 1)
+                classPortraitBg:SetTexture("Interface\\CHARACTERFRAME\\TempPortraitAlphaMask")
+                classPortraitBg:SetVertexColor(0, 0, 0, 1)  -- Black background
+            end
+            
+            -- Create class icon texture if it doesn't exist (separate from portrait)
+            if not classPortraitIcon then
+                classPortraitIcon = PlayerFrame:CreateTexture(nil, "ARTWORK", nil, 1)
+                classPortraitIcon:SetTexture(CLASS_ICON_TEXTURE)
+            end
+            
+            -- Position and size the background (full size)
+            classPortraitBg:ClearAllPoints()
+            classPortraitBg:SetPoint("CENTER", PlayerPortrait, "CENTER", 0, 0)
+            classPortraitBg:SetSize(56, 56)
+            classPortraitBg:Show()
+            
+            -- Position and size the icon (same as background with circular icons)
+            classPortraitIcon:ClearAllPoints()
+            classPortraitIcon:SetPoint("CENTER", PlayerPortrait, "CENTER", 0, 0)
+            classPortraitIcon:SetSize(56, 56)
+            classPortraitIcon:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
+            classPortraitIcon:Show()
+            
+            -- Hide the original portrait
+            PlayerPortrait:SetAlpha(0)
+        end
+    else
+        -- Hide class portrait elements
+        if classPortraitBg then
+            classPortraitBg:Hide()
+        end
+        if classPortraitIcon then
+            classPortraitIcon:Hide()
+        end
+        -- Restore normal portrait
+        SetPortraitTexture(PlayerPortrait, "player")
+        PlayerPortrait:SetTexCoord(0, 1, 0, 1)
+        PlayerPortrait:SetAlpha(1)
+    end
+end
+
 -- Main frame configuration function
 local function ChangePlayerframe()
     CreatePlayerFrameTextures()
@@ -1333,7 +1401,7 @@ local function ChangePlayerframe()
 
     -- Configure portrait with vehicle-specific positioning
     PlayerPortrait:ClearAllPoints()
-    PlayerPortrait:SetDrawLayer('ARTWORK', 5)
+    PlayerPortrait:SetDrawLayer('ARTWORK', 2)  -- Lower layer so border is on top
     
     if hasVehicleUI then
         -- PERSONALIZAR: Posición específica para vehículo
@@ -1344,6 +1412,9 @@ local function ChangePlayerframe()
         PlayerPortrait:SetPoint('TOPLEFT', PlayerFrame, 'TOPLEFT', 42, -15)
         PlayerPortrait:SetSize(56, 56)
     end
+    
+    -- Apply class portrait if enabled
+    UpdatePlayerClassPortrait()
 
     -- Position name and level
     PlayerName:ClearAllPoints()
@@ -1616,6 +1687,13 @@ local function InitializePlayerFrame()
     SafeHookSecureFunc("UnitFrameHealthBar_Update", function(statusbar, unit)
         if statusbar == PlayerFrameHealthBar and unit == "player" then
             UpdatePlayerHealthBarColor()
+        end
+    end)
+    
+    -- Hook for class portrait - intercept Blizzard's portrait updates
+    SafeHookSecureFunc("UnitFramePortrait_Update", function(frame, unit)
+        if frame == PlayerFrame and (unit == "player" or unit == "vehicle") then
+            UpdatePlayerClassPortrait()
         end
     end)
     
@@ -2035,6 +2113,7 @@ addon.PlayerFrame = {
     end,
     ChangePlayerframe = ChangePlayerframe,
     CreatePlayerFrameTextures = CreatePlayerFrameTextures,
-    UpdatePlayerHealthBarColor = UpdatePlayerHealthBarColor
+    UpdatePlayerHealthBarColor = UpdatePlayerHealthBarColor,
+    UpdatePlayerClassPortrait = UpdatePlayerClassPortrait
 }
 

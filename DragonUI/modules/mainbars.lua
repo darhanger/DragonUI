@@ -450,10 +450,24 @@ end
             return
         end
 
-        -- Configure MultiBarRight orientation
+        -- Configure MultiBarRight orientation (RetailUI pattern: position ALL buttons including first)
         if MultiBarRight then
+            local containerFrame = addon.ActionBarFrames and addon.ActionBarFrames.rightbar
+            
             if db.right.horizontal then
-                -- Horizontal mode: buttons go from left to right
+                -- Update editor frame size to horizontal FIRST
+                if containerFrame then
+                    containerFrame:SetSize(490, 40)
+                end
+                
+                -- Horizontal mode: position Button1 anchored to LEFT of parent
+                local button1 = _G["MultiBarRightButton1"]
+                if button1 then
+                    button1:ClearAllPoints()
+                    button1:SetPoint("LEFT", MultiBarRight, "LEFT", 0, 0)
+                end
+                
+                -- Buttons 2-12 go from left to right
                 for i = 2, 12 do
                     local button = _G["MultiBarRightButton" .. i]
                     if button then
@@ -461,8 +475,24 @@ end
                         button:SetPoint("LEFT", _G["MultiBarRightButton" .. (i - 1)], "RIGHT", 7, 0)
                     end
                 end
+                
+                -- Position the bar frame at LEFT of container (not centered)
+                MultiBarRight:ClearAllPoints()
+                MultiBarRight:SetPoint("LEFT", containerFrame, "LEFT", 0, 0)
             else
-                -- Vertical mode: buttons go from top to bottom (default)
+                -- Update editor frame size to vertical FIRST
+                if containerFrame then
+                    containerFrame:SetSize(40, 490)
+                end
+                
+                -- Vertical mode: position Button1 anchored to TOP of parent
+                local button1 = _G["MultiBarRightButton1"]
+                if button1 then
+                    button1:ClearAllPoints()
+                    button1:SetPoint("TOP", MultiBarRight, "TOP", 0, 0)
+                end
+                
+                -- Buttons 2-12 go from top to bottom
                 for i = 2, 12 do
                     local button = _G["MultiBarRightButton" .. i]
                     if button then
@@ -470,13 +500,31 @@ end
                         button:SetPoint("TOP", _G["MultiBarRightButton" .. (i - 1)], "BOTTOM", 0, -7)
                     end
                 end
+                
+                -- Position the bar frame at TOP of container
+                MultiBarRight:ClearAllPoints()
+                MultiBarRight:SetPoint("TOP", containerFrame, "TOP", 0, 0)
             end
         end
 
-        -- Configure MultiBarLeft orientation
+        -- Configure MultiBarLeft orientation (RetailUI pattern: position ALL buttons including first)
         if MultiBarLeft then
+            local containerFrame = addon.ActionBarFrames and addon.ActionBarFrames.leftbar
+            
             if db.left.horizontal then
-                -- Horizontal mode: buttons go from left to right
+                -- Update editor frame size to horizontal FIRST
+                if containerFrame then
+                    containerFrame:SetSize(490, 40)
+                end
+                
+                -- Horizontal mode: position Button1 anchored to LEFT of parent
+                local button1 = _G["MultiBarLeftButton1"]
+                if button1 then
+                    button1:ClearAllPoints()
+                    button1:SetPoint("LEFT", MultiBarLeft, "LEFT", 0, 0)
+                end
+                
+                -- Buttons 2-12 go from left to right
                 for i = 2, 12 do
                     local button = _G["MultiBarLeftButton" .. i]
                     if button then
@@ -484,8 +532,24 @@ end
                         button:SetPoint("LEFT", _G["MultiBarLeftButton" .. (i - 1)], "RIGHT", 7, 0)
                     end
                 end
+                
+                -- Position the bar frame at LEFT of container (not centered)
+                MultiBarLeft:ClearAllPoints()
+                MultiBarLeft:SetPoint("LEFT", containerFrame, "LEFT", 0, 0)
             else
-                -- Vertical mode: buttons go from top to bottom (default)
+                -- Update editor frame size to vertical FIRST
+                if containerFrame then
+                    containerFrame:SetSize(40, 490)
+                end
+                
+                -- Vertical mode: position Button1 anchored to TOP of parent
+                local button1 = _G["MultiBarLeftButton1"]
+                if button1 then
+                    button1:ClearAllPoints()
+                    button1:SetPoint("TOP", MultiBarLeft, "TOP", 0, 0)
+                end
+                
+                -- Buttons 2-12 go from top to bottom
                 for i = 2, 12 do
                     local button = _G["MultiBarLeftButton" .. i]
                     if button then
@@ -493,6 +557,10 @@ end
                         button:SetPoint("TOP", _G["MultiBarLeftButton" .. (i - 1)], "BOTTOM", 0, -7)
                     end
                 end
+                
+                -- Position the bar frame at TOP of container
+                MultiBarLeft:ClearAllPoints()
+                MultiBarLeft:SetPoint("TOP", containerFrame, "TOP", 0, 0)
             end
         end
     end
@@ -703,9 +771,14 @@ end
         -- Main bar - create a NEW container frame instead of using pUiMainBar directly
         addon.ActionBarFrames.mainbar = addon.CreateUIFrame(pUiMainBar:GetWidth(), pUiMainBar:GetHeight(), "MainBar")
 
-        -- Create other action bar containers
-        addon.ActionBarFrames.rightbar = addon.CreateUIFrame(40, 490, "RightBar")
-        addon.ActionBarFrames.leftbar = addon.CreateUIFrame(40, 490, "LeftBar")
+        -- Get current orientation settings for sidebar frames
+        local db = addon.db and addon.db.profile and addon.db.profile.mainbars
+        local rightHorizontal = db and db.right and db.right.horizontal
+        local leftHorizontal = db and db.left and db.left.horizontal
+        
+        -- Create other action bar containers with correct initial orientation
+        addon.ActionBarFrames.rightbar = addon.CreateUIFrame(rightHorizontal and 490 or 40, rightHorizontal and 40 or 490, "RightBar")
+        addon.ActionBarFrames.leftbar = addon.CreateUIFrame(leftHorizontal and 490 or 40, leftHorizontal and 40 or 490, "LeftBar")
         addon.ActionBarFrames.bottombarleft = addon.CreateUIFrame(490, 40, "BottomBarLeft")
         addon.ActionBarFrames.bottombarright = addon.CreateUIFrame(490, 40, "BottomBarRight")
 
@@ -715,6 +788,11 @@ end
 
     -- Position action bars to their container frames (initialization only - safe during addon load)
     local function PositionActionBarsToContainers_Initial()
+        -- Get orientation settings
+        local db = addon.db and addon.db.profile and addon.db.profile.mainbars
+        local rightVertical = db and db.right and not db.right.horizontal
+        local leftVertical = db and db.left and not db.left.horizontal
+        
         -- Position main bar - anchor pUiMainBar to its container
         if pUiMainBar and addon.ActionBarFrames.mainbar then
             pUiMainBar:SetParent(UIParent)
@@ -722,18 +800,28 @@ end
             pUiMainBar:SetPoint("CENTER", addon.ActionBarFrames.mainbar, "CENTER")
         end
 
-        -- Position right bar
+        -- Position right bar - use TOP for vertical, LEFT for horizontal
         if MultiBarRight and addon.ActionBarFrames.rightbar then
             MultiBarRight:SetParent(UIParent)
             MultiBarRight:ClearAllPoints()
-            MultiBarRight:SetPoint("CENTER", addon.ActionBarFrames.rightbar, "CENTER")
+            if rightVertical then
+                MultiBarRight:SetPoint("TOP", addon.ActionBarFrames.rightbar, "TOP", 0, 0)
+            else
+                -- Horizontal: anchor to LEFT so buttons align with overlay
+                MultiBarRight:SetPoint("LEFT", addon.ActionBarFrames.rightbar, "LEFT", 0, 0)
+            end
         end
 
-        -- Position left bar
+        -- Position left bar - use TOP for vertical, LEFT for horizontal
         if MultiBarLeft and addon.ActionBarFrames.leftbar then
             MultiBarLeft:SetParent(UIParent)
             MultiBarLeft:ClearAllPoints()
-            MultiBarLeft:SetPoint("CENTER", addon.ActionBarFrames.leftbar, "CENTER")
+            if leftVertical then
+                MultiBarLeft:SetPoint("TOP", addon.ActionBarFrames.leftbar, "TOP", 0, 0)
+            else
+                -- Horizontal: anchor to LEFT so buttons align with overlay
+                MultiBarLeft:SetPoint("LEFT", addon.ActionBarFrames.leftbar, "LEFT", 0, 0)
+            end
         end
 
         -- Position bottom left bar
@@ -973,6 +1061,10 @@ end
 
         -- Position action bars immediately
         PositionActionBarsToContainers_Initial()
+        
+        -- Apply button positioning based on horizontal settings (RetailUI pattern)
+        -- This ensures buttons are positioned correctly when horizontal mode is enabled on reload
+        addon.PositionActionBars()
 
         -- Set up drag handlers - Execute immediately
         SetupActionBarDragHandlers()
@@ -1033,7 +1125,11 @@ end
         -- Setup both exp and rep bars with NEW styling system
         for _, bar in pairs({MainMenuExpBar, ReputationWatchStatusBar}) do
             if bar then
-                bar:GetStatusBarTexture():SetDrawLayer('BORDER')
+                -- ElvUI/RetailUI pattern: defensive check for GetStatusBarTexture
+                local barTexture = bar.GetStatusBarTexture and bar:GetStatusBarTexture()
+                if barTexture and barTexture.SetDrawLayer then
+                    barTexture:SetDrawLayer('BORDER')
+                end
 
                 -- Create status texture if it doesn't exist
                 if not bar.status then
@@ -1083,28 +1179,40 @@ end
         mainMenuExpBar:SetStatusBarTexture(addon._dir .. "uiexperiencebar")
         mainMenuExpBar:SetStatusBarColor(1, 1, 1, 1)
 
-        -- Configure ExhaustionLevelFillBar
+        -- Configure ExhaustionLevelFillBar (rested XP overlay) - ElvUI/RetailUI pattern: only adjust height
         if ExhaustionLevelFillBar then
             ExhaustionLevelFillBar:SetHeight(mainMenuExpBar:GetHeight())
-            ExhaustionLevelFillBar:set_atlas('ui-hud-experiencebar-fill-prediction')
+            
+            -- Apply color using GetStatusBarTexture():SetVertexColor() (3.3.5a compatible)
+            -- Defensive check: GetStatusBarTexture may not exist or return nil in 3.3.5a
+            if ExhaustionLevelFillBar.GetStatusBarTexture then
+                local exhaustTexture = ExhaustionLevelFillBar:GetStatusBarTexture()
+                if exhaustTexture and exhaustTexture.SetVertexColor then
+                    if exhaustionStateID == 1 then
+                        -- Rested state - Blue
+                        exhaustTexture:SetVertexColor(0.0, 0.39, 0.88, 0.65)
+                    elseif exhaustionStateID == 2 then
+                        -- Tired state - Purple
+                        exhaustTexture:SetVertexColor(0.58, 0.0, 0.55, 0.65)
+                    end
+                end
+            end
         end
 
-        -- Apply exhaustion-based TexCoords
-        if exhaustionStateID == 1 then
-            -- Rested state
-            mainMenuExpBar:GetStatusBarTexture():SetTexCoord(574 / 2048, 1137 / 2048, 34 / 64, 43 / 64)
-            if ExhaustionLevelFillBar then
-                ExhaustionLevelFillBar:SetVertexColor(0.0, 0, 1, 0.45)
+        -- Apply exhaustion-based TexCoords to main bar texture
+        -- Defensive check: GetStatusBarTexture may not exist or return nil
+        local mainTexture = mainMenuExpBar.GetStatusBarTexture and mainMenuExpBar:GetStatusBarTexture()
+        if mainTexture and mainTexture.SetTexCoord then
+            if exhaustionStateID == 1 then
+                -- Rested state
+                mainTexture:SetTexCoord(574 / 2048, 1137 / 2048, 34 / 64, 43 / 64)
+            elseif exhaustionStateID == 2 then
+                -- Tired state
+                mainTexture:SetTexCoord(1 / 2048, 570 / 2048, 42 / 64, 51 / 64)
+            else
+                -- Normal state
+                mainTexture:SetTexCoord(0, 1, 0, 1)
             end
-        elseif exhaustionStateID == 2 then
-            -- Tired state
-            mainMenuExpBar:GetStatusBarTexture():SetTexCoord(1 / 2048, 570 / 2048, 42 / 64, 51 / 64)
-            if ExhaustionLevelFillBar then
-                ExhaustionLevelFillBar:SetVertexColor(0.58, 0.0, 0.55, 0.45)
-            end
-        else
-            -- Normal state
-            mainMenuExpBar:GetStatusBarTexture():SetTexCoord(0, 1, 0, 1)
         end
 
         -- Never show ExhaustionTick (as requested)

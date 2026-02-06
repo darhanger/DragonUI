@@ -91,6 +91,21 @@ local unitframeOptions = {
                     end,
                     order = 2
                 },
+                classPortrait = {
+                    type = 'toggle',
+                    name = "Class Portrait",
+                    desc = "Show class icon instead of 3D portrait",
+                    get = function()
+                        return addon.db.profile.unitframe.player.classPortrait
+                    end,
+                    set = function(info, value)
+                        addon.db.profile.unitframe.player.classPortrait = value
+                        if addon.PlayerFrame and addon.PlayerFrame.UpdatePlayerClassPortrait then
+                            addon.PlayerFrame.UpdatePlayerClassPortrait()
+                        end
+                    end,
+                    order = 2.5
+                },
                 breakUpLargeNumbers = {
                     type = 'toggle',
                     name = "Large Numbers",
@@ -256,6 +271,21 @@ local unitframeOptions = {
                         end
                     end,
                     order = 2
+                },
+                classPortrait = {
+                    type = 'toggle',
+                    name = "Class Portrait",
+                    desc = "Show class icon instead of 3D portrait (only for players)",
+                    get = function()
+                        return addon.db.profile.unitframe.target.classPortrait
+                    end,
+                    set = function(info, value)
+                        addon.db.profile.unitframe.target.classPortrait = value
+                        if addon.TargetFrame and addon.TargetFrame.UpdateTargetClassPortrait then
+                            addon.TargetFrame.UpdateTargetClassPortrait()
+                        end
+                    end,
+                    order = 2.5
                 },
                 breakUpLargeNumbers = {
                     type = 'toggle',
@@ -550,6 +580,21 @@ local unitframeOptions = {
                         end
                     end,
                     order = 2
+                },
+                classPortrait = {
+                    type = 'toggle',
+                    name = "Class Portrait",
+                    desc = "Show class icon instead of 3D portrait (only for players)",
+                    get = function()
+                        return addon.db.profile.unitframe.focus.classPortrait
+                    end,
+                    set = function(info, value)
+                        addon.db.profile.unitframe.focus.classPortrait = value
+                        if addon.FocusFrame and addon.FocusFrame.UpdateFocusClassPortrait then
+                            addon.FocusFrame.UpdateFocusClassPortrait()
+                        end
+                    end,
+                    order = 2.5
                 },
                 breakUpLargeNumbers = {
                     type = 'toggle',

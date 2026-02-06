@@ -579,6 +579,71 @@ local additionalOptions = {
                             width = "full"
                         }
                     }
+                },
+                
+                -- Totem Bar (Shaman only)
+                totem_group = {
+                    type = 'group',
+                    name = "Totem Bar",
+                    desc = "Shamans only - Totem multicast bar. Position is controlled via Editor Mode.",
+                    inline = true,
+                    order = 4,
+                    args = {
+                        editor_note = {
+                            type = 'description',
+                            name = "|cff00ff00TIP:|r Use |cffffd700Editor Mode|r to position the totem bar (type |cffffffff/dragonui edit|r).\n",
+                            order = 0,
+                            width = "full"
+                        },
+                        button_size = {
+                            type = 'range',
+                            name = "Button Size",
+                            desc = "Size of individual totem buttons in pixels.",
+                            min = 16,
+                            max = 64,
+                            step = 1,
+                            get = function()
+                                local totemCfg = addon.db.profile.additional.totem
+                                if totemCfg and totemCfg.button_size then
+                                    return totemCfg.button_size
+                                end
+                                return addon.db.profile.additional.size or 31
+                            end,
+                            set = function(info, value)
+                                if not addon.db.profile.additional.totem then
+                                    addon.db.profile.additional.totem = {}
+                                end
+                                addon.db.profile.additional.totem.button_size = value
+                                if addon.RefreshMulticast then addon.RefreshMulticast(true) end
+                            end,
+                            order = 1,
+                            width = "full"
+                        },
+                        button_spacing = {
+                            type = 'range',
+                            name = "Button Spacing",
+                            desc = "Space between totem buttons in pixels.",
+                            min = 0,
+                            max = 20,
+                            step = 1,
+                            get = function()
+                                local totemCfg = addon.db.profile.additional.totem
+                                if totemCfg and totemCfg.button_spacing then
+                                    return totemCfg.button_spacing
+                                end
+                                return addon.db.profile.additional.spacing or 6
+                            end,
+                            set = function(info, value)
+                                if not addon.db.profile.additional.totem then
+                                    addon.db.profile.additional.totem = {}
+                                end
+                                addon.db.profile.additional.totem.button_spacing = value
+                                if addon.RefreshMulticast then addon.RefreshMulticast(true) end
+                            end,
+                            order = 2,
+                            width = "full"
+                        }
+                    }
                 }
             }
         }

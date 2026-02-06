@@ -129,6 +129,92 @@ local function CreateStanceFrames()
     -- Expose globally for compatibility
     _G.pUiStanceBar = stancebar
     
+    -- Create editor overlay using centralized CreateUIFrame (with nineslice support)
+    local editorOverlay = addon.CreateUIFrame(200, 37, 'StanceOverlay')
+    editorOverlay:SetFrameStrata('FULLSCREEN')
+    editorOverlay:SetFrameLevel(100)
+    editorOverlay:Hide()
+    StanceModule.frames.editorOverlay = editorOverlay
+    
+    -- Update the editor text
+    if editorOverlay.editorText then
+        editorOverlay.editorText:SetText('Stance Bar')
+    end
+    
+    -- Variables to track drag movement (custom drag like multicast)
+    local dragStartX, dragStartY = 0, 0
+    local configStartX, configStartY = 0, 0
+    local isDragging = false
+    
+    -- Make draggable with custom behavior (disable built-in movement)
+    editorOverlay:SetMovable(false)
+    editorOverlay:EnableMouse(true)
+    editorOverlay:RegisterForDrag("LeftButton")
+    
+    editorOverlay:SetScript("OnDragStart", function(self)
+        isDragging = true
+        
+        -- Show selected state
+        if self.NineSlice and addon.SetNinesliceState then
+            addon.SetNinesliceState(self, true)
+        end
+        
+        -- Store mouse position when drag starts
+        local scale = self:GetEffectiveScale()
+        dragStartX = GetCursorPosition() / scale
+        dragStartY = select(2, GetCursorPosition()) / scale
+        
+        -- Store current config values
+        if addon.db and addon.db.profile and addon.db.profile.additional and addon.db.profile.additional.stance then
+            configStartX = addon.db.profile.additional.stance.x_position or -230
+            configStartY = addon.db.profile.additional.stance.y_offset or 0
+        end
+    end)
+    
+    -- Real-time update during drag
+    editorOverlay:SetScript("OnUpdate", function(self, elapsed)
+        if not isDragging then return end
+        
+        -- Calculate current delta from mouse movement
+        local scale = self:GetEffectiveScale()
+        local currentX = GetCursorPosition() / scale
+        local currentY = select(2, GetCursorPosition()) / scale
+        
+        local deltaX = currentX - dragStartX
+        local deltaY = currentY - dragStartY
+        
+        -- Update config values in real-time
+        if addon.db and addon.db.profile and addon.db.profile.additional and addon.db.profile.additional.stance then
+            addon.db.profile.additional.stance.x_position = math.floor(configStartX + deltaX + 0.5)
+            addon.db.profile.additional.stance.y_offset = math.floor(configStartY + deltaY + 0.5)
+            
+            -- Update anchor position in real-time (move the actual stance bar)
+            stancebar_update()
+            
+            -- Calculate width for overlay offset (read from database)
+            local stanceConfig = addon.db.profile.additional.stance
+            local numForms = GetNumShapeshiftForms() or 0
+            local buttonWidth = stanceConfig.button_size or 36
+            local spacing = stanceConfig.button_spacing or 6
+            local totalWidth = math.max(numForms * buttonWidth + (numForms - 1) * spacing, 100)
+            local offsetX = (totalWidth / 2) - (buttonWidth / 2)
+            
+            -- Keep overlay centered on anchor
+            self:ClearAllPoints()
+            self:SetPoint('CENTER', anchor, 'CENTER', offsetX, 0)
+        end
+    end)
+    
+    editorOverlay:SetScript("OnDragStop", function(self)
+        isDragging = false
+        
+        -- Return to highlight state
+        if self.NineSlice and addon.SetNinesliceState then
+            addon.SetNinesliceState(self, false)
+        end
+        -- Overlay is already in correct position from OnUpdate
+    end)
+    
     -- Apply static positioning immediately
     stancebar_update()
     
@@ -151,6 +237,7 @@ local function stancebutton_update()
     if not IsModuleEnabled() or not anchor then return end
     
 	if not InCombatLockdown() then
+		_G.ShapeshiftButton1:ClearAllPoints()
 		_G.ShapeshiftButton1:SetPoint('BOTTOMLEFT', anchor, 'BOTTOMLEFT', 0, 0)
 	end
 end
@@ -158,27 +245,32 @@ end
 local function stancebutton_position()
     if not IsModuleEnabled() or not stancebar or not anchor then return end
     
-    -- READ VALUES FROM DATABASE - Scale approach
+    -- READ VALUES FROM DATABASE
     local stanceConfig = addon.db.profile.additional.stance
     local additionalConfig = addon.db.profile.additional
-    local btnsize = stanceConfig.button_size or additionalConfig.size or 29  -- Base size 29
-    local space = stanceConfig.button_spacing or additionalConfig.spacing or 3
-    local scale = btnsize / 29  -- Calculate scale factor from base size 29
+    local btnsize = stanceConfig.button_size or additionalConfig.size or 36
+    local space = stanceConfig.button_spacing or additionalConfig.spacing or 6
     
-    -- CLEAN SETUP - Avoid duplications
-	for index=1, NUM_SHAPESHIFT_SLOTS do
+    -- Use scale for uniform sizing of entire button (icon + border + all textures)
+    local nativeSize = 36
+    local scale = btnsize / nativeSize
+    
+    for index=1, NUM_SHAPESHIFT_SLOTS do
 		local button = _G['ShapeshiftButton'..index]
 		if button then
-		    -- Only modify parent if not already configured
+		    -- Set parent if not already configured
 		    if button:GetParent() ~= stancebar then
-			    button:ClearAllPoints()
 			    button:SetParent(stancebar)
 		    end
-		    -- Use scale instead of SetSize for better border scaling
-		    button:SetSize(29, 29)  -- Keep base size
-		    button:SetScale(scale)  -- Apply scale factor
 		    
-		    -- Always update positioning
+		    -- Set native size - buttons.lua will configure textures correctly
+		    button:SetSize(nativeSize, nativeSize)
+		    
+		    -- Apply scale for user-configurable size (scales everything uniformly)
+		    button:SetScale(scale)
+		    
+		    -- Position buttons (spacing in parent coordinates)
+		    button:ClearAllPoints()
 		    if index == 1 then
 			    button:SetPoint('BOTTOMLEFT', anchor, 'BOTTOMLEFT', 0, 0)
 		    else
@@ -243,6 +335,16 @@ local function stancebutton_setup()
     if not IsModuleEnabled() then return end
     
 	if InCombatLockdown() then return end
+	
+	-- First apply button textures (from buttons.lua)
+	if addon.stancebuttons_template then
+	    addon.stancebuttons_template()
+	end
+	
+	-- Then apply positioning and scaling
+	stancebutton_position()
+	
+	-- Then show/hide based on available forms
 	for index=1, NUM_SHAPESHIFT_SLOTS do
 		local button = _G['ShapeshiftButton'..index]
 		local _, name = GetShapeshiftFormInfo(index)
@@ -285,7 +387,12 @@ end
 local function InitializeStanceBar()
     if not IsModuleEnabled() then return end
     
-    -- Simple setup - no complex checks
+    -- IMPORTANT: Apply button textures FIRST (from buttons.lua)
+    if addon.stancebuttons_template then
+        addon.stancebuttons_template()
+    end
+    
+    -- Then position and scale
     stancebutton_position()
     stancebar_update()
     
@@ -335,6 +442,56 @@ local function ApplyStanceSystem()
     InitializeStanceBar()
     
     StanceModule.applied = true
+    
+    -- Register with editor mode system
+    if addon.RegisterEditableFrame and StanceModule.frames.editorOverlay then
+        local editorOverlay = StanceModule.frames.editorOverlay
+        
+        addon:RegisterEditableFrame({
+            name = "stance",
+            frame = editorOverlay,
+            configPath = {"additional", "stance"},
+            
+            showTest = function()
+                -- Position overlay at anchor location
+                if anchor then
+                    -- Calculate width based on config and stance buttons
+                    local stanceConfig = addon.db.profile.additional.stance
+                    local numForms = GetNumShapeshiftForms() or 0
+                    local buttonWidth = stanceConfig.button_size or 36
+                    local spacing = stanceConfig.button_spacing or 6
+                    local totalWidth = math.max(numForms * buttonWidth + (numForms - 1) * spacing, 100)
+                    editorOverlay:SetSize(totalWidth, buttonWidth)
+                    
+                    editorOverlay:ClearAllPoints()
+                    editorOverlay:SetPoint('CENTER', anchor, 'CENTER', (totalWidth / 2) - (buttonWidth / 2), 0)
+                    editorOverlay:Show()
+                    
+                    -- Show nineslice overlay
+                    if addon.ShowNineslice then
+                        addon.SetNinesliceState(editorOverlay, false)
+                        addon.ShowNineslice(editorOverlay)
+                    end
+                    if editorOverlay.editorText then
+                        editorOverlay.editorText:Show()
+                    end
+                end
+            end,
+            
+            hideTest = function()
+                editorOverlay:Hide()
+                -- Hide nineslice overlay
+                if addon.HideNineslice then
+                    addon.HideNineslice(editorOverlay)
+                end
+                if editorOverlay.editorText then
+                    editorOverlay.editorText:Hide()
+                end
+            end,
+            
+            module = StanceModule
+        })
+    end
     
 end
 
@@ -410,19 +567,29 @@ function addon.RefreshStance()
 	    return
 	end
 	
-	-- Update button scale and spacing with visual style
+	-- First apply button textures (from buttons.lua)
+	if addon.stancebuttons_template then
+	    addon.stancebuttons_template()
+	end
+	
+	-- Update button size and spacing (scale-based - matching stancebutton_position)
 	local stanceConfig = addon.db.profile.additional.stance
 	local additionalConfig = addon.db.profile.additional
-	local btnsize = stanceConfig.button_size or additionalConfig.size or 29  -- Base size 29
-	local space = stanceConfig.button_spacing or additionalConfig.spacing or 3
-	local scale = btnsize / 29  -- Calculate scale factor
+	local btnsize = stanceConfig.button_size or additionalConfig.size or 36
+	local space = stanceConfig.button_spacing or additionalConfig.spacing or 6
 	
-	-- Reposition stance buttons with scale refresh
+	-- Reposition stance buttons with scale for proper texture sizing
+	-- Native Blizzard button size is 36x36
+	local nativeSize = 36
+	local scale = btnsize / nativeSize
+	
 	for i = 1, NUM_SHAPESHIFT_SLOTS do
 		local button = _G["ShapeshiftButton"..i]
 		if button then
-			button:SetSize(29, 29)  -- Keep base size
-			button:SetScale(scale)  -- Apply scale
+			-- Set native size and apply scale (buttons.lua handles textures)
+			button:SetSize(nativeSize, nativeSize)
+			button:SetScale(scale)
+			button:ClearAllPoints()
 			if i == 1 then
 				button:SetPoint('BOTTOMLEFT', anchor, 'BOTTOMLEFT', 0, 0)
 			else

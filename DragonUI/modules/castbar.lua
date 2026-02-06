@@ -534,7 +534,9 @@ local function SetTextMode(unitType, mode)
         frames.castTextCompact, 
         frames.castTextCentered, 
         frames.castTimeText,
-        frames.castTimeTextCompact
+        frames.castTimeTextCompact,
+        frames.timeValue,  -- Player-specific detailed mode elements
+        frames.timeMax
     }
     
     -- Hide all text elements first
@@ -553,7 +555,18 @@ local function SetTextMode(unitType, mode)
         local cfg = GetConfig(unitType)
         local isCompact = cfg and cfg.compactLayout
         
-        if isCompact then
+        -- Player uses timeValue/timeMax, target/focus use castTimeText
+        if unitType == "player" then
+            if frames.castText then
+                frames.castText:Show()
+            end
+            if frames.timeValue then
+                frames.timeValue:Show()
+            end
+            if frames.timeMax then
+                frames.timeMax:Show()
+            end
+        elseif isCompact then
             if frames.castTextCompact then
                 frames.castTextCompact:Show()
             end

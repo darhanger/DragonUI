@@ -609,6 +609,29 @@ local function ApplyAddonIconSkin(button)
 end
 
 --  BORDER REMOVAL: Aplicar skin a iconos (SIMPLE como oldminimapcore.lua)
+
+-- Function to apply skins to all minimap buttons (exposed for re-application on addon load)
+local function ApplySkinsToAllMinimapButtons()
+    -- Verificar si el skinning está habilitado
+    local skinEnabled = addon.db and addon.db.profile and addon.db.profile.minimap and
+                            addon.db.profile.minimap.addon_button_skin
+
+    if not skinEnabled then
+        return
+    end
+
+    for i = 1, Minimap:GetNumChildren() do
+        local child = select(i, Minimap:GetChildren())
+        if child and child:GetObjectType() == "Button" and not child.DragonUI_Skinned then
+            ApplyAddonIconSkin(child)
+            child.DragonUI_Skinned = true  -- Mark as skinned to avoid reprocessing
+        end
+    end
+end
+
+-- Expose for options to trigger
+MinimapModule.ApplySkinsToAllMinimapButtons = ApplySkinsToAllMinimapButtons
+
 local function RemoveAllMinimapIconBorders()
 
     -- PVP/Battlefield borders
@@ -624,27 +647,30 @@ local function RemoveAllMinimapIconBorders()
         MiniMapLFGFrameBorder:SetTexture(nil)
     end
 
-    --  APLICAR SKIN SIMPLE A TODOS LOS BOTONES
-    local function ApplySkinsToAllButtons()
-        -- Verificar si el skinning está habilitado
-        local skinEnabled = addon.db and addon.db.profile and addon.db.profile.minimap and
-                                addon.db.profile.minimap.addon_button_skin
-
-        if not skinEnabled then
-            return
-        end
-
-        for i = 1, Minimap:GetNumChildren() do
-            local child = select(i, Minimap:GetChildren())
-            if child and child:GetObjectType() == "Button" then
-                ApplyAddonIconSkin(child)
-            end
-        end
-    end
-
     -- Aplicar inmediatamente
-    ApplySkinsToAllButtons()
+    ApplySkinsToAllMinimapButtons()
 end
+
+-- Create frame to re-apply skins when new addons load
+local minimapButtonSkinFrame = CreateFrame("Frame")
+minimapButtonSkinFrame:RegisterEvent("ADDON_LOADED")
+minimapButtonSkinFrame:SetScript("OnEvent", function(self, event, addonName)
+    -- Skip DragonUI's own loading to avoid double-processing
+    if addonName == "DragonUI" then return end
+    
+    -- Apply skins to any new buttons after a tiny delay (allow addon to create its buttons)
+    if addon.db and addon.db.profile and addon.db.profile.minimap and addon.db.profile.minimap.addon_button_skin then
+        -- Use OnUpdate with a delay since C_Timer is not available in 3.3.5a
+        local elapsed = 0
+        self:SetScript("OnUpdate", function(self, dt)
+            elapsed = elapsed + dt
+            if elapsed > 0.5 then  -- 0.5 second delay
+                ApplySkinsToAllMinimapButtons()
+                self:SetScript("OnUpdate", nil)
+            end
+        end)
+    end
+end)
 
 --  PVP STYLING: Estilizar frame PVP con faction detection (del minimapa_old.lua)
 local function StylePVPBattlefieldFrame()

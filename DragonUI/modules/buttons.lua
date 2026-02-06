@@ -370,6 +370,7 @@ local function additional_buttons(button)
 	end
 
 	if icon then
+		icon:ClearAllPoints()
 		icon:SetTexCoord(.05, .95, .05, .95)
 		icon:SetPoint('TOPRIGHT', button, 1, 1)
 		icon:SetPoint('BOTTOMLEFT', button, -1, -1)
@@ -619,6 +620,15 @@ function addon.possessbuttons_template()
 	for index=1, NUM_POSSESS_SLOTS do
 		additional_buttons(_G['PossessButton'..index])
 	end
+end
+
+-- setup totem/multicast buttons (shaman)
+-- NOTE: Leave Blizzard's multicast bar alone - don't modify any textures
+-- The multicast module only handles positioning, not styling
+function addon.totembuttons_template()
+    -- INTENTIONALLY EMPTY
+    -- Multicast buttons should keep their original Blizzard appearance
+    -- Any styling was causing invisibility issues
 end
 
 -- setup pet action buttons

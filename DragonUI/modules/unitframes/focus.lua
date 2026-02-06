@@ -123,6 +123,77 @@ local updateCache = {
     lastPowerUpdate = 0,
     lastThreatUpdate = 0
 }
+
+-- ============================================================================
+-- CLASS PORTRAIT SYSTEM
+-- ============================================================================
+
+-- Class icon texture coordinates
+local CLASS_ICON_TEXTURE = "Interface\\TargetingFrame\\UI-Classes-Circles"
+
+-- Class portrait textures (created once, reused)
+local classPortraitBg = nil
+local classPortraitIcon = nil
+
+-- Apply class portrait if enabled in config
+local function UpdateFocusClassPortrait()
+    local config = GetConfig()
+    if not config then return end
+    
+    local useClassPortrait = config.classPortrait
+    
+    if useClassPortrait and UnitExists("focus") and UnitIsPlayer("focus") then
+        -- Get focus's class
+        local _, classFileName = UnitClass("focus")
+        if classFileName and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[classFileName] then
+            local coords = CLASS_ICON_TCOORDS[classFileName]
+            
+            -- Create black background circle if it doesn't exist
+            if not classPortraitBg then
+                classPortraitBg = FocusFrame:CreateTexture(nil, "BACKGROUND", nil, 1)
+                classPortraitBg:SetTexture("Interface\\CHARACTERFRAME\\TempPortraitAlphaMask")
+                classPortraitBg:SetVertexColor(0, 0, 0, 1)  -- Black background
+            end
+            
+            -- Create class icon texture if it doesn't exist (separate from portrait)
+            if not classPortraitIcon then
+                classPortraitIcon = FocusFrame:CreateTexture(nil, "ARTWORK", nil, 1)
+                classPortraitIcon:SetTexture(CLASS_ICON_TEXTURE)
+            end
+            
+            -- Position and size the background (full size)
+            classPortraitBg:ClearAllPoints()
+            classPortraitBg:SetPoint("CENTER", FocusFramePortrait, "CENTER", 0, 0)
+            classPortraitBg:SetSize(56, 56)
+            classPortraitBg:Show()
+            
+            -- Position and size the icon (same as background with circular icons)
+            classPortraitIcon:ClearAllPoints()
+            classPortraitIcon:SetPoint("CENTER", FocusFramePortrait, "CENTER", 0, 0)
+            classPortraitIcon:SetSize(56, 56)
+            classPortraitIcon:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
+            classPortraitIcon:Show()
+            
+            -- Hide the original portrait
+            FocusFramePortrait:SetAlpha(0)
+        end
+    else
+        -- Hide class portrait elements
+        if classPortraitBg then
+            classPortraitBg:Hide()
+        end
+        if classPortraitIcon then
+            classPortraitIcon:Hide()
+        end
+        -- Restore normal portrait
+        if UnitExists("focus") then
+            SetPortraitTexture(FocusFramePortrait, "focus")
+            FocusFramePortrait:SetTexCoord(0, 1, 0, 1)
+        end
+        FocusFramePortrait:SetAlpha(1)
+    end
+end
+
 -- ============================================================================
 -- THREAT SYSTEM (NUEVO - COPIADO DE TARGET)
 -- ============================================================================
@@ -293,6 +364,16 @@ end)
         end)
         
         FocusFrameManaBar.DragonUI_Setup = true
+    end
+    
+    -- Portrait hooks for class portrait
+    if not FocusFrame.DragonUI_PortraitHook then
+        hooksecurefunc("UnitFramePortrait_Update", function(frame, unit)
+            if frame == FocusFrame and unit == "focus" then
+                UpdateFocusClassPortrait()
+            end
+        end)
+        FocusFrame.DragonUI_PortraitHook = true
     end
 end
 
@@ -733,6 +814,7 @@ local function OnEvent(self, event, ...)
         UpdateNameBackground()
         UpdateClassification()
         UpdateThreat()
+        UpdateFocusClassPortrait()  -- Apply class portrait if enabled
         if Module.textSystem then
             Module.textSystem.update()
         end
@@ -858,7 +940,8 @@ addon.FocusFrame = {
     RefreshFocusFrame = RefreshFrame,
     Reset = ResetFrame,
     anchor = function() return Module.focusFrame end,
-    ChangeFocusFrame = RefreshFrame
+    ChangeFocusFrame = RefreshFrame,
+    UpdateFocusClassPortrait = UpdateFocusClassPortrait
 }
 
 -- Legacy compatibility

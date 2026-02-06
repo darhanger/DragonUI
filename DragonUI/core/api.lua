@@ -43,6 +43,162 @@ end
 -- Frames registry for editor mode
 addon.frames = addon.frames or {}
 
+-- Editor mode texture base path
+local EDITMODE_TEXTURE_BASE = 'Interface\\AddOns\\DragonUI\\Textures\\Editmode\\'
+
+-- Nineslice texture coordinates
+local NINESLICE_COORDS = {
+    highlight = {
+        corner = {0.03125, 0.53125, 0.285156, 0.347656},
+        topEdge = {0, 0.5, 0.0742188, 0.136719},
+        bottomEdge = {0, 0.5, 0.00390625, 0.0664062},
+        leftEdge = {0.0078125, 0.132812, 0, 1},
+        rightEdge = {0.148438, 0.273438, 0, 1}
+    },
+    selected = {
+        corner = {0.03125, 0.53125, 0.355469, 0.417969},
+        topEdge = {0, 0.5, 0.214844, 0.277344},
+        bottomEdge = {0, 0.5, 0.144531, 0.207031},
+        leftEdge = {0.289062, 0.414062, 0, 1},
+        rightEdge = {0.429688, 0.554688, 0, 1}
+    }
+}
+
+-- Add nineslice border to a frame
+local function AddNineslice(frame)
+    frame.NineSlice = {}
+    local slice = frame.NineSlice
+    
+    -- Top left corner (no rotation needed)
+    slice.TopLeftCorner = frame:CreateTexture(nil, 'OVERLAY')
+    slice.TopLeftCorner:SetSize(16, 16)
+    slice.TopLeftCorner:SetPoint('TOPLEFT', -8, 8)
+    
+    -- Top right corner (will be rotated via SetTexCoord)
+    slice.TopRightCorner = frame:CreateTexture(nil, 'OVERLAY')
+    slice.TopRightCorner:SetSize(16, 16)
+    slice.TopRightCorner:SetPoint('TOPRIGHT', 8, 8)
+    
+    -- Bottom left corner (will be rotated via SetTexCoord)
+    slice.BottomLeftCorner = frame:CreateTexture(nil, 'OVERLAY')
+    slice.BottomLeftCorner:SetSize(16, 16)
+    slice.BottomLeftCorner:SetPoint('BOTTOMLEFT', -8, -8)
+    
+    -- Bottom right corner (will be rotated via SetTexCoord)
+    slice.BottomRightCorner = frame:CreateTexture(nil, 'OVERLAY')
+    slice.BottomRightCorner:SetSize(16, 16)
+    slice.BottomRightCorner:SetPoint('BOTTOMRIGHT', 8, -8)
+    
+    -- Top edge (connects corners)
+    slice.TopEdge = frame:CreateTexture(nil, 'OVERLAY')
+    slice.TopEdge:SetPoint('TOPLEFT', slice.TopLeftCorner, 'TOPRIGHT')
+    slice.TopEdge:SetPoint('BOTTOMRIGHT', slice.TopRightCorner, 'BOTTOMLEFT')
+    
+    -- Bottom edge
+    slice.BottomEdge = frame:CreateTexture(nil, 'OVERLAY')
+    slice.BottomEdge:SetPoint('TOPLEFT', slice.BottomLeftCorner, 'TOPRIGHT')
+    slice.BottomEdge:SetPoint('BOTTOMRIGHT', slice.BottomRightCorner, 'BOTTOMLEFT')
+    
+    -- Left edge
+    slice.LeftEdge = frame:CreateTexture(nil, 'OVERLAY')
+    slice.LeftEdge:SetPoint('TOPLEFT', slice.TopLeftCorner, 'BOTTOMLEFT')
+    slice.LeftEdge:SetPoint('BOTTOMRIGHT', slice.BottomLeftCorner, 'TOPRIGHT')
+    
+    -- Right edge
+    slice.RightEdge = frame:CreateTexture(nil, 'OVERLAY')
+    slice.RightEdge:SetPoint('TOPLEFT', slice.TopRightCorner, 'BOTTOMLEFT')
+    slice.RightEdge:SetPoint('BOTTOMRIGHT', slice.BottomRightCorner, 'TOPRIGHT')
+    
+    -- Center (background)
+    slice.Center = frame:CreateTexture(nil, 'BACKGROUND')
+    slice.Center:SetPoint('TOPLEFT', 0, 0)
+    slice.Center:SetPoint('BOTTOMRIGHT', 0, 0)
+end
+
+-- Helper function to apply rotated tex coords using 8-value SetTexCoord
+-- SetTexCoord(ULx, ULy, LLx, LLy, URx, URy, LRx, LRy)
+local function SetTexCoordRotated(texture, coords, rotation)
+    local l, r, t, b = coords[1], coords[2], coords[3], coords[4]
+    
+    if rotation == 0 then
+        -- Normal (0°): TopLeft corner
+        texture:SetTexCoord(l, t, l, b, r, t, r, b)
+    elseif rotation == 90 then
+        -- 90° CW: BottomLeft corner
+        texture:SetTexCoord(l, b, r, b, l, t, r, t)
+    elseif rotation == 180 then
+        -- 180°: BottomRight corner
+        texture:SetTexCoord(r, b, r, t, l, b, l, t)
+    elseif rotation == 270 then
+        -- 270° CW (-90°): TopRight corner
+        texture:SetTexCoord(r, t, l, t, r, b, l, b)
+    end
+end
+
+-- Apply highlight or selected state to nineslice
+local function SetNinesliceState(frame, selected)
+    local slice = frame.NineSlice
+    if not slice then return end
+    
+    local coords = selected and NINESLICE_COORDS.selected or NINESLICE_COORDS.highlight
+    
+    -- Corners use same texture with different coords and rotations
+    local cornerTexture = EDITMODE_TEXTURE_BASE .. 'EditModeUI'
+    
+    -- TopLeft (0° - normal)
+    slice.TopLeftCorner:SetTexture(cornerTexture)
+    SetTexCoordRotated(slice.TopLeftCorner, coords.corner, 0)
+    
+    -- TopRight (90° CW)
+    slice.TopRightCorner:SetTexture(cornerTexture)
+    SetTexCoordRotated(slice.TopRightCorner, coords.corner, 90)
+    
+    -- BottomLeft (270° CW / -90°)
+    slice.BottomLeftCorner:SetTexture(cornerTexture)
+    SetTexCoordRotated(slice.BottomLeftCorner, coords.corner, 270)
+    
+    -- BottomRight (180°)
+    slice.BottomRightCorner:SetTexture(cornerTexture)
+    SetTexCoordRotated(slice.BottomRightCorner, coords.corner, 180)
+    
+    -- Edges
+    slice.TopEdge:SetTexture(cornerTexture)
+    slice.TopEdge:SetTexCoord(unpack(coords.topEdge))
+    slice.BottomEdge:SetTexture(cornerTexture)
+    slice.BottomEdge:SetTexCoord(unpack(coords.bottomEdge))
+    
+    local verticalTexture = EDITMODE_TEXTURE_BASE .. 'EditModeUIVertical'
+    slice.LeftEdge:SetTexture(verticalTexture)
+    slice.LeftEdge:SetTexCoord(unpack(coords.leftEdge))
+    slice.RightEdge:SetTexture(verticalTexture)
+    slice.RightEdge:SetTexCoord(unpack(coords.rightEdge))
+    
+    -- Center background
+    local centerTexture = selected and 'EditModeUISelectedBackground' or 'EditModeUIHighlightBackground'
+    slice.Center:SetTexture(EDITMODE_TEXTURE_BASE .. centerTexture)
+    slice.Center:SetTexCoord(0, 1, 0, 1)
+end
+
+-- Show nineslice overlay
+local function ShowNineslice(frame)
+    local slice = frame.NineSlice
+    if not slice then return end
+    
+    for _, part in pairs(slice) do
+        part:Show()
+    end
+end
+
+-- Hide nineslice overlay
+local function HideNineslice(frame)
+    local slice = frame.NineSlice
+    if not slice then return end
+    
+    for _, part in pairs(slice) do
+        part:Hide()
+    end
+end
+
 -- Create a UI frame with editor mode support
 function addon.CreateUIFrame(width, height, frameName)
     local frame = CreateFrame("Frame", 'DragonUI_' .. frameName, UIParent)
@@ -54,10 +210,19 @@ function addon.CreateUIFrame(width, height, frameName)
     
     frame:SetScript("OnDragStart", function(self, button)
         self:StartMoving()
+        -- Show selected state while dragging
+        if self.NineSlice then
+            SetNinesliceState(self, true)
+        end
     end)
     
     frame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
+        
+        -- Return to highlight state
+        if self.NineSlice then
+            SetNinesliceState(self, false)
+        end
         
         -- AUTO-SAVE: Find this frame in EditableFrames and save position automatically
         for name, frameData in pairs(addon.EditableFrames) do
@@ -76,19 +241,18 @@ function addon.CreateUIFrame(width, height, frameName)
     frame:SetFrameLevel(100)
     frame:SetFrameStrata('FULLSCREEN')
 
-    -- Green texture for editor mode (like RetailUI)
-    do
-        local texture = frame:CreateTexture(nil, 'BACKGROUND')
-        texture:SetAllPoints(frame)
-        texture:SetTexture(0, 1, 0, 0.3) -- Semi-transparent green
-        texture:Hide()
-        frame.editorTexture = texture
-    end
+    -- Create nineslice overlay (DragonflightUI style)
+    AddNineslice(frame)
+    SetNinesliceState(frame, false) -- Default to highlight state
+    HideNineslice(frame) -- Start hidden
+    
+    -- Legacy editorTexture reference (for backwards compatibility)
+    frame.editorTexture = frame.NineSlice.Center
 
     -- Text label for editor mode
     do
-        local fontString = frame:CreateFontString(nil, "BORDER", 'GameFontNormal')
-        fontString:SetAllPoints(frame)
+        local fontString = frame:CreateFontString(nil, "OVERLAY", 'GameFontNormal')
+        fontString:SetPoint("CENTER", frame, "CENTER", 0, 0)
         fontString:SetText(frameName)
         fontString:Hide()
         frame.editorText = fontString
@@ -100,6 +264,12 @@ end
 -- Global function alias for backwards compatibility
 CreateUIFrame = addon.CreateUIFrame
 
+-- Export nineslice functions for modules with custom behavior
+addon.AddNineslice = AddNineslice
+addon.SetNinesliceState = SetNinesliceState
+addon.ShowNineslice = ShowNineslice
+addon.HideNineslice = HideNineslice
+
 -- ============================================================================
 -- FRAME VISIBILITY FUNCTIONS (Editor Mode Support)
 -- ============================================================================
@@ -109,10 +279,14 @@ function addon.ShowUIFrame(frame)
     frame:SetMovable(false)
     frame:EnableMouse(false)
     
-    -- Safety check for editor overlay elements
-    if frame.editorTexture then
+    -- Hide nineslice overlay (new system)
+    if frame.NineSlice then
+        HideNineslice(frame)
+    elseif frame.editorTexture then
+        -- Legacy fallback for frames not using CreateUIFrame
         frame.editorTexture:Hide()
     end
+    
     if frame.editorText then
         frame.editorText:Hide()
     end
@@ -133,10 +307,15 @@ function addon.HideUIFrame(frame, exclude)
     frame:SetMovable(true)
     frame:EnableMouse(true)
     
-    -- Safety check for editor overlay elements
-    if frame.editorTexture then
+    -- Show nineslice overlay (new system)
+    if frame.NineSlice then
+        SetNinesliceState(frame, false) -- Highlight state
+        ShowNineslice(frame)
+    elseif frame.editorTexture then
+        -- Legacy fallback for frames not using CreateUIFrame
         frame.editorTexture:Show()
     end
+    
     if frame.editorText then
         frame.editorText:Show()
     end

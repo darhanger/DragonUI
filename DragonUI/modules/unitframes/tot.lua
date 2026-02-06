@@ -118,6 +118,59 @@ local function ShouldShowToT()
 end
 
 -- ============================================================================
+-- CLASSIFICATION SYSTEM (Must be defined before SetupBarHooks)
+-- ============================================================================
+
+local function UpdateClassification()
+    local totUnit = GetToTUnit()
+    if not totUnit or not frameElements.elite then
+        if frameElements.elite then
+            frameElements.elite:Hide()
+        end
+        return
+    end
+
+    local classification = UnitClassification(totUnit)
+    local coords = nil
+
+    -- Check vehicle first
+    if UnitVehicleSeatCount and UnitVehicleSeatCount(totUnit) > 0 then
+        frameElements.elite:Hide()
+        return
+    end
+
+    -- Determine classification
+    if classification == "worldboss" or classification == "elite" then
+        coords = BOSS_COORDS.elite
+    elseif classification == "rareelite" then
+        coords = BOSS_COORDS.rareelite
+    elseif classification == "rare" then
+        coords = BOSS_COORDS.rare
+    else
+        local name = UnitName(totUnit)
+        if name and addon.unitframe and addon.unitframe.famous and addon.unitframe.famous[name] then
+            coords = BOSS_COORDS.elite
+        end
+    end
+
+    if coords then
+        frameElements.elite:SetTexture(TEXTURES.BOSS)
+
+        -- Apply horizontal flip to all decorations
+        local left, right, top, bottom = coords[1], coords[2], coords[3], coords[4]
+        frameElements.elite:SetTexCoord(right, left, top, bottom)
+
+        frameElements.elite:SetSize(51, 51)
+        frameElements.elite:SetPoint("CENTER", TargetFrameToTPortrait, "CENTER", -4, -2)
+        frameElements.elite:SetDrawLayer("OVERLAY", 11)
+        frameElements.elite:Show()
+        frameElements.elite:SetAlpha(1)
+    else
+        frameElements.elite:Hide()
+    end
+end
+
+-- ============================================================================
 -- BAR MANAGEMENT
 -- ============================================================================
 
@@ -231,58 +284,62 @@ end)
 
         TargetFrameToTManaBar.DragonUI_Setup = true
     end
-end
-
--- ============================================================================
--- CLASSIFICATION SYSTEM 
--- ============================================================================
-
-local function UpdateClassification()
-    local totUnit = GetToTUnit()
-    if not totUnit or not frameElements.elite then
-        if frameElements.elite then
-            frameElements.elite:Hide()
-        end
-        return
+    
+    -- CRITICAL FIX: Hook UnitFrameManaBar_UpdateType (DragonflightUI pattern)
+    -- This is called when power type changes (shapeshifting, different unit types)
+    -- Blizzard resets textures here, so we need to reapply our styles
+    if not Module.updateTypeHooked then
+        hooksecurefunc("UnitFrameManaBar_UpdateType", function(manaBar)
+            if manaBar == TargetFrameToTManaBar and IsEnabled() and UnitExists("targettarget") then
+                -- Reapply our texture and color
+                local texture = manaBar:GetStatusBarTexture()
+                if texture then
+                    local powerType = UnitPowerType("targettarget")
+                    local powerName = POWER_MAP[powerType] or "Mana"
+                    texture:SetTexture(TEXTURES.BAR_PREFIX .. powerName)
+                    texture:SetDrawLayer("ARTWORK", 1)
+                    texture:SetVertexColor(1, 1, 1)
+                end
+            end
+        end)
+        Module.updateTypeHooked = true
     end
-
-    local classification = UnitClassification(totUnit)
-    local coords = nil
-
-    -- Check vehicle first
-    if UnitVehicleSeatCount and UnitVehicleSeatCount(totUnit) > 0 then
-        frameElements.elite:Hide()
-        return
+    
+    -- Hook TargetFrameToT:Show() to ensure styling is applied when Blizzard shows the frame
+    if TargetFrameToT and not TargetFrameToT.DragonUI_ShowHook then
+        hooksecurefunc(TargetFrameToT, "Show", function(self)
+            if IsEnabled() and ShouldShowToT() then
+                -- Ensure our textures are visible
+                if frameElements.background then
+                    frameElements.background:Show()
+                end
+                if frameElements.border then
+                    frameElements.border:Show()
+                end
+                
+                -- Update classification (elite/boss icon)
+                UpdateClassification()
+                
+                -- Update texts
+                if Module.textSystem then
+                    Module.textSystem.update()
+                end
+            end
+        end)
+        TargetFrameToT.DragonUI_ShowHook = true
     end
-
-    -- Determine classification
-    if classification == "worldboss" or classification == "elite" then
-        coords = BOSS_COORDS.elite
-    elseif classification == "rareelite" then
-        coords = BOSS_COORDS.rareelite
-    elseif classification == "rare" then
-        coords = BOSS_COORDS.rare
-    else
-        local name = UnitName(totUnit)
-        if name and addon.unitframe and addon.unitframe.famous and addon.unitframe.famous[name] then
-            coords = BOSS_COORDS.elite
-        end
-    end
-
-    if coords then
-        frameElements.elite:SetTexture(TEXTURES.BOSS)
-
-        -- Apply horizontal flip to all decorations
-        local left, right, top, bottom = coords[1], coords[2], coords[3], coords[4]
-        frameElements.elite:SetTexCoord(right, left, top, bottom)
-
-        frameElements.elite:SetSize(51, 51)
-        frameElements.elite:SetPoint("CENTER", TargetFrameToTPortrait, "CENTER", -4, -2)
-        frameElements.elite:SetDrawLayer("OVERLAY", 11)
-        frameElements.elite:Show()
-        frameElements.elite:SetAlpha(1)
-    else
-        frameElements.elite:Hide()
+    
+    -- Hook UnitFramePortrait_Update for ToT portrait changes (pattern from DragonUI player/target/focus modules)
+    if not Module.portraitHooked then
+        hooksecurefunc("UnitFramePortrait_Update", function(frame, unit)
+            if frame == TargetFrameToT and IsEnabled() and UnitExists("targettarget") then
+                -- Reapply our styles after portrait update
+                if frameElements.background then frameElements.background:Show() end
+                if frameElements.border then frameElements.border:Show() end
+                UpdateClassification()
+            end
+        end)
+        Module.portraitHooked = true
     end
 end
 
@@ -297,8 +354,8 @@ local function InitializeFrame()
     
     -- Check if ToT is enabled in config
     if not IsEnabled() then
-        -- Hide ToT if disabled
-        if TargetFrameToT then
+        -- Hide ToT if disabled (only if not in combat)
+        if TargetFrameToT and not InCombatLockdown() then
             TargetFrameToT:Hide()
         end
         SetCVar("showTargetOfTarget", "0")
@@ -414,8 +471,10 @@ local function InitializeFrame()
     -- Setup bar hooks
     SetupBarHooks()
     
-    -- CRITICAL: Show the main ToT frame
-    TargetFrameToT:Show()
+    -- CRITICAL: Show the main ToT frame (only if not in combat)
+    if not InCombatLockdown() then
+        TargetFrameToT:Show()
+    end
     
     Module.configured = true
 end
@@ -462,7 +521,8 @@ local function OnEvent(self, event, ...)
             end)
         end
         
-        if IsEnabled() and ShouldShowToT() then
+        -- CRITICAL: Don't modify protected frames in combat (causes taint)
+        if IsEnabled() and ShouldShowToT() and not InCombatLockdown() then
             -- Ensure frame is visible
             if TargetFrameToT then
                 TargetFrameToT:Show()
@@ -474,8 +534,9 @@ local function OnEvent(self, event, ...)
         -- Target changed, force update ToT
         if not IsEnabled() then return end
         
+        -- CRITICAL: Don't modify protected frames in combat (causes taint)
         -- Show or hide based on whether we should show ToT
-        if TargetFrameToT then
+        if TargetFrameToT and not InCombatLockdown() then
             if ShouldShowToT() then
                 TargetFrameToT:Show()
             else
@@ -493,8 +554,9 @@ local function OnEvent(self, event, ...)
         
         local unit = ...
         if unit == "target" or unit == "player" then
+            -- CRITICAL: Don't modify protected frames in combat (causes taint)
             -- Show or hide based on whether we should show ToT
-            if TargetFrameToT then
+            if TargetFrameToT and not InCombatLockdown() then
                 if ShouldShowToT() then
                     TargetFrameToT:Show()
                 else
@@ -544,8 +606,8 @@ end
 
 local function RefreshFrame()
     if not IsEnabled() then
-        -- Hide ToT if disabled
-        if TargetFrameToT then
+        -- Hide ToT if disabled (only if not in combat)
+        if TargetFrameToT and not InCombatLockdown() then
             TargetFrameToT:Hide()
         end
         SetCVar("showTargetOfTarget", "0")
@@ -558,8 +620,8 @@ local function RefreshFrame()
     if not Module.configured then
         InitializeFrame()
     else
-        -- Show/hide based on whether we should show ToT
-        if TargetFrameToT then
+        -- Show/hide based on whether we should show ToT (only if not in combat)
+        if TargetFrameToT and not InCombatLockdown() then
             if ShouldShowToT() then
                 TargetFrameToT:Show()
             else

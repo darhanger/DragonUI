@@ -223,19 +223,19 @@ function QuestTrackerModule:Initialize()
     self.questTrackerFrame:SetFrameLevel(100)
     self.questTrackerFrame:SetFrameStrata('FULLSCREEN')
     
-    -- Create green editor overlay that will be anchored to WatchFrame (not auxiliary frame)
-    -- This ensures the overlay matches the actual quest tracker visual area
-    do
-        local texture = self.questTrackerFrame:CreateTexture(nil, 'OVERLAY')
-        -- Don't anchor yet - will be updated dynamically in ShowEditorTest
-        texture:SetTexture(0, 1, 0, 0.3) -- Semi-transparent green
-        texture:Hide()
-        self.questTrackerFrame.editorTexture = texture
+    -- Add nineslice overlay for editor mode (DragonflightUI style)
+    if addon.AddNineslice then
+        addon.AddNineslice(self.questTrackerFrame)
+        addon.SetNinesliceState(self.questTrackerFrame, false)
+        addon.HideNineslice(self.questTrackerFrame)
+        -- Legacy editorTexture reference for compatibility
+        self.questTrackerFrame.editorTexture = self.questTrackerFrame.NineSlice and self.questTrackerFrame.NineSlice.Center
     end
     
     -- Create text label for editor mode
     do
         local fontString = self.questTrackerFrame:CreateFontString(nil, "OVERLAY", 'GameFontNormalLarge')
+        fontString:SetPoint("CENTER", self.questTrackerFrame, "CENTER", 0, 0)
         fontString:SetText("Quest Tracker")
         fontString:Hide()
         self.questTrackerFrame.editorText = fontString
@@ -376,34 +376,38 @@ function QuestTrackerModule:ShowEditorTest()
         self.questTrackerFrame:EnableMouse(true)
         self.questTrackerFrame:RegisterForDrag("LeftButton")
         
-        -- Update overlay to match WatchFrame dimensions
-        if self.questTrackerFrame.editorTexture and WatchFrame then
-            local texture = self.questTrackerFrame.editorTexture
-            texture:ClearAllPoints()
-            -- Anchor to WatchFrame's actual visual area
+        -- Update frame size to match WatchFrame dimensions
+        if WatchFrame then
             local watchWidth = WatchFrame:GetWidth() or 230
             local watchHeight = WatchFrame:GetHeight() or 200
-            -- Position at top of quest tracker frame, matching WatchFrame size
-            texture:SetPoint("TOPRIGHT", self.questTrackerFrame, "TOPRIGHT", 0, 0)
-            texture:SetSize(watchWidth, watchHeight)
-            texture:Show()
+            self.questTrackerFrame:SetSize(watchWidth, watchHeight)
         end
         
-        -- Update text position to match overlay
-        if self.questTrackerFrame.editorText and WatchFrame then
-            local fontString = self.questTrackerFrame.editorText
-            fontString:ClearAllPoints()
-            local watchHeight = WatchFrame:GetHeight() or 200
-            fontString:SetPoint("TOP", self.questTrackerFrame, "TOP", 0, -(watchHeight / 2))
-            fontString:Show()
+        -- Show nineslice overlay
+        if self.questTrackerFrame.NineSlice and addon.ShowNineslice then
+            addon.SetNinesliceState(self.questTrackerFrame, false)
+            addon.ShowNineslice(self.questTrackerFrame)
+        end
+        
+        -- Show text
+        if self.questTrackerFrame.editorText then
+            self.questTrackerFrame.editorText:Show()
         end
 
         self.questTrackerFrame:SetScript("OnDragStart", function(frame)
             frame:StartMoving()
+            -- Show selected state while dragging
+            if frame.NineSlice and addon.SetNinesliceState then
+                addon.SetNinesliceState(frame, true)
+            end
         end)
 
         self.questTrackerFrame:SetScript("OnDragStop", function(frame)
             frame:StopMovingOrSizing()
+            -- Return to highlight state
+            if frame.NineSlice and addon.SetNinesliceState then
+                addon.SetNinesliceState(frame, false)
+            end
             -- Save position to DragonUI database
             local point, _, relativePoint, x, y = frame:GetPoint()
             if addon.db and addon.db.profile then
@@ -426,9 +430,9 @@ function QuestTrackerModule:HideEditorTest(savePosition)
         self.questTrackerFrame:SetScript("OnDragStart", nil)
         self.questTrackerFrame:SetScript("OnDragStop", nil)
         
-        -- Hide green editor overlay
-        if self.questTrackerFrame.editorTexture then
-            self.questTrackerFrame.editorTexture:Hide()
+        -- Hide nineslice overlay
+        if self.questTrackerFrame.NineSlice and addon.HideNineslice then
+            addon.HideNineslice(self.questTrackerFrame)
         end
         if self.questTrackerFrame.editorText then
             self.questTrackerFrame.editorText:Hide()

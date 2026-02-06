@@ -195,13 +195,13 @@ local defaults = {
         },
 
         additional = {
-            size = 32,
+            size = 31,
             spacing = 6,
             stance = {
                 x_position = -215,
                 y_offset = -50, -- Additional Y offset for fine-tuning position
-                button_size = 32, -- Size of stance buttons
-                button_spacing = 3 -- Spacing between stance buttons
+                button_size = 31, -- Size of stance buttons (native Blizzard size)
+                button_spacing = 6 -- Spacing between stance buttons
             },
             pet = {
 
@@ -212,8 +212,11 @@ local defaults = {
                 artstyle = false
             },
             totem = {
-                x_position = -113,
-                y_offset = 0 -- Additional Y offset for fine-tuning position
+                x_position = 0,
+                y_offset = 0, -- Additional Y offset for fine-tuning position
+                button_size = 35, -- Size of totem buttons (native Blizzard size)
+                button_spacing = 5, -- Spacing between totem buttons
+                manual_position = false -- When true, uses x_position/y_offset; when false, auto-anchors to action bars
             }
         },
 
@@ -319,6 +322,7 @@ local defaults = {
                 breakUpLargeNumbers = true,
                 scale = 1.0,
                 classcolor = false,
+                classPortrait = false, -- Show class icon instead of character portrait
                 healthFormat = "both",
                 manaFormat = "both",
                 dragon_decoration = "none",
@@ -327,6 +331,7 @@ local defaults = {
             },
             target = {
                 classcolor = false,
+                classPortrait = false, -- Show class icon instead of character portrait
                 breakUpLargeNumbers = true,
                 textFormat = 'both',
                 showHealthTextAlways = false,
@@ -337,6 +342,7 @@ local defaults = {
             },
             focus = {
                 classcolor = false,
+                classPortrait = false, -- Show class icon instead of character portrait
                 breakUpLargeNumbers = true, -- Changed to false - no commas by default
                 textFormat = 'both', -- Changed to 'numeric' - Current Value Only by default
                 showHealthTextAlways = false, -- true = always visible, false = only on hover

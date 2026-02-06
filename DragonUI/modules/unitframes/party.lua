@@ -67,7 +67,8 @@ local function CreatePartyAnchorFrame()
     end
 
     -- Use centralized function from core.lua
-    PartyFrames.anchor = addon.CreateUIFrame(120, 200, "PartyFrames")
+    -- Initial size - will be updated dynamically based on orientation
+    PartyFrames.anchor = addon.CreateUIFrame(130, 300, "PartyFrames")
 
     -- Customize text for party frames
     if PartyFrames.anchor.editorText then
@@ -75,6 +76,30 @@ local function CreatePartyAnchorFrame()
     end
 
     return PartyFrames.anchor
+end
+
+-- Update anchor size based on orientation
+local function UpdatePartyAnchorSize()
+    if not PartyFrames.anchor then return end
+    
+    local settings = addon.db and addon.db.profile and addon.db.profile.unitframe and addon.db.profile.unitframe.party
+    local orientation = settings and settings.orientation or 'vertical'
+    local padding = (settings and tonumber(settings.padding)) or 15
+    local numMembers = MAX_PARTY_MEMBERS -- 4
+    
+    if orientation == 'horizontal' then
+        -- Horizontal: wide and short
+        local frameWidth = 120
+        local frameHeight = 50
+        local totalWidth = numMembers * frameWidth + (numMembers - 1) * padding
+        PartyFrames.anchor:SetSize(totalWidth, frameHeight)
+    else
+        -- Vertical: narrow and tall
+        local frameWidth = 130
+        local frameHeight = 50
+        local totalHeight = numMembers * frameHeight + (numMembers - 1) * padding
+        PartyFrames.anchor:SetSize(frameWidth, totalHeight)
+    end
 end
 
 -- Function to apply position from widgets (similar to target.lua)
@@ -155,14 +180,21 @@ end
 
 function PartyFrames:UpdateWidgets()
     ApplyWidgetPosition()
+    UpdatePartyAnchorSize() -- Update anchor size based on orientation
     if not InCombatLockdown() then
         local step = GetPartyStep()
+        local orientation = GetOrientation()
         for i = 1, MAX_PARTY_MEMBERS do
             local frame = _G['PartyMemberFrame' .. i]
             if frame and PartyFrames.anchor then
                 frame:ClearAllPoints()
-                local yOffset = (i - 1) * -step
-                frame:SetPoint("TOPLEFT", PartyFrames.anchor, "TOPLEFT", 0, yOffset)
+                if orientation == 'horizontal' then
+                    local xOffset = (i - 1) * step
+                    frame:SetPoint("TOPLEFT", PartyFrames.anchor, "TOPLEFT", xOffset, 0)
+                else
+                    local yOffset = (i - 1) * -step
+                    frame:SetPoint("TOPLEFT", PartyFrames.anchor, "TOPLEFT", 0, yOffset)
+                end
             end
         end
     end
@@ -175,6 +207,13 @@ end
 
 -- Test functions for the editor
 local function ShowPartyFramesTest()
+    -- Update anchor size for editor mode
+    UpdatePartyAnchorSize()
+    -- Raise overlay strata so it appears ABOVE fake party frames
+    if PartyFrames.anchor then
+        PartyFrames.anchor:SetFrameStrata('FULLSCREEN')
+        PartyFrames.anchor:SetFrameLevel(200)
+    end
     -- Display party frames even if not in a group
     for i = 1, MAX_PARTY_MEMBERS do
         local frame = _G['PartyMemberFrame' .. i]
@@ -185,6 +224,11 @@ local function ShowPartyFramesTest()
 end
 
 local function HidePartyFramesTest()
+    -- Restore normal strata
+    if PartyFrames.anchor then
+        PartyFrames.anchor:SetFrameStrata('MEDIUM')
+        PartyFrames.anchor:SetFrameLevel(1)
+    end
     -- Hide empty frames when not in a party
     for i = 1, MAX_PARTY_MEMBERS do
         local frame = _G['PartyMemberFrame' .. i]
@@ -304,12 +348,25 @@ local function GetFormattedText(current, max, textFormat, breakUpLargeNumbers)
     end
 end
 
--- Calcular el paso vertical usando el padding de la config
+-- Calculate step based on orientation
 local function GetPartyStep()
     local settings = GetSettings()
-    local pad = (settings and tonumber(settings.padding)) or 15      -- separación extra
-    local base = 49                                                  -- alto visual del frame
-    return base + pad
+    local pad = (settings and tonumber(settings.padding)) or 15
+    local orientation = settings and settings.orientation or 'vertical'
+    
+    if orientation == 'horizontal' then
+        local base = 120  -- width of party frame
+        return base + pad
+    else
+        local base = 49   -- height of party frame
+        return base + pad
+    end
+end
+
+-- Get orientation from settings
+local function GetOrientation()
+    local settings = GetSettings()
+    return settings and settings.orientation or 'vertical'
 end
 
 
@@ -997,6 +1054,7 @@ local function StylePartyFrames()
     ApplyWidgetPosition()
 
     local step = GetPartyStep()
+    local orientation = GetOrientation()
     for i = 1, MAX_PARTY_MEMBERS do
         local frame = _G['PartyMemberFrame' .. i]
         if frame then
@@ -1008,8 +1066,13 @@ local function StylePartyFrames()
             
             if not InCombatLockdown() then
                 frame:ClearAllPoints()
-                local yOffset = (i - 1) * -step
-                frame:SetPoint("TOPLEFT", PartyFrames.anchor, "TOPLEFT", 0, yOffset)
+                if orientation == 'horizontal' then
+                    local xOffset = (i - 1) * step
+                    frame:SetPoint("TOPLEFT", PartyFrames.anchor, "TOPLEFT", xOffset, 0)
+                else
+                    local yOffset = (i - 1) * -step
+                    frame:SetPoint("TOPLEFT", PartyFrames.anchor, "TOPLEFT", 0, yOffset)
+                end
             end
 
             -- Hide background
@@ -1223,6 +1286,16 @@ local function UpdateDisconnectedState(frame)
         if healthbar then
             healthbar:SetAlpha(0.3)
             healthbar:SetStatusBarColor(0.5, 0.5, 0.5, 1)
+            
+            -- Show "Offline" text on health bar
+            if not frame.DragonUI_OfflineText then
+                frame.DragonUI_OfflineText = healthbar:CreateFontString(nil, "OVERLAY")
+                frame.DragonUI_OfflineText:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
+                frame.DragonUI_OfflineText:SetPoint("CENTER", healthbar, "CENTER", 0, 0)
+                frame.DragonUI_OfflineText:SetTextColor(0.7, 0.7, 0.7, 1)
+            end
+            frame.DragonUI_OfflineText:SetText("Offline")
+            frame.DragonUI_OfflineText:Show()
         end
 
         if manabar then
@@ -1262,6 +1335,11 @@ local function UpdateDisconnectedState(frame)
             -- Restore correct color (class color or white)
             local frameIndex = frame:GetID()
             UpdatePartyHealthBarColor(frameIndex) -- Only updates color, does not recreate frame
+        end
+        
+        -- Hide offline text if it exists
+        if frame.DragonUI_OfflineText then
+            frame.DragonUI_OfflineText:Hide()
         end
 
         if manabar then

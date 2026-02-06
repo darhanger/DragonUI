@@ -1,44 +1,35 @@
-local addon = select(2, ...);
-local class = addon._class;
-local noop = addon._noop;
+local addon = select(2,...);
 local InCombatLockdown = InCombatLockdown;
 local UnitAffectingCombat = UnitAffectingCombat;
 local hooksecurefunc = hooksecurefunc;
 local UIParent = UIParent;
 local NUM_POSSESS_SLOTS = NUM_POSSESS_SLOTS or 10;
+local NUM_MULTI_CAST_BUTTONS_PER_PAGE = NUM_MULTI_CAST_BUTTONS_PER_PAGE or 4;
 
--- ============================================================================
--- MULTICAST MODULE FOR DRAGONUI
--- ============================================================================
+-- Get player class dynamically (addon._class may not be set yet at load time)
+local function GetPlayerClass()
+    return addon._class or select(2, UnitClass('player'))
+end
 
--- Module state tracking
+-- noop function for protecting frames
+local noop = addon._noop or function() end
+
+-- =============================================================================
+-- MODULE STATE TRACKING
+-- =============================================================================
 local MulticastModule = {
     initialized = false,
     applied = false,
-    originalStates = {},       -- Store original states for restoration
-    registeredEvents = {},     -- Track registered events
-    hooks = {},                -- Track hooked functions
-    stateDrivers = {},         -- Track state drivers
-    frames = {}                -- Track created frames
+    originalStates = {},
+    styledButtons = {},
+    frames = {},
+    hooks = {},
+    stateDrivers = {},
+    registeredEvents = {}
 }
 
--- Register with ModuleRegistry (if available)
-if addon.RegisterModule then
-    addon:RegisterModule("multicast", MulticastModule, "Multicast", "Totem and possess bar positioning and styling")
-end
-
--- ============================================================================
--- CONFIGURATION FUNCTIONS
--- ============================================================================
-
-local function GetModuleConfig()
-    return addon.db and addon.db.profile and addon.db.profile.modules and addon.db.profile.modules.multicast
-end
-
-local function IsModuleEnabled()
-    local cfg = GetModuleConfig()
-    return cfg and cfg.enabled
-end
+-- Module frames (created only when enabled)
+local anchor, totembar
 
 -- =============================================================================
 -- OPTIMIZED TIMER HELPER (with timer pool for better memory management)
@@ -51,622 +42,514 @@ local function DelayedCall(delay, func)
         self.elapsed = self.elapsed + elapsed
         if self.elapsed >= delay then
             self:SetScript("OnUpdate", nil)
-            table.insert(timerPool, self)     -- Recycle timer for reuse
+            table.insert(timerPool, self)
             func()
         end
     end)
 end
+
+-- Forward declaration for PositionTotemButtons (defined later)
+local PositionTotemButtons
 
 -- =============================================================================
 -- CONFIG HELPER FUNCTIONS
 -- =============================================================================
 local function GetTotemConfig()
     if not (addon.db and addon.db.profile and addon.db.profile.additional and addon.db.profile.additional.totem) then
-        return 0, 0
+        return {}
     end
-    local totemConfig = addon.db.profile.additional.totem
-    return totemConfig.x_position or 0, totemConfig.y_offset or 0
-end
-
-local function GetAdditionalConfig()
-    return addon:GetConfigValue("additional") or {}
+    return addon.db.profile.additional.totem
 end
 
 -- =============================================================================
--- ANCHOR FRAME: Handles positioning for both Totem and Possess bars
+-- DYNAMIC ANCHOR SYSTEM
+-- Anchors totem bar based on which action bars are visible:
+-- 1. If MultiBarBottomRight is visible -> anchor to it
+-- 2. Else if MultiBarBottomLeft is visible -> anchor to it  
+-- 3. Else -> anchor to MainMenuBar
+-- When user moves with editor, manual_position becomes true and uses x_position/y_offset
 -- =============================================================================
-local anchor = CreateFrame('Frame', 'DragonUI_MulticastAnchor', UIParent)
-anchor:SetPoint('BOTTOM', UIParent, 'BOTTOM', 0, 52)
-anchor:SetSize(37, 37)
--- CRÍTICO: Inicialmente oculto hasta que se active el módulo
-anchor:Hide()
-
--- Track created frames
-MulticastModule.frames.anchor = anchor
-
--- =============================================================================
--- SMART POSITIONING FUNCTION
--- =============================================================================
-function anchor:update_position()
-    if not IsModuleEnabled() then return end
-
-    if InCombatLockdown() or UnitAffectingCombat('player') then return end
-
-    local offsetX, offsetY = GetTotemConfig()
-    self:ClearAllPoints()
-
-    -- Check if pretty_actionbar addon is loaded for special positioning logic
-    if IsAddOnLoaded('pretty_actionbar') and _G.pUiMainBar then
-        local leftbar = MultiBarBottomLeft and MultiBarBottomLeft:IsShown()
-        local rightbar = MultiBarBottomRight and MultiBarBottomRight:IsShown()
-
-        -- Get additional config for pretty_actionbar compatibility
-        local nobar = 52
-        local leftbarOffset = 90
-        local rightbarOffset = 40
-
-        -- Read values from database if available
-        if addon.db and addon.db.profile and addon.db.profile.additional then
-            local additionalConfig = addon.db.profile.additional
-            leftbarOffset = additionalConfig.leftbar_offset or 90
-            rightbarOffset = additionalConfig.rightbar_offset or 40
-        end
-
-        local yPosition = nobar
-
-        if leftbar and rightbar then
-            yPosition = nobar + leftbarOffset
-        elseif leftbar then
-            yPosition = nobar + rightbarOffset
-        elseif rightbar then
-            yPosition = nobar + leftbarOffset
-        end
-
-        self:SetPoint('BOTTOM', UIParent, 'BOTTOM', offsetX, yPosition + offsetY)
-    else
-        -- Standard positioning logic
-        local leftbar = MultiBarBottomLeft and MultiBarBottomLeft:IsShown()
-        local rightbar = MultiBarBottomRight and MultiBarBottomRight:IsShown()
-        local anchorFrame, anchorPoint, relativePoint, yOffset
-
-        if leftbar or rightbar then
-            if leftbar and rightbar then
-                anchorFrame = MultiBarBottomRight
-            elseif leftbar then
-                anchorFrame = MultiBarBottomLeft
-            else
-                anchorFrame = MultiBarBottomRight
-            end
-            anchorPoint = 'TOP'
-            relativePoint = 'BOTTOM'
-            yOffset = 5 + offsetY
-        else
-            anchorFrame = addon.pUiMainBar or MainMenuBar
-            anchorPoint = 'TOP'
-            relativePoint = 'BOTTOM'
-            yOffset = 5 + offsetY
-        end
-
-        self:SetPoint(relativePoint, anchorFrame, anchorPoint, offsetX, yOffset)
-    end
-end
-
--- =============================================================================
--- POSSESS BAR SETUP
--- =============================================================================
-local possessbar = CreateFrame('Frame', 'DragonUI_PossessBar', UIParent, 'SecureHandlerStateTemplate')
-possessbar:SetAllPoints(anchor)
--- CRÍTICO: Inicialmente oculto hasta que se active el módulo
-possessbar:Hide()
-
--- Track created frames
-MulticastModule.frames.possessbar = possessbar
-
--- NO MODIFICAR PossessBarFrame aquí - solo cuando el módulo esté habilitado
-
--- =============================================================================
--- POSSESS BUTTON POSITIONING FUNCTION
--- =============================================================================
-local function PositionPossessButtons()
-    if not IsModuleEnabled() then return end
-
-    if InCombatLockdown() then return end
-
-    -- Get config values safely
-    local additionalConfig = GetAdditionalConfig()
-    local btnsize = additionalConfig.size or 37
-    local space = additionalConfig.spacing or 4
-
-    for index = 1, NUM_POSSESS_SLOTS do
-        local button = _G['PossessButton' .. index]
-        if button then
-            button:ClearAllPoints()
-            button:SetParent(possessbar)
-            button:SetSize(btnsize, btnsize)
-
-            if index == 1 then
-                button:SetPoint('BOTTOMLEFT', possessbar, 'BOTTOMLEFT', 0, 0)
-            else
-                local prevButton = _G['PossessButton' .. (index - 1)]
-                if prevButton then
-                    button:SetPoint('LEFT', prevButton, 'RIGHT', space, 0)
-                end
-            end
-
-            -- CRÍTICO: NO mostrar botones de possess por defecto
-            -- Solo se mostrarán cuando se entre en un vehículo
-            button:Hide()
-            possessbar:SetAttribute('addchild', button)
-        end
-    end
-
-    -- Apply custom button template if available
-    if addon.possessbuttons_template then
-        addon.possessbuttons_template()
-    end
-
-    -- Set visibility driver for vehicle UI - pero solo si no hay totems de chamán
-    -- Para chamanes, el possessbar debe mantenerse visible para mostrar totems
-    local visibilityCondition
-    if class == 'SHAMAN' and MultiCastActionBarFrame then
-        -- Para chamanes: siempre visible (totems y possess)
-        visibilityCondition = 'show'
-    else
-        -- Para otros: ocultar en vehículo, mostrar cuando no
-        visibilityCondition = '[vehicleui][@vehicle,exists] hide; show'
-    end
-
-    RegisterStateDriver(possessbar, 'visibility', visibilityCondition)
-
-    -- Track state driver for cleanup
-    MulticastModule.stateDrivers.possessbar_visibility = { frame = possessbar, state = 'visibility', condition =
-    visibilityCondition }
-end
-
--- =============================================================================
--- SHAMAN MULTICAST (TOTEM) BAR SETUP
--- =============================================================================
--- CRÍTICO: No modificar nada aquí - todo se hace en ApplyMulticastSystem()
--- Esto evita que se rompan los frames de Blizzard cuando el módulo está deshabilitado
-
--- =============================================================================
--- HOOK ACTION BAR VISIBILITY CHANGES
--- =============================================================================
-local function HookActionBarEvents()
-    local bars = { MultiBarBottomLeft, MultiBarBottomRight }
-
-    for _, bar in pairs(bars) do
-        if bar then
-            -- Safely hook without causing self-reference errors
-            if not bar.__DragonUI_Hooked then
-                bar:HookScript('OnShow', function()
-                    DelayedCall(0.1, function() anchor:update_position() end)
-                end)
-                bar:HookScript('OnHide', function()
-                    DelayedCall(0.1, function() anchor:update_position() end)
-                end)
-                bar.__DragonUI_Hooked = true
-            end
-        end
-    end
-end
--- =============================================================================
--- INITIALIZATION FUNCTION
--- =============================================================================
-local function InitializeMulticast()
-    if not IsModuleEnabled() then return end
+local function GetDynamicAnchor()
+    -- Check which bars are visible
+    -- MultiBarBottomRight = "Bottom Right Action Bar" in Blizzard UI options
+    -- MultiBarBottomLeft = "Bottom Left Action Bar" in Blizzard UI options
     
-    -- CRÍTICO: Verificar combate antes de mostrar frames
-    -- Use centralized CombatQueue system (ElvUI pattern)
+    if MultiBarBottomRight and MultiBarBottomRight:IsShown() then
+        return MultiBarBottomRight, 'BOTTOMLEFT', 'TOPLEFT', 0, 0
+    elseif MultiBarBottomLeft and MultiBarBottomLeft:IsShown() then
+        return MultiBarBottomLeft, 'BOTTOMLEFT', 'TOPLEFT', 0, 0
+    else
+        -- Anchor above MainMenuBar - offset left to align with action buttons
+        -- MainMenuBar has page arrows on the left, so we need negative X offset
+        return MainMenuBar, 'BOTTOM', 'TOP', -216, 18
+    end
+end
+
+-- =============================================================================
+-- POSITIONING FUNCTION (with dynamic anchor support)
+-- =============================================================================
+local function UpdateTotemBarPosition()
+    if not anchor then return end
+    
+    -- READ VALUES FROM DATABASE
+    local totemConfig = GetTotemConfig()
+    local manualPosition = totemConfig.manual_position
+    
+    anchor:ClearAllPoints()
+    
+    if manualPosition then
+        -- Manual positioning: use saved x_position and y_offset
+        local x_position = totemConfig.x_position or 0
+        local y_offset = totemConfig.y_offset or 0
+        local base_y = 200
+        local final_y = base_y + y_offset
+        
+        anchor:SetPoint('BOTTOM', UIParent, 'BOTTOM', x_position, final_y)
+    else
+        -- Dynamic anchoring: anchor to action bars based on visibility
+        local anchorFrame, point, relativePoint, offsetX, offsetY = GetDynamicAnchor()
+        anchor:SetPoint(point, anchorFrame, relativePoint, offsetX, offsetY)
+    end
+end
+
+-- =============================================================================
+-- BUTTON POSITIONING WITH SCALE AND SPACING
+-- =============================================================================
+-- Scale the PARENT frame for size, then reposition buttons for custom spacing
+PositionTotemButtons = function()
+    if not anchor or not totembar then return end
+    if GetPlayerClass() ~= 'SHAMAN' then return end
+    if not MultiCastActionBarFrame then return end
+    
+    -- READ VALUES FROM DATABASE
+    local totemConfig = GetTotemConfig()
+    local btnsize = totemConfig.button_size or 36
+    local spacing = totemConfig.button_spacing or 6
+    
+    -- Use SCALE on the PARENT frame - all children inherit automatically
+    local nativeSize = 30  -- Native Blizzard totem button size
+    local scale = btnsize / nativeSize
+    
+    -- Apply scale to the parent frame
+    MultiCastActionBarFrame:SetScale(scale)
+    
+    -- Calculate spacing in SCALED coordinates (since buttons are inside scaled parent)
+    -- Native Blizzard spacing is about 6px, we need to adjust relative to that
+    local scaledSpacing = spacing / scale
+    
+    -- Reposition buttons with custom spacing
+    -- Order: SummonSpellButton -> SlotButtons (1-4) -> RecallSpellButton
+    
+    -- First button anchors to parent
+    local summonBtn = MultiCastSummonSpellButton
+    if summonBtn then
+        summonBtn:ClearAllPoints()
+        summonBtn:SetPoint('LEFT', MultiCastActionBarFrame, 'LEFT', 0, 0)
+    end
+    
+    -- Slot buttons chain from summon button
+    for i = 1, NUM_MULTI_CAST_BUTTONS_PER_PAGE do
+        local slotBtn = _G['MultiCastSlotButton' .. i]
+        if slotBtn then
+            slotBtn:ClearAllPoints()
+            if i == 1 then
+                slotBtn:SetPoint('LEFT', summonBtn, 'RIGHT', scaledSpacing, 0)
+            else
+                slotBtn:SetPoint('LEFT', _G['MultiCastSlotButton' .. (i - 1)], 'RIGHT', scaledSpacing, 0)
+            end
+        end
+        
+        -- Action buttons (each page) anchor to their corresponding slot
+        for page = 1, NUM_MULTI_CAST_PAGES do
+            local actionBtnIndex = (page - 1) * NUM_MULTI_CAST_BUTTONS_PER_PAGE + i
+            local actionBtn = _G['MultiCastActionButton' .. actionBtnIndex]
+            if actionBtn and slotBtn then
+                actionBtn:ClearAllPoints()
+                actionBtn:SetPoint('CENTER', slotBtn, 'CENTER', 0, 0)
+            end
+        end
+    end
+    
+    -- Recall button anchors to last slot button
+    local recallBtn = MultiCastRecallSpellButton
+    local lastSlot = _G['MultiCastSlotButton' .. (MultiCastActionBarFrame.numActiveSlots or NUM_MULTI_CAST_BUTTONS_PER_PAGE)]
+    if recallBtn and lastSlot then
+        recallBtn:ClearAllPoints()
+        recallBtn:SetPoint('LEFT', lastSlot, 'RIGHT', scaledSpacing, 0)
+    end
+end
+
+-- =============================================================================
+-- FRAME CREATION FUNCTIONS
+-- =============================================================================
+local function CreateMulticastFrames()
+    if MulticastModule.frames.anchor then return end
+    
+    -- Create simple anchor frame
+    anchor = CreateFrame('Frame', 'DragonUI_TotemAnchor', UIParent)
+    anchor:SetSize(37, 37)
+    MulticastModule.frames.anchor = anchor
+    
+    -- Create totem bar frame
+    totembar = CreateFrame('Frame', 'DragonUI_TotemBar', anchor, 'SecureHandlerStateTemplate')
+    totembar:SetAllPoints(anchor)
+    MulticastModule.frames.totembar = totembar
+    
+    -- Create editor overlay using centralized CreateUIFrame (with nineslice support)
+    local editorOverlay = addon.CreateUIFrame(200, 37, 'TotemBarOverlay')
+    editorOverlay:SetFrameStrata('FULLSCREEN')
+    editorOverlay:SetFrameLevel(100)
+    editorOverlay:Hide()
+    MulticastModule.frames.editorOverlay = editorOverlay
+    
+    -- Update the editor text
+    if editorOverlay.editorText then
+        editorOverlay.editorText:SetText('Totem Bar')
+    end
+    
+    -- Variables to track drag movement (custom drag like stance.lua)
+    local dragStartX, dragStartY = 0, 0
+    local configStartX, configStartY = 0, 0
+    local isDragging = false
+    
+    -- Make draggable with custom behavior
+    editorOverlay:SetMovable(false)
+    editorOverlay:EnableMouse(true)
+    editorOverlay:RegisterForDrag("LeftButton")
+    
+    editorOverlay:SetScript("OnDragStart", function(self)
+        isDragging = true
+        
+        -- Show selected state
+        if self.NineSlice and addon.SetNinesliceState then
+            addon.SetNinesliceState(self, true)
+        end
+        
+        -- Store mouse position when drag starts
+        local scale = self:GetEffectiveScale()
+        dragStartX = GetCursorPosition() / scale
+        dragStartY = select(2, GetCursorPosition()) / scale
+        
+        -- IMPORTANT: When dragging starts, switch to manual positioning mode
+        -- and calculate current position relative to UIParent BOTTOM
+        if addon.db and addon.db.profile and addon.db.profile.additional and addon.db.profile.additional.totem then
+            local totemConfig = addon.db.profile.additional.totem
+            
+            -- If we were in auto-anchor mode, convert current position to manual coordinates
+            if not totemConfig.manual_position then
+                -- Get current anchor position relative to screen
+                local anchorCenterX, anchorCenterY = anchor:GetCenter()
+                local screenWidth = UIParent:GetWidth()
+                local screenHeight = UIParent:GetHeight()
+                
+                -- Calculate position relative to BOTTOM center of UIParent
+                local base_y = 200  -- Our base Y for manual positioning
+                configStartX = math.floor((anchorCenterX - screenWidth/2) + 0.5)
+                configStartY = math.floor((anchorCenterY - base_y) + 0.5)
+                
+                -- Update config to reflect current position in manual mode
+                totemConfig.x_position = configStartX
+                totemConfig.y_offset = configStartY
+            else
+                -- Already in manual mode, use stored values
+                configStartX = totemConfig.x_position or 0
+                configStartY = totemConfig.y_offset or 0
+            end
+            
+            -- Enable manual positioning mode (loses dynamic anchor)
+            totemConfig.manual_position = true
+        end
+    end)
+    
+    -- Real-time update during drag
+    editorOverlay:SetScript("OnUpdate", function(self, elapsed)
+        if not isDragging then return end
+        
+        -- Calculate current delta from mouse movement
+        local scale = self:GetEffectiveScale()
+        local currentX = GetCursorPosition() / scale
+        local currentY = select(2, GetCursorPosition()) / scale
+        
+        local deltaX = currentX - dragStartX
+        local deltaY = currentY - dragStartY
+        
+        -- Update config values in real-time
+        if addon.db and addon.db.profile and addon.db.profile.additional and addon.db.profile.additional.totem then
+            addon.db.profile.additional.totem.x_position = math.floor(configStartX + deltaX + 0.5)
+            addon.db.profile.additional.totem.y_offset = math.floor(configStartY + deltaY + 0.5)
+            
+            -- Update anchor position in real-time
+            UpdateTotemBarPosition()
+            
+            -- Calculate width for overlay offset
+            local totemConfig = GetTotemConfig()
+            local buttonWidth = totemConfig.button_size or 36
+            local spacing = totemConfig.button_spacing or 6
+            local totalWidth = math.max(6 * buttonWidth + 5 * spacing, 100)
+            local offsetX = (totalWidth / 2) - (buttonWidth / 2)
+            
+            -- Keep overlay centered on anchor
+            self:ClearAllPoints()
+            self:SetPoint('CENTER', anchor, 'CENTER', offsetX, 0)
+        end
+    end)
+    
+    editorOverlay:SetScript("OnDragStop", function(self)
+        isDragging = false
+        
+        -- Return to highlight state
+        if self.NineSlice and addon.SetNinesliceState then
+            addon.SetNinesliceState(self, false)
+        end
+    end)
+    
+    -- Apply static positioning immediately
+    UpdateTotemBarPosition()
+end
+
+-- =============================================================================
+-- SHAMAN MULTICAST (TOTEM) BAR SETUP FUNCTION
+-- =============================================================================
+local multicastSetupDone = false
+local multicastSetupPending = false
+local function SetupShamanMulticast()
+    if multicastSetupDone then return end
+    if GetPlayerClass() ~= 'SHAMAN' then return end
+    if not MultiCastActionBarFrame then return end
+    
+    -- CRITICAL: Defer entire setup if in combat
+    -- We need to reparent and reposition the frame, which requires combat lockdown check
     if InCombatLockdown() then
-        if addon.CombatQueue then
-            addon.CombatQueue:Add("multicast_init", function()
-                if IsModuleEnabled() then
-                    InitializeMulticast()
-                end
+        if not multicastSetupPending then
+            multicastSetupPending = true
+            local frame = CreateFrame("Frame")
+            frame:RegisterEvent("PLAYER_REGEN_ENABLED")
+            frame:SetScript("OnEvent", function(self)
+                self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+                self:SetScript("OnEvent", nil)
+                multicastSetupPending = false
+                SetupShamanMulticast()
             end)
         end
         return
     end
     
-    -- Ensure anchor and possessbar are visible
-    if anchor then
-        anchor:Show()
-    end
-    if possessbar then
-        possessbar:Show()
+    multicastSetupDone = true
+    
+    -- Remove default scripts that might interfere with our positioning
+    MultiCastActionBarFrame:SetScript('OnUpdate', nil)
+    MultiCastActionBarFrame:SetScript('OnShow', nil)
+    MultiCastActionBarFrame:SetScript('OnHide', nil)
+    
+    -- Parent the MultiCastActionBarFrame to our anchor
+    -- This is the KEY: once parented, all child buttons stay relative to this parent
+    MultiCastActionBarFrame:SetParent(totembar)
+    MultiCastActionBarFrame:ClearAllPoints()
+    MultiCastActionBarFrame:SetPoint('BOTTOMLEFT', anchor, 'BOTTOMLEFT', 0, 0)
+    MultiCastActionBarFrame:Show()
+    
+    -- Apply initial scale and spacing to the PARENT frame
+    PositionTotemButtons()
+    
+    -- Hook Blizzard update functions to maintain our custom spacing
+    if not MulticastModule.hooks.buttonUpdate then
+        MulticastModule.hooks.buttonUpdate = true
+        
+        -- When Blizzard updates button positions, re-apply our spacing
+        hooksecurefunc('MultiCastSummonSpellButton_Update', function()
+            if not InCombatLockdown() then
+                PositionTotemButtons()
+            end
+        end)
+        
+        hooksecurefunc('MultiCastRecallSpellButton_Update', function()
+            if not InCombatLockdown() then
+                PositionTotemButtons()
+            end
+        end)
+        
+        -- Hook slot updates too
+        hooksecurefunc('MultiCastSlotButton_Update', function()
+            if not InCombatLockdown() then
+                PositionTotemButtons()
+            end
+        end)
     end
     
-    -- Position possess buttons
-    PositionPossessButtons()
+    -- Hook action bar visibility changes to update dynamic anchoring
+    -- Only matters when NOT in manual_position mode
+    if not MulticastModule.hooks.actionBarVisibility then
+        MulticastModule.hooks.actionBarVisibility = true
+        
+        -- When MultiBarBottomRight or MultiBarBottomLeft visibility changes, update anchor
+        local function OnActionBarVisibilityChange()
+            local totemConfig = GetTotemConfig()
+            if not totemConfig.manual_position then
+                -- Only update if in auto-anchor mode
+                UpdateTotemBarPosition()
+            end
+        end
+        
+        if MultiBarBottomRight then
+            hooksecurefunc(MultiBarBottomRight, 'Show', OnActionBarVisibilityChange)
+            hooksecurefunc(MultiBarBottomRight, 'Hide', OnActionBarVisibilityChange)
+        end
+        if MultiBarBottomLeft then
+            hooksecurefunc(MultiBarBottomLeft, 'Show', OnActionBarVisibilityChange)
+            hooksecurefunc(MultiBarBottomLeft, 'Hide', OnActionBarVisibilityChange)
+        end
+    end
     
-    -- Hook action bar events
-    HookActionBarEvents()
+    -- Register visibility state driver
+    if not MulticastModule.stateDrivers.visibility then
+        MulticastModule.stateDrivers.visibility = {frame = totembar, state = 'visibility', condition = 'show'}
+        RegisterStateDriver(totembar, 'visibility', 'show')
+    end
+end
+
+-- =============================================================================
+-- UNIFIED REFRESH FUNCTION (using SCALE, not SetSize)
+-- =============================================================================
+function addon.RefreshMulticast(fullRefresh)
+    if InCombatLockdown() or UnitAffectingCombat("player") then 
+        local frame = CreateFrame("Frame")
+        frame:RegisterEvent("PLAYER_REGEN_ENABLED")
+        frame:SetScript("OnEvent", function(self)
+            self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+            addon.RefreshMulticast(fullRefresh)
+        end)
+        return 
+    end
     
     -- Update anchor position
-    anchor:update_position()
-end
-
-
--- ============================================================================
--- APPLY/RESTORE FUNCTIONS
--- ============================================================================
-local function RestoreMulticastSystem()
-    if not MulticastModule.applied then return end
-
-    -- CRÍTICO: NO modificar frames protegidos en combate
-    -- Use centralized CombatQueue system (ElvUI pattern)
-    if InCombatLockdown() then
-        if addon.CombatQueue then
-            addon.CombatQueue:Add("multicast_restore", function()
-                if MulticastModule.applied then
-                    RestoreMulticastSystem()
-                end
-            end)
-        end
-        return
-    end
-
-    -- Unregister all state drivers
-    for name, data in pairs(MulticastModule.stateDrivers) do
-        if data.frame then
-            UnregisterStateDriver(data.frame, data.state)
-        end
-    end
-    MulticastModule.stateDrivers = {}
-
-    -- Hide custom frames (SAFE - our own frames)
-    if anchor then anchor:Hide() end
-    if possessbar then possessbar:Hide() end
-
-    -- Restore PossessBarFrame to original state
-    if PossessBarFrame and MulticastModule.originalStates.possessBarFrame then
-        local original = MulticastModule.originalStates.possessBarFrame
-        PossessBarFrame:SetParent(original.parent or UIParent)
-        PossessBarFrame:ClearAllPoints()
-
-        -- Restore original anchor points
-        for _, pointData in ipairs(original.points) do
-            local point, relativeTo, relativePoint, x, y = unpack(pointData)
-            if relativeTo then
-                PossessBarFrame:SetPoint(point, relativeTo, relativePoint, x, y)
-            else
-                PossessBarFrame:SetPoint(point, relativePoint, x, y)
-            end
-        end
-    end
-
-    -- Restore MultiCastActionBarFrame to original state (Shaman only)
-    if MultiCastActionBarFrame and class == 'SHAMAN' and MulticastModule.originalStates.multiCastActionBarFrame then
-        local original = MulticastModule.originalStates.multiCastActionBarFrame
-
-        -- Restaurar scripts originales
-        if original.originalScripts then
-            MultiCastActionBarFrame:SetScript('OnUpdate', original.originalScripts.OnUpdate)
-            MultiCastActionBarFrame:SetScript('OnShow', original.originalScripts.OnShow)
-            MultiCastActionBarFrame:SetScript('OnHide', original.originalScripts.OnHide)
-        end
-
-        -- Restaurar parent y posición
-        MultiCastActionBarFrame:SetParent(original.parent or UIParent)
-        MultiCastActionBarFrame:ClearAllPoints()
-
-        -- Restore original anchor points
-        if original.points and #original.points > 0 then
-            for _, pointData in ipairs(original.points) do
-                local point, relativeTo, relativePoint, x, y = unpack(pointData)
-                if relativeTo then
-                    MultiCastActionBarFrame:SetPoint(point, relativeTo, relativePoint, x, y)
-                else
-                    MultiCastActionBarFrame:SetPoint(point, relativePoint, x, y)
-                end
-            end
-        else
-            -- Fallback to default Blizzard positioning
-            MultiCastActionBarFrame:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 52)
-        end
-
-        -- Restore recall button if it was modified
-        if MultiCastRecallSpellButton and MulticastModule.originalStates.multiCastRecallButton then
-            local recallOriginal = MulticastModule.originalStates.multiCastRecallButton
-            if recallOriginal.originalSetPoint then
-                MultiCastRecallSpellButton.SetPoint = recallOriginal.originalSetPoint
-            else
-                MultiCastRecallSpellButton.SetPoint = nil
-            end
-        end
-    end
-
-    -- Reset possess button parents to default
-    for index = 1, NUM_POSSESS_SLOTS do
-        local button = _G['PossessButton' .. index]
-        if button then
-            button:SetParent(PossessBarFrame or UIParent)
-            button:ClearAllPoints()
-        end
-    end
-
-    MulticastModule.applied = false
-end
-
-local function ApplyMulticastSystem()
-    if MulticastModule.applied or not IsModuleEnabled() then return end
-
-    -- CRÍTICO: NO modificar frames protegidos en combate
-    -- Use centralized CombatQueue system (ElvUI pattern)
-    if InCombatLockdown() then
-        if addon.CombatQueue then
-            addon.CombatQueue:Add("multicast_apply", function()
-                if IsModuleEnabled() and not MulticastModule.applied then
-                    ApplyMulticastSystem()
-                end
-            end)
-        end
-        return
-    end
-
-    -- Store original states for restoration
-    if PossessBarFrame then
-        MulticastModule.originalStates.possessBarFrame = {
-            parent = PossessBarFrame:GetParent(),
-            points = {}
-        }
-        -- Store all anchor points
-        for i = 1, PossessBarFrame:GetNumPoints() do
-            local point, relativeTo, relativePoint, x, y = PossessBarFrame:GetPoint(i)
-            table.insert(MulticastModule.originalStates.possessBarFrame.points, { point, relativeTo, relativePoint, x, y })
-        end
-
-        -- CONFIGURAR PossessBarFrame para DragonUI
-        PossessBarFrame:SetParent(possessbar)
-        PossessBarFrame:ClearAllPoints()
-        if class == 'SHAMAN' then
-            PossessBarFrame:SetPoint('BOTTOMRIGHT', possessbar, 'BOTTOMLEFT', -10, 0)
-        else
-            PossessBarFrame:SetPoint('BOTTOMLEFT', possessbar, 'BOTTOMLEFT', -68, 0)
-        end
-    end
-
-    -- SHAMAN MULTICAST (TOTEM) BAR SETUP
-    if MultiCastActionBarFrame and class == 'SHAMAN' then
-        -- Store original state BEFORE modifying
-        MulticastModule.originalStates.multiCastActionBarFrame = {
-            parent = MultiCastActionBarFrame:GetParent(),
-            points = {},
-            originalSetParent = MultiCastActionBarFrame.SetParent,
-            originalSetPoint = MultiCastActionBarFrame.SetPoint,
-            originalScripts = {
-                OnUpdate = MultiCastActionBarFrame:GetScript('OnUpdate'),
-                OnShow = MultiCastActionBarFrame:GetScript('OnShow'),
-                OnHide = MultiCastActionBarFrame:GetScript('OnHide')
-            }
-        }
-
-        -- Store all anchor points
-        for i = 1, MultiCastActionBarFrame:GetNumPoints() do
-            local point, relativeTo, relativePoint, x, y = MultiCastActionBarFrame:GetPoint(i)
-            table.insert(MulticastModule.originalStates.multiCastActionBarFrame.points,
-                { point, relativeTo, relativePoint, x, y })
-        end
-
-        -- Track MultiCastActionBarFrame
-        MulticastModule.frames.multiCastActionBarFrame = MultiCastActionBarFrame
-
-        -- Remove default scripts that might interfere
-        MultiCastActionBarFrame:SetScript('OnUpdate', nil)
-        MultiCastActionBarFrame:SetScript('OnShow', nil)
-        MultiCastActionBarFrame:SetScript('OnHide', nil)
-
-        -- Parent and position the MultiCastActionBarFrame
-        MultiCastActionBarFrame:SetParent(possessbar)
-        MultiCastActionBarFrame:ClearAllPoints()
-        MultiCastActionBarFrame:SetPoint('BOTTOM', possessbar, 'BOTTOM', 0, 0)
-
-        possessbar:Show()
-        anchor:Show()
-
-        -- SAFE: Use hooks instead of function replacement to avoid taint
-        if not MulticastModule.hooks.multiCastSetParent then
-            MulticastModule.hooks.multiCastSetParent = true
-            hooksecurefunc(MultiCastActionBarFrame, "SetParent", function(self, newParent)
-                if MulticastModule.applied and newParent ~= possessbar and newParent ~= UIParent then
-                    DelayedCall(0.01, function()
-                        if not InCombatLockdown() and MulticastModule.applied and MultiCastActionBarFrame:GetParent() ~= possessbar then
-                            MultiCastActionBarFrame:SetParent(possessbar)
-                        end
-                    end)
-                end
-            end)
-        end
-
-        if not MulticastModule.hooks.multiCastSetPoint then
-            MulticastModule.hooks.multiCastSetPoint = true
-            hooksecurefunc(MultiCastActionBarFrame, "SetPoint", function(self, ...)
-                if MulticastModule.applied then
-                    DelayedCall(0.01, function()
-                        if not InCombatLockdown() and MulticastModule.applied then
-                            local point, relativeTo, relativePoint = MultiCastActionBarFrame:GetPoint(1)
-                            if relativeTo ~= possessbar or relativePoint ~= 'BOTTOM' then
-                                MultiCastActionBarFrame:ClearAllPoints()
-                                MultiCastActionBarFrame:SetPoint('BOTTOM', possessbar, 'BOTTOM', 0, 0)
-                            end
-                        end
-                    end)
-                end
-            end)
-        end
-    end
-
-    -- Hook action bar events for dynamic positioning
-    HookActionBarEvents()
-
-    -- Initialize the system
-    InitializeMulticast()
-
-    MulticastModule.applied = true
-    MulticastModule.initialized = true
-end
--- =============================================================================
--- UNIFIED REFRESH FUNCTION
--- =============================================================================
-
--- Enhanced refresh function with module control
-function addon.RefreshMulticastSystem()
-    if IsModuleEnabled() then
-        ApplyMulticastSystem()
-        -- Call original refresh for settings
-        if addon.RefreshMulticast then
-            addon.RefreshMulticast()
-        end
-    else
-        RestoreMulticastSystem()
+    UpdateTotemBarPosition()
+    
+    -- Update button scaling if fullRefresh
+    if fullRefresh then
+        PositionTotemButtons()
     end
 end
 
--- Fast refresh: Only updates size and spacing WITHOUT repositioning
-function addon.RefreshMulticast(fullRefresh)
-    if not IsModuleEnabled() then return end
-
-    -- Use centralized CombatQueue system (ElvUI pattern)
-    if InCombatLockdown() or UnitAffectingCombat("player") then
-        if addon.CombatQueue then
-            addon.CombatQueue:Add("multicast_refresh", function()
-                if IsModuleEnabled() then
-                    addon.RefreshMulticast(fullRefresh)
-                end
-            end)
-        end
-        return
-    end
-
-    -- Only update anchor position if NOT a full refresh (X/Y changes)
-    if not fullRefresh then
-        if anchor and anchor.update_position then
-            anchor:update_position()
-        end
-        return     -- Exit here for X/Y changes
-    end
-
-    -- Get config values once (cached for performance)
-    local additionalConfig = GetAdditionalConfig()
-    local btnsize = additionalConfig.size or 37
-    local space = additionalConfig.spacing or 4
-
-    --  UPDATE POSSESS BUTTONS - ONLY SIZE, NO REPOSITIONING
-    for index = 1, NUM_POSSESS_SLOTS do
-        local button = _G["PossessButton" .. index]
-        if button then
-            button:SetSize(btnsize, btnsize)
-            -- DO NOT reposition - keep existing positions
-        end
-    end
-
-    --  UPDATE TOTEM BUTTONS - ONLY SIZE, NO REPOSITIONING
-    if MultiCastActionBarFrame and class == 'SHAMAN' then
-        -- Update totem slot buttons
-        for i = 1, 4 do
-            local button = _G["MultiCastSlotButton" .. i]
-            if button then
-                button:SetSize(btnsize, btnsize)
-                -- DO NOT reposition - keep existing positions
-            end
-        end
-
-        -- Update summon button if it exists
-        if MultiCastSummonSpellButton then
-            MultiCastSummonSpellButton:SetSize(btnsize, btnsize)
-        end
-
-        -- Update recall button if it exists
-        if MultiCastRecallSpellButton then
-            MultiCastRecallSpellButton:SetSize(btnsize, btnsize)
-        end
-    end
-end
-
--- Full rebuild: Only for major changes (profile changes, etc.)
+-- Full rebuild
 function addon.RefreshMulticastFull()
-    if not IsModuleEnabled() then return end
-
     if InCombatLockdown() or UnitAffectingCombat("player") then return end
+    addon.RefreshMulticast(true)
+end
 
-    -- Reinitialize everything from scratch
-    InitializeMulticast()
+-- =============================================================================
+-- APPLY SYSTEM FUNCTION
+-- =============================================================================
+local function ApplyMulticastSystem()
+    if MulticastModule.applied then return end
+    
+    -- Create frames
+    CreateMulticastFrames()
+    
+    -- Setup shaman multicast if applicable
+    SetupShamanMulticast()
+    
+    -- Initial positioning
+    UpdateTotemBarPosition()
+    PositionTotemButtons()
+    
+    MulticastModule.applied = true
+    
+    -- Register with editor mode system
+    if addon.RegisterEditableFrame and MulticastModule.frames.editorOverlay then
+        local editorOverlay = MulticastModule.frames.editorOverlay
+        
+        addon:RegisterEditableFrame({
+            name = "totembar",
+            frame = editorOverlay,
+            configPath = {"additional", "totem"},
+            
+            showTest = function()
+                if anchor then
+                    -- Calculate width based on config
+                    local totemConfig = GetTotemConfig()
+                    local buttonWidth = totemConfig.button_size or 36
+                    local spacing = totemConfig.button_spacing or 6
+                    local totalWidth = math.max(6 * buttonWidth + 5 * spacing, 100)
+                    editorOverlay:SetSize(totalWidth, buttonWidth)
+                    
+                    editorOverlay:ClearAllPoints()
+                    editorOverlay:SetPoint('CENTER', anchor, 'CENTER', (totalWidth / 2) - (buttonWidth / 2), 0)
+                    editorOverlay:Show()
+                    
+                    -- Show nineslice overlay
+                    if addon.ShowNineslice then
+                        addon.SetNinesliceState(editorOverlay, false)
+                        addon.ShowNineslice(editorOverlay)
+                    end
+                    if editorOverlay.editorText then
+                        editorOverlay.editorText:Show()
+                    end
+                end
+            end,
+            
+            hideTest = function()
+                editorOverlay:Hide()
+                if addon.HideNineslice then
+                    addon.HideNineslice(editorOverlay)
+                end
+                if editorOverlay.editorText then
+                    editorOverlay.editorText:Hide()
+                end
+            end,
+            
+            module = MulticastModule
+        })
+    end
 end
 
 -- =============================================================================
 -- PROFILE CHANGE HANDLER
 -- =============================================================================
 local function OnProfileChanged()
-    -- Delay to ensure profile data is fully loaded
     DelayedCall(0.2, function()
-        -- Use centralized CombatQueue system (ElvUI pattern)
         if InCombatLockdown() or UnitAffectingCombat("player") then
-            if addon.CombatQueue then
-                addon.CombatQueue:Add("multicast_profile", function()
-                    OnProfileChanged()
-                end)
-            end
+            local frame = CreateFrame("Frame")
+            frame:RegisterEvent("PLAYER_REGEN_ENABLED")
+            frame:SetScript("OnEvent", function(self)
+                self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+                OnProfileChanged()
+            end)
             return
         end
-
-        -- Use the same refresh that works for X/Y sliders (prevents ghost elements)
-        addon.RefreshMulticast()
+        
+        addon.RefreshMulticast(true)
     end)
 end
 
 -- =============================================================================
--- CENTRALIZED EVENT HANDLER (optimized event management)
+-- CENTRALIZED EVENT HANDLER
 -- =============================================================================
 local eventFrame = CreateFrame("Frame")
 local function RegisterEvents()
     eventFrame:RegisterEvent("ADDON_LOADED")
-    eventFrame:RegisterEvent("PLAYER_LOGIN")
+    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    eventFrame:RegisterEvent("PLAYER_LOGOUT")
+    -- Note: PLAYER_REGEN_ENABLED is handled by SetupShamanMulticast if needed for deferred setup
     
     eventFrame:SetScript("OnEvent", function(self, event, addonName)
         if event == "ADDON_LOADED" and addonName == "DragonUI" then
+            -- Initialize multicast system as early as possible
+            if addon.core and addon.core.RegisterMessage then
+                addon.core.RegisterMessage(addon, "DRAGONUI_READY", ApplyMulticastSystem)
+            end
+            
+            -- Register profile callbacks
             DelayedCall(0.5, function()
-                if IsModuleEnabled() then
-                    eventFrame:RegisterEvent("PLAYER_LOGOUT")
-                    eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+                if addon.db and addon.db.RegisterCallback then
+                    addon.db.RegisterCallback(addon, "OnProfileChanged", OnProfileChanged)
+                    addon.db.RegisterCallback(addon, "OnProfileCopied", OnProfileChanged)
+                    addon.db.RegisterCallback(addon, "OnProfileReset", OnProfileChanged)
                 end
             end)
             
-        elseif event == "PLAYER_LOGIN" then
-            DelayedCall(0.3, function()
-                if IsModuleEnabled() then
-                    -- CRÍTICO: Solo aplicar si NO estamos en combate
-                    -- Use centralized CombatQueue system (ElvUI pattern)
-                    if not InCombatLockdown() then
-                        ApplyMulticastSystem()
-                    else
-                        if addon.CombatQueue then
-                            addon.CombatQueue:Add("multicast_login", function()
-                                if IsModuleEnabled() then
-                                    ApplyMulticastSystem()
-                                end
-                            end)
-                        end
-                    end
-                    
-                    -- Register profile callbacks
-                    if addon.db and addon.db.RegisterCallback then
-                        addon.db.RegisterCallback(addon, "OnProfileChanged", OnProfileChanged)
-                        addon.db.RegisterCallback(addon, "OnProfileCopied", OnProfileChanged)
-                        addon.db.RegisterCallback(addon, "OnProfileReset", OnProfileChanged)
-                    end
-                    
-                    -- Also register with addon core if available
-                    if addon.core and addon.core.RegisterMessage then
-                        addon.core.RegisterMessage(addon, "DRAGONUI_PROFILE_CHANGED", OnProfileChanged)
-                        addon.core.RegisterMessage(addon, "DRAGONUI_READY", function()
-                            if not InCombatLockdown() then
-                                ApplyMulticastSystem()
-                            end
-                        end)
-                    end
-                end
-            end)
+        elseif event == "PLAYER_ENTERING_WORLD" then
+            -- Apply system immediately when entering world (reload or login)
+            ApplyMulticastSystem()
             
         elseif event == "PLAYER_LOGOUT" then
             if addon.db and addon.db.UnregisterCallback then
@@ -674,115 +557,9 @@ local function RegisterEvents()
                 addon.db.UnregisterCallback(addon, "OnProfileCopied") 
                 addon.db.UnregisterCallback(addon, "OnProfileReset")
             end
-            
-        elseif event == "PLAYER_REGEN_ENABLED" then
-            DelayedCall(0.5, function()
-                if IsModuleEnabled() and anchor and anchor.update_position then
-                    anchor:update_position()
-                end
-            end)
         end
     end)
 end
 
 -- Initialize event system
 RegisterEvents()
-
--- =============================================================================
--- EDITOR MODE OVERLAY - ULTRA SIMPLE
--- =============================================================================
-
--- Create simple overlay (only visible in editor mode)
-local editorOverlay = CreateFrame('Frame', 'DragonUI_MulticastEditorOverlay', UIParent)
-editorOverlay:SetSize(200, 30)
-editorOverlay:SetFrameStrata('FULLSCREEN')
-editorOverlay:SetFrameLevel(100)
-editorOverlay:Hide()
-
--- Green texture
-local tex = editorOverlay:CreateTexture(nil, 'OVERLAY')
-tex:SetAllPoints()
-tex:SetTexture(0, 1, 0, 0.5)
-
--- Text
-local text = editorOverlay:CreateFontString(nil, 'OVERLAY', 'GameFontNormalLarge')
-text:SetPoint('CENTER')
-text:SetText('multicast')
-
--- Variables to track drag movement
-local dragStartX, dragStartY = 0, 0
-local configStartX, configStartY = 0, 0
-local isDragging = false
-
--- Make draggable (but DON'T use built-in moving)
-editorOverlay:SetMovable(false)  -- Disable built-in movement
-editorOverlay:EnableMouse(true)
-editorOverlay:RegisterForDrag("LeftButton")
-
-editorOverlay:SetScript("OnDragStart", function(self)
-    isDragging = true
-    
-    -- Store mouse position when drag starts
-    local scale = self:GetEffectiveScale()
-    dragStartX = GetCursorPosition() / scale
-    dragStartY = select(2, GetCursorPosition()) / scale
-    
-    -- Store current config values
-    if addon.db and addon.db.profile and addon.db.profile.additional and addon.db.profile.additional.totem then
-        configStartX = addon.db.profile.additional.totem.x_position or 0
-        configStartY = addon.db.profile.additional.totem.y_offset or 0
-    end
-end)
-
--- Real-time update during drag
-editorOverlay:SetScript("OnUpdate", function(self, elapsed)
-    if not isDragging then return end
-    
-    -- Calculate current delta from mouse movement
-    local scale = self:GetEffectiveScale()
-    local currentX = GetCursorPosition() / scale
-    local currentY = select(2, GetCursorPosition()) / scale
-    
-    local deltaX = currentX - dragStartX
-    local deltaY = currentY - dragStartY
-    
-    -- Update config values in real-time
-    if addon.db and addon.db.profile and addon.db.profile.additional and addon.db.profile.additional.totem then
-        addon.db.profile.additional.totem.x_position = math.floor(configStartX + deltaX + 0.5)
-        addon.db.profile.additional.totem.y_offset = math.floor(configStartY + deltaY + 0.5)
-        
-        -- Update anchor position in real-time
-        if anchor and anchor.update_position then
-            anchor:update_position()
-        end
-        
-        -- Keep overlay centered on anchor with -20 offset (consistent with showTest)
-        self:ClearAllPoints()
-        self:SetPoint('CENTER', anchor, 'CENTER', -20, 0)
-    end
-end)
-
-editorOverlay:SetScript("OnDragStop", function(self)
-    isDragging = false
-    -- Overlay is already in correct position from OnUpdate
-end)
-
--- Register with editor system
-if addon.RegisterEditableFrame then
-    addon:RegisterEditableFrame({
-        name = "multicast",
-        frame = editorOverlay,
-        configPath = {"additional", "totem"},
-        
-        showTest = function()
-            -- Position overlay exactly where anchor is
-            editorOverlay:ClearAllPoints()
-            editorOverlay:SetPoint('CENTER', anchor, 'CENTER', -20, 0)
-            editorOverlay:Show()
-        end,
-        
-        hideTest = function()
-            editorOverlay:Hide()
-        end
-    })
-end

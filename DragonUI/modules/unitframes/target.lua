@@ -158,6 +158,76 @@ local function SafeCall(func, ...)
 end
 
 -- ============================================================================
+-- CLASS PORTRAIT SYSTEM
+-- ============================================================================
+
+-- Class icon texture coordinates
+local CLASS_ICON_TEXTURE = "Interface\\TargetingFrame\\UI-Classes-Circles"
+
+-- Class portrait textures (created once, reused)
+local classPortraitBg = nil
+local classPortraitIcon = nil
+
+-- Apply class portrait if enabled in config
+local function UpdateTargetClassPortrait()
+    local config = GetConfig()
+    if not config then return end
+    
+    local useClassPortrait = config.classPortrait
+    
+    if useClassPortrait and UnitExists("target") and UnitIsPlayer("target") then
+        -- Get target's class
+        local _, classFileName = UnitClass("target")
+        if classFileName and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[classFileName] then
+            local coords = CLASS_ICON_TCOORDS[classFileName]
+            
+            -- Create black background circle if it doesn't exist
+            if not classPortraitBg then
+                classPortraitBg = TargetFrame:CreateTexture(nil, "BACKGROUND", nil, 1)
+                classPortraitBg:SetTexture("Interface\\CHARACTERFRAME\\TempPortraitAlphaMask")
+                classPortraitBg:SetVertexColor(0, 0, 0, 1)  -- Black background
+            end
+            
+            -- Create class icon texture if it doesn't exist (separate from portrait)
+            if not classPortraitIcon then
+                classPortraitIcon = TargetFrame:CreateTexture(nil, "ARTWORK", nil, 1)
+                classPortraitIcon:SetTexture(CLASS_ICON_TEXTURE)
+            end
+            
+            -- Position and size the background (full size)
+            classPortraitBg:ClearAllPoints()
+            classPortraitBg:SetPoint("CENTER", TargetFramePortrait, "CENTER", 0, 0)
+            classPortraitBg:SetSize(56, 56)
+            classPortraitBg:Show()
+            
+            -- Position and size the icon (same as background with circular icons)
+            classPortraitIcon:ClearAllPoints()
+            classPortraitIcon:SetPoint("CENTER", TargetFramePortrait, "CENTER", 0, 0)
+            classPortraitIcon:SetSize(56, 56)
+            classPortraitIcon:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
+            classPortraitIcon:Show()
+            
+            -- Hide the original portrait
+            TargetFramePortrait:SetAlpha(0)
+        end
+    else
+        -- Hide class portrait elements
+        if classPortraitBg then
+            classPortraitBg:Hide()
+        end
+        if classPortraitIcon then
+            classPortraitIcon:Hide()
+        end
+        -- Restore normal portrait
+        if UnitExists("target") then
+            SetPortraitTexture(TargetFramePortrait, "target")
+            TargetFramePortrait:SetTexCoord(0, 1, 0, 1)
+        end
+        TargetFramePortrait:SetAlpha(1)
+    end
+end
+
+-- ============================================================================
 -- FIX: REAPPLY ELEMENT POSITIONS
 -- ============================================================================
 -- Tato funkce násilně znovu aplikuje pozice všech prvků, aby přepsala
@@ -665,6 +735,41 @@ local function InitializeFrame()
             self:SetFrameStrata("MEDIUM")
             self:SetFrameLevel(10) -- Nivel bajo para que el frame verde esté encima
             
+            --  FORZAR POSICIONES DE ELEMENTOS (ReapplyElementPositions no funciona sin target real)
+            -- Portrait
+            if TargetFramePortrait then
+                TargetFramePortrait:ClearAllPoints()
+                TargetFramePortrait:SetSize(56, 56)
+                TargetFramePortrait:SetPoint("TOPRIGHT", TargetFrame, "TOPRIGHT", -47, -15)
+            end
+            -- Health Bar
+            if TargetFrameHealthBar then
+                TargetFrameHealthBar:ClearAllPoints()
+                TargetFrameHealthBar:SetSize(125, 20)
+                TargetFrameHealthBar:SetPoint("RIGHT", TargetFramePortrait, "LEFT", -1, 0)
+            end
+            -- Power Bar
+            if TargetFrameManaBar then
+                TargetFrameManaBar:ClearAllPoints()
+                TargetFrameManaBar:SetSize(132, 9)
+                TargetFrameManaBar:SetPoint("RIGHT", TargetFramePortrait, "LEFT", 6.5, -16.5)
+            end
+            -- Name Text
+            if TargetFrameTextureFrameName then
+                TargetFrameTextureFrameName:ClearAllPoints()
+                TargetFrameTextureFrameName:SetPoint("BOTTOM", TargetFrameHealthBar, "TOP", 10, 3)
+            end
+            -- Level Text
+            if TargetFrameTextureFrameLevelText then
+                TargetFrameTextureFrameLevelText:ClearAllPoints()
+                TargetFrameTextureFrameLevelText:SetPoint("BOTTOMRIGHT", TargetFrameHealthBar, "TOPLEFT", 18, 3)
+            end
+            -- Name Background
+            if TargetFrameNameBackground then
+                TargetFrameNameBackground:ClearAllPoints()
+                TargetFrameNameBackground:SetPoint("BOTTOMLEFT", TargetFrameHealthBar, "TOPLEFT", -2, -5)
+            end
+            
             --  ASEGURAR QUE NUESTRAS TEXTURAS PERSONALIZADAS ESTÉN VISIBLES
             if frameElements.background then
                 frameElements.background:Show()
@@ -872,6 +977,7 @@ local function OnEvent(self, event, ...)
         UpdateClassification()
         UpdateThreat()
         UpdateTargetHealthBarColor()
+        UpdateTargetClassPortrait()  -- Apply class portrait if enabled
         if Module.textSystem then
             Module.textSystem.update()
         end
@@ -1011,7 +1117,8 @@ addon.TargetFrame = {
         return Module.targetFrame
     end,
     ChangeTargetFrame = RefreshFrame,
-    UpdateTargetHealthBarColor = UpdateTargetHealthBarColorPublic  --  NUEVA FUNCIÓN PÚBLICA
+    UpdateTargetHealthBarColor = UpdateTargetHealthBarColorPublic,
+    UpdateTargetClassPortrait = UpdateTargetClassPortrait
 }
 
 -- Legacy compatibility
@@ -1067,6 +1174,14 @@ local function SetupTargetClassColorHooks()
         hooksecurefunc("TargetFrame_Update", function()
             if UnitExists("target") then
                 UpdateTargetHealthBarColor()
+                UpdateTargetClassPortrait()  -- Apply class portrait if enabled
+            end
+        end)
+        
+        -- Hook for class portrait - intercept Blizzard's portrait updates
+        hooksecurefunc("UnitFramePortrait_Update", function(frame, unit)
+            if frame == TargetFrame and unit == "target" then
+                UpdateTargetClassPortrait()
             end
         end)
         
