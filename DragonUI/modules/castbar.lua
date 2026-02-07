@@ -146,6 +146,20 @@ end
 -- BLIZZARD CASTBAR MANAGEMENT 
 -- ============================================================================
 
+-- Phase 2: Hidden parent frame to suppress Blizzard castbars without SetScript taint
+local DragonUI_HiddenCastbarParent = CreateFrame("Frame")
+DragonUI_HiddenCastbarParent:Hide()
+-- Dummy properties required by Blizzard's Target_Spellbar_AdjustPosition.
+-- When spellbars are reparented here, the Blizzard function accesses these on GetParent();
+-- nil values cause "attempt to compare number with nil" errors.
+DragonUI_HiddenCastbarParent.haveToT = false
+DragonUI_HiddenCastbarParent.haveElite = false
+DragonUI_HiddenCastbarParent.auraRows = 0
+DragonUI_HiddenCastbarParent.spellbarAnchor = DragonUI_HiddenCastbarParent
+
+-- Store original parents for restore
+local blizzardCastbarOriginalParents = {}
+
 local function HideBlizzardCastbar(unitType)
     -- Skip if already hidden
     if CastbarModule.blizzardHidden[unitType] then
@@ -163,7 +177,17 @@ local function HideBlizzardCastbar(unitType)
         return
     end
     
-    -- More aggressive hiding to prevent interference
+    -- Phase 2: Use hidden parent pattern instead of SetScript("OnShow") to avoid taint
+    -- Store original parent for restoration
+    if not blizzardCastbarOriginalParents[unitType] then
+        blizzardCastbarOriginalParents[unitType] = frame:GetParent()
+    end
+    
+    -- Reparent to hidden frame — must be done outside combat
+    if not InCombatLockdown() then
+        frame:SetParent(DragonUI_HiddenCastbarParent)
+    end
+    
     frame:Hide()
     frame:SetAlpha(0)
     
@@ -173,9 +197,9 @@ local function HideBlizzardCastbar(unitType)
         frame:SetSize(1, 1)
     end
     
-    -- Set OnShow hook only once
+    -- Backup: HookScript (not SetScript) for extra safety if parent gets changed
     if not frame._dragonUIHooked then
-        frame:SetScript("OnShow", function(self)
+        frame:HookScript("OnShow", function(self)
             if CastbarModule.blizzardHidden[unitType] then
                 self:Hide()
             end
@@ -198,6 +222,11 @@ local function ShowBlizzardCastbar(unitType)
     local frame = frames[unitType]
     if not frame then
         return
+    end
+    
+    -- Phase 2: Restore original parent
+    if not InCombatLockdown() and blizzardCastbarOriginalParents[unitType] then
+        frame:SetParent(blizzardCastbarOriginalParents[unitType])
     end
     
     frame:SetAlpha(1)
@@ -1710,10 +1739,10 @@ if TargetFrameSpellBar then
     end)
 end
 
--- Disable Blizzard's own hiding logic
+-- Phase 2: Replaced SetScript with HookScript to avoid taint on protected TargetFrameSpellBar
+-- The hidden parent pattern in HideBlizzardCastbar() handles suppression; this is extra safety
 if TargetFrameSpellBar then
-    TargetFrameSpellBar:SetScript("OnHide", nil)
-    TargetFrameSpellBar:SetScript("OnShow", function(self)
+    TargetFrameSpellBar:HookScript("OnShow", function(self)
         local cfg = GetConfig("target")
         if cfg and cfg.enabled then
             self:Hide()

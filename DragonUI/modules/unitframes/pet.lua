@@ -98,11 +98,14 @@ local function HideBlizzardPetTexts()
     for _, t in pairs(petTexts) do
         if t and not t.DragonUIHidden then
             t:SetAlpha(0)
-            t.DragonUIShow = t.Show
-            t.Show = function(self)
-                self:SetAlpha(0)
-                -- opcional: no llamar al Show original para evitar parpadeos
-            end
+            -- Phase 2: hooksecurefunc instead of direct .Show override to avoid taint
+            hooksecurefunc(t, "Show", function(self)
+                if not self.DragonUI_ShowGuard then
+                    self.DragonUI_ShowGuard = true
+                    self:SetAlpha(0)
+                    self.DragonUI_ShowGuard = nil
+                end
+            end)
             t:Hide()
             t.DragonUIHidden = true
         end
@@ -274,12 +277,20 @@ local function ReplaceBlizzardPetFrame()
     if not petFrame then return end
 
     if not moduleState.hooks.onUpdate then
-        petFrame:SetScript("OnUpdate", PetFrame_OnUpdate)
+        -- Phase 2: HookScript instead of SetScript to avoid taint on Blizzard PetFrame
+        petFrame:HookScript("OnUpdate", PetFrame_OnUpdate)
         moduleState.hooks.onUpdate = true
         
     end
     
-    ApplyFramePositioning()
+    -- Phase 2: Combat protection for secure frame positioning
+    if InCombatLockdown() then
+        if addon and addon.CombatQueue then
+            addon.CombatQueue:Add("petbar_position", ApplyFramePositioning)
+        end
+    else
+        ApplyFramePositioning()
+    end
     
     -- Hide original Blizzard texture
     PetFrameTexture:SetTexture('')

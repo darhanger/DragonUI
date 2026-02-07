@@ -368,10 +368,14 @@ local function SetupBarHooks()
             powerTexture:SetDrawLayer("ARTWORK", 1)
         end
 
-        local origSetColor = TargetFrameManaBar.SetStatusBarColor
-        TargetFrameManaBar.SetStatusBarColor = function(self, r, g, b, a)
-            origSetColor(self, 1, 1, 1, 1)
-        end
+        -- Phase 2: hooksecurefunc instead of direct override to avoid taint
+        hooksecurefunc(TargetFrameManaBar, "SetStatusBarColor", function(self)
+            local texture = self:GetStatusBarTexture()
+            if texture then
+                texture:SetVertexColor(1, 1, 1, 1)
+            end
+        end)
+        TargetFrameManaBar:SetStatusBarColor(1, 1, 1, 1) -- Apply initial color
 
         hooksecurefunc(TargetFrameManaBar, "SetValue", function(self)
             if not UnitExists("target") then
@@ -691,23 +695,26 @@ local function InitializeFrame()
     Module.configured = true
     --  HOOK CRÍTICO: Proteger contra resets de Blizzard (SIN C_Timer)
     if not Module.classificationHooked then
+        -- Phase 2: Reusable persistent delay frame instead of creating a new one each call (memory leak fix)
+        local classificationDelayFrame = CreateFrame("Frame")
+        classificationDelayFrame:Hide()
+        classificationDelayFrame.elapsed = 0
+        classificationDelayFrame:SetScript("OnUpdate", function(self, dt)
+            self.elapsed = self.elapsed + dt
+            if self.elapsed >= 0.1 then -- 100ms delay
+                self:Hide()
+                if UnitExists("target") then
+                    UpdateClassification()
+                end
+            end
+        end)
+
         -- Hook la función que Blizzard usa para cambiar clasificaciones
         if _G.TargetFrame_CheckClassification then
             hooksecurefunc("TargetFrame_CheckClassification", function()
-                --  SIN C_Timer - Usar frame con OnUpdate para delay mínimo
                 if UnitExists("target") then
-                    local delayFrame = CreateFrame("Frame")
-                    local elapsed = 0
-                    delayFrame:SetScript("OnUpdate", function(self, dt)
-                        elapsed = elapsed + dt
-                        if elapsed >= 0.1 then -- 100ms delay
-                            if UnitExists("target") then
-                                UpdateClassification()
-                            end
-                            delayFrame:SetScript("OnUpdate", nil)
-                            delayFrame = nil
-                        end
-                    end)
+                    classificationDelayFrame.elapsed = 0
+                    classificationDelayFrame:Show()
                 end
             end)
         end

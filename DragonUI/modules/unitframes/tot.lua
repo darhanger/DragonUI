@@ -423,8 +423,11 @@ local function InitializeFrame()
     TargetFrameToTHealthBar:SetFrameStrata("LOW")
     TargetFrameToTHealthBar:GetStatusBarTexture():SetDrawLayer("ARTWORK", 1)
     TargetFrameToTHealthBar:GetStatusBarTexture():SetTexture(TEXTURES.BAR_PREFIX .. "Health")
-    TargetFrameToTHealthBar.SetStatusBarColor = function()
-    end -- noop
+    -- Phase 2: hooksecurefunc instead of direct noop override to avoid taint
+    hooksecurefunc(TargetFrameToTHealthBar, "SetStatusBarColor", function(self)
+        local texture = self:GetStatusBarTexture()
+        if texture then texture:SetVertexColor(1, 1, 1, 1) end
+    end)
     TargetFrameToTHealthBar:GetStatusBarTexture():SetVertexColor(1, 1, 1, 1)
     TargetFrameToTHealthBar:SetSize(70.5, 10)
     TargetFrameToTHealthBar:SetPoint('LEFT', TargetFrameToTPortrait, 'RIGHT', 1 + 1, 0)
@@ -437,8 +440,11 @@ local function InitializeFrame()
     TargetFrameToTManaBar:SetFrameStrata("LOW")
     TargetFrameToTManaBar:GetStatusBarTexture():SetDrawLayer("ARTWORK", 1)
     TargetFrameToTManaBar:GetStatusBarTexture():SetTexture(TEXTURES.BAR_PREFIX .. "Mana")
-    TargetFrameToTManaBar.SetStatusBarColor = function()
-    end -- noop
+    -- Phase 2: hooksecurefunc instead of direct noop override to avoid taint
+    hooksecurefunc(TargetFrameToTManaBar, "SetStatusBarColor", function(self)
+        local texture = self:GetStatusBarTexture()
+        if texture then texture:SetVertexColor(1, 1, 1, 1) end
+    end)
     TargetFrameToTManaBar:GetStatusBarTexture():SetVertexColor(1, 1, 1, 1)
     TargetFrameToTManaBar:SetSize(74, 7.5)
     TargetFrameToTManaBar:SetPoint('LEFT', TargetFrameToTPortrait, 'RIGHT', 1 - 2 - 1.5 + 1, 2 - 10 - 1)

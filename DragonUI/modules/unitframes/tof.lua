@@ -290,6 +290,14 @@ local function InitializeFrame()
         return
     end
     
+    -- Phase 2: Combat protection for secure frame modifications
+    if InCombatLockdown() then
+        if addon and addon.CombatQueue then
+            addon.CombatQueue:Add("tof_initialize", InitializeFrame)
+        end
+        return
+    end
+    
     -- Check if FoT is enabled in config
     if not IsEnabled() then
         if FocusFrameToT then
@@ -358,8 +366,11 @@ local function InitializeFrame()
     FocusFrameToTHealthBar:SetFrameStrata("LOW")
     FocusFrameToTHealthBar:GetStatusBarTexture():SetDrawLayer("ARTWORK", 1)
     FocusFrameToTHealthBar:GetStatusBarTexture():SetTexture(TEXTURES.BAR_PREFIX .. "Health")
-    FocusFrameToTHealthBar.SetStatusBarColor = function()
-    end -- noop
+    -- Phase 2: hooksecurefunc instead of direct noop override to avoid taint
+    hooksecurefunc(FocusFrameToTHealthBar, "SetStatusBarColor", function(self)
+        local texture = self:GetStatusBarTexture()
+        if texture then texture:SetVertexColor(1, 1, 1, 1) end
+    end)
     FocusFrameToTHealthBar:GetStatusBarTexture():SetVertexColor(1, 1, 1, 1)
     FocusFrameToTHealthBar:SetSize(70.5, 10)
     FocusFrameToTHealthBar:SetPoint('LEFT', FocusFrameToTPortrait, 'RIGHT', 1 + 1, 0)
@@ -372,8 +383,11 @@ local function InitializeFrame()
     FocusFrameToTManaBar:SetFrameStrata("LOW")
     FocusFrameToTManaBar:GetStatusBarTexture():SetDrawLayer("ARTWORK", 1)
     FocusFrameToTManaBar:GetStatusBarTexture():SetTexture(TEXTURES.BAR_PREFIX .. "Mana")
-    FocusFrameToTManaBar.SetStatusBarColor = function()
-    end -- noop
+    -- Phase 2: hooksecurefunc instead of direct noop override to avoid taint
+    hooksecurefunc(FocusFrameToTManaBar, "SetStatusBarColor", function(self)
+        local texture = self:GetStatusBarTexture()
+        if texture then texture:SetVertexColor(1, 1, 1, 1) end
+    end)
     FocusFrameToTManaBar:GetStatusBarTexture():SetVertexColor(1, 1, 1, 1)
     FocusFrameToTManaBar:SetSize(74, 7.5)
     FocusFrameToTManaBar:SetPoint('LEFT', FocusFrameToTPortrait, 'RIGHT', 1 - 2 - 1.5 + 1, 2 - 10 - 1)
@@ -456,12 +470,16 @@ local function OnEvent(self, event, ...)
     elseif event == "PLAYER_FOCUS_CHANGED" then
         if not IsEnabled() then return end
         
-        -- Show or hide based on whether we should show FoT
+        -- Phase 2: Combat protection for Show/Hide on secure FocusFrameToT
         if FocusFrameToT then
             if ShouldShowFoT() then
-                FocusFrameToT:Show()
+                if not InCombatLockdown() then
+                    FocusFrameToT:Show()
+                end
             else
-                FocusFrameToT:Hide()
+                if not InCombatLockdown() then
+                    FocusFrameToT:Hide()
+                end
             end
         end
         
@@ -475,12 +493,16 @@ local function OnEvent(self, event, ...)
         
         local unit = ...
         if unit == "focus" then
-            -- Show or hide based on whether we should show FoT
+            -- Phase 2: Combat protection for Show/Hide on secure FocusFrameToT
             if FocusFrameToT then
                 if ShouldShowFoT() then
-                    FocusFrameToT:Show()
+                    if not InCombatLockdown() then
+                        FocusFrameToT:Show()
+                    end
                 else
-                    FocusFrameToT:Hide()
+                    if not InCombatLockdown() then
+                        FocusFrameToT:Hide()
+                    end
                 end
             end
             

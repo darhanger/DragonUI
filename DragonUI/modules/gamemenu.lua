@@ -261,20 +261,15 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
     end
 end)
 
--- Hook al GameMenuFrame para intentar agregar el botón cuando se abre
-local originalGameMenuShow = GameMenuFrame.Show
-if originalGameMenuShow then
-    GameMenuFrame.Show = function(self)
-        originalGameMenuShow(self)
-        
-        -- Intentar crear el botón si no existe
-        if not buttonAdded then
-            CreateDragonUIButton()
-        elseif dragonUIButton then
-            -- Si ya existe, asegurar que esté visible PERO NO reposicionar
-            dragonUIButton:Show()
-            -- Comentado para evitar bug de acumulación: PositionDragonUIButton()
-        end
+-- Phase 2: hooksecurefunc instead of direct .Show override to avoid taint
+hooksecurefunc(GameMenuFrame, "Show", function(self)
+    -- Intentar crear el botón si no existe
+    if not buttonAdded then
+        CreateDragonUIButton()
+    elseif dragonUIButton then
+        -- Si ya existe, asegurar que esté visible PERO NO reposicionar
+        dragonUIButton:Show()
+        -- Comentado para evitar bug de acumulación: PositionDragonUIButton()
     end
-end
+end)
 

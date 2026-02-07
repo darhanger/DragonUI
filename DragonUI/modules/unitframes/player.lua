@@ -177,12 +177,14 @@ local function HideBlizzardPlayerTexts()
             -- Set alpha to 0 immediately (taint-free)
             textElement:SetAlpha(0)
 
-            -- Override Show function to maintain permanent invisibility
-            textElement.DragonUIShow = textElement.Show
-            textElement.Show = function(self)
-                -- Always stay invisible - no timer needed
-                self:SetAlpha(0)
-            end
+            -- Phase 2: hooksecurefunc instead of direct .Show override to avoid taint
+            hooksecurefunc(textElement, "Show", function(self)
+                if not self.DragonUI_ShowGuard then
+                    self.DragonUI_ShowGuard = true
+                    self:SetAlpha(0)
+                    self.DragonUI_ShowGuard = nil
+                end
+            end)
 
             -- Mark as processed to avoid duplicate setup
             textElement.DragonUIHidden = true
@@ -1668,27 +1670,15 @@ local function InitializePlayerFrame()
         end
     end
 
-    -- Setup vehicle transition hooks con seguridad
-    SafeHookSecureFunc("PlayerFrame_ToVehicleArt", function()
-        -- Reconfigurar textures para vehículo
-        ChangePlayerframe()
-        -- Ocultar runas DK en vehículo
-        HandleRuneFrameVehicleTransition(true)
-    end)
-
-    SafeHookSecureFunc("PlayerFrame_ToPlayerArt", function()
-        -- Mostrar runas DK al salir de vehículo
-        HandleRuneFrameVehicleTransition(false)
-    end)
+    -- Phase 2: Removed duplicate PlayerFrame_ToVehicleArt / PlayerFrame_ToPlayerArt hooks
+    -- These are hooked at file scope below with richer logic (vehicle transitions section)
+    -- HandleRuneFrameVehicleTransition is called from the file-scope hooks instead
 
     -- SEGURO: Hook con protección adicional
     SafeHookSecureFunc("PlayerFrame_UpdateStatus", PlayerFrame_UpdateStatus)
     SafeHookSecureFunc("PlayerFrame_UpdateArt", ChangePlayerframe)
-    SafeHookSecureFunc("UnitFrameHealthBar_Update", function(statusbar, unit)
-        if statusbar == PlayerFrameHealthBar and unit == "player" then
-            UpdatePlayerHealthBarColor()
-        end
-    end)
+    -- Phase 2: Removed duplicate UnitFrameHealthBar_Update hook — 
+    -- already hooked in SetupPlayerClassColorHooks() with _G.DragonUI_PlayerHealthHookSetup guard
     
     -- Hook for class portrait - intercept Blizzard's portrait updates
     SafeHookSecureFunc("UnitFramePortrait_Update", function(frame, unit)
@@ -1737,14 +1727,8 @@ local function InitializePlayerFrame()
         PlayerFrame:HookScript('OnUpdate', PlayerFrame_OnUpdate)
     end
 
-    -- Hook Blizzard functions
-    if _G.PlayerFrame_UpdateStatus then
-        hooksecurefunc('PlayerFrame_UpdateStatus', PlayerFrame_UpdateStatus)
-    end
-
-    if _G.PlayerFrame_UpdateArt then
-        hooksecurefunc("PlayerFrame_UpdateArt", ChangePlayerframe)
-    end
+    -- Phase 2: Removed duplicate hooksecurefunc for PlayerFrame_UpdateStatus and
+    -- PlayerFrame_UpdateArt — already hooked via SafeHookSecureFunc above (L1685-1686)
 
     -- Setup bar hooks for persistent colors
     if PlayerFrameHealthBar and PlayerFrameHealthBar.HookScript then
@@ -1756,10 +1740,8 @@ local function InitializePlayerFrame()
             --  APLICAR CLASS COLOR AL MOSTRAR
             UpdatePlayerHealthBarColor()
         end)
-        PlayerFrameHealthBar:HookScript('OnUpdate', function(self)
-            --  APLICAR CLASS COLOR EN UPDATES
-            UpdatePlayerHealthBarColor()
-        end)
+        -- Phase 2: Removed OnUpdate hook — fires 60x/sec unnecessarily.
+        -- OnValueChanged + OnShow + UnitFrameHealthBar_Update hook cover all real update cases.
     end
 
     if PlayerFrameManaBar and PlayerFrameManaBar.HookScript then
@@ -1975,6 +1957,9 @@ hooksecurefunc("PlayerFrame_ToPlayerArt", function()
     -- Aplicar posición inmediatamente después de la transición
     ApplyWidgetPosition()
     
+    -- Phase 2: Merged from InitializePlayerFrame — show DK runes on vehicle exit
+    HandleRuneFrameVehicleTransition(false)
+    
     -- CRÍTICO: Sistema robusto para restaurar estiramiento de mana bar en modo decoración
     local config = GetPlayerConfig()
     local decorationType = config.dragon_decoration or "none"
@@ -2031,6 +2016,9 @@ hooksecurefunc("PlayerFrame_ToVehicleArt", function()
     end
     -- Aplicar posición inmediatamente después de la transición  
     ApplyWidgetPosition()
+    
+    -- Phase 2: Merged from InitializePlayerFrame — hide DK runes on vehicle entry
+    HandleRuneFrameVehicleTransition(true)
     
     -- NUEVO: Ocultar decoración de dragón al entrar al vehículo
     local config = GetPlayerConfig()

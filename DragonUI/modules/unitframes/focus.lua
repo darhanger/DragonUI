@@ -602,13 +602,30 @@ local function InitializeFrame()
     
     -- Critical hook: Protect against Blizzard resets
     if not Module.scaleHooked then
-        -- Protect against any scale reset that Blizzard might do
-        local originalSetScale = FocusFrame.SetScale
-        FocusFrame.SetScale = function(self, scale)
+        -- Phase 2: hooksecurefunc instead of direct .SetScale override to avoid taint
+        -- Use a persistent defer frame to re-apply our scale one frame after Blizzard changes it
+        local focusScaleDeferFrame = CreateFrame("Frame")
+        focusScaleDeferFrame:Hide()
+        focusScaleDeferFrame:SetScript("OnUpdate", function(self)
+            self:Hide()
             local config = GetConfig()
             local correctScale = config.scale or 1
-            originalSetScale(self, correctScale)
-        end
+            if not FocusFrame.DragonUI_SettingScale then
+                FocusFrame.DragonUI_SettingScale = true
+                FocusFrame:SetScale(correctScale)
+                FocusFrame.DragonUI_SettingScale = nil
+            end
+        end)
+        
+        hooksecurefunc(FocusFrame, "SetScale", function(self, scale)
+            if FocusFrame.DragonUI_SettingScale then return end
+            local config = GetConfig()
+            local correctScale = config.scale or 1
+            if scale ~= correctScale then
+                -- Defer re-apply to next frame to avoid recursion
+                focusScaleDeferFrame:Show()
+            end
+        end)
         Module.scaleHooked = true
     end
     

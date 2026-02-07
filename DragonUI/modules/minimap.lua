@@ -434,15 +434,21 @@ local function ReplaceBlizzardFrame(frame)
             WorldStateCaptureBar1:ClearAllPoints()
             WorldStateCaptureBar1:SetPoint('CENTER', minimapFrame, 'BOTTOM', 0, -20)
 
-            -- Hook SetPoint to prevent other code from overriding our positioning - HACKY
-            -- SOMETHING likely Blizzard frame is trying to reposition the bar periodically so we need to block it
-            local originalSetPoint = WorldStateCaptureBar1.SetPoint
-            WorldStateCaptureBar1.SetPoint = function(self, ...)
-                -- Only allow our specific positioning, ignore all others
-                if select(1, ...) == 'CENTER' and select(2, ...) == minimapFrame and select(3, ...) == 'BOTTOM' then
-                    originalSetPoint(self, ...)
-                end
-                -- Silently ignore all other SetPoint calls
+            -- Phase 2: hooksecurefunc instead of direct .SetPoint override to avoid taint
+            -- Use a post-hook that re-applies our positioning after any Blizzard SetPoint
+            if not WorldStateCaptureBar1._dragonUISetPointHooked then
+                hooksecurefunc(WorldStateCaptureBar1, "SetPoint", function(self, point, relativeTo, relativePoint)
+                    -- Only correct if NOT our own positioning (avoid recursion)
+                    if not (point == 'CENTER' and relativeTo == minimapFrame and relativePoint == 'BOTTOM') then
+                        if not self.DragonUI_SettingPoint then
+                            self.DragonUI_SettingPoint = true
+                            self:ClearAllPoints()
+                            self:SetPoint('CENTER', minimapFrame, 'BOTTOM', 0, -20)
+                            self.DragonUI_SettingPoint = nil
+                        end
+                    end
+                end)
+                WorldStateCaptureBar1._dragonUISetPointHooked = true
             end
             return true
         end
