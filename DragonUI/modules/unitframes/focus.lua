@@ -591,41 +591,30 @@ local function InitializeFrame()
     -- Apply configuration
     local config = GetConfig()
     
-    FocusFrame:ClearAllPoints()
-    FocusFrame:SetClampedToScreen(false)
-    FocusFrame:SetScale(config.scale or 1)
+    -- SetScale and positioning: guard against combat lockdown (/reload in combat)
+    if not InCombatLockdown() then
+        FocusFrame:ClearAllPoints()
+        FocusFrame:SetClampedToScreen(false)
+        FocusFrame:SetScale(config.scale or 1)
+    end
     
     -- Always apply position from widgets
     ApplyWidgetPosition()
     
     Module.configured = true
     
-    -- Critical hook: Protect against Blizzard resets
+    -- Hook FocusFrame_SetSmallSize (RetailUI pattern) — this is the Blizzard function
+    -- that resets FocusFrame scale/layout. We re-apply our configuration after it runs.
     if not Module.scaleHooked then
-        -- Phase 2: hooksecurefunc instead of direct .SetScale override to avoid taint
-        -- Use a persistent defer frame to re-apply our scale one frame after Blizzard changes it
-        local focusScaleDeferFrame = CreateFrame("Frame")
-        focusScaleDeferFrame:Hide()
-        focusScaleDeferFrame:SetScript("OnUpdate", function(self)
-            self:Hide()
-            -- Don't call SetScale during combat lockdown (causes ADDON_ACTION_BLOCKED on /reload in combat)
-            if InCombatLockdown() then return end
+        hooksecurefunc("FocusFrame_SetSmallSize", function()
             local config = GetConfig()
             local correctScale = config.scale or 1
-            if not FocusFrame.DragonUI_SettingScale then
-                FocusFrame.DragonUI_SettingScale = true
-                FocusFrame:SetScale(correctScale)
-                FocusFrame.DragonUI_SettingScale = nil
-            end
-        end)
-        
-        hooksecurefunc(FocusFrame, "SetScale", function(self, scale)
-            if FocusFrame.DragonUI_SettingScale then return end
-            local config = GetConfig()
-            local correctScale = config.scale or 1
-            if scale ~= correctScale then
-                -- Defer re-apply to next frame to avoid recursion
-                focusScaleDeferFrame:Show()
+            -- Re-apply our scale after Blizzard resets it
+            FocusFrame:SetScale(correctScale)
+            -- Re-apply our visual customizations that Blizzard may have reset
+            if Module.configured then
+                Module.configured = false
+                InitializeFrame()
             end
         end)
         Module.scaleHooked = true
