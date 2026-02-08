@@ -1241,8 +1241,6 @@ local function ApplyMicromenuSystem()
         local config = addon.db.profile.micromenu[configMode]
 
         local menuScale = config.scale_menu
-        local xPosition = xOffset + config.x_position
-        local yPosition = config.y_position
         local iconSpacing = config.icon_spacing
 
         local menu = _G.pUiMicroMenu
@@ -1251,68 +1249,52 @@ local function ApplyMicromenuSystem()
         end
         menu:SetScale(menuScale)
         menu:SetSize(10, 10)
-        menu:ClearAllPoints()
-        menu:SetPoint('BOTTOMLEFT', UIParent, 'BOTTOMRIGHT', xPosition, yPosition)
+
+        -- Calculate overlay dimensions to match actual button span (in menu-scale coords)
+        -- Count only buttons that actually exist (some may be nil on certain servers)
+        local numButtons = 0
+        for _, btn in pairs(MICRO_BUTTONS) do
+            if btn then numButtons = numButtons + 1 end
+        end
+        local buttonWidth = useGrayscale and 14 or 32
+        local buttonHeight = useGrayscale and 19 or 40
+        local totalWidth = (numButtons - 1) * iconSpacing + buttonWidth
+
+        -- Scale overlay to match menu scale so coordinates are in the same space
+        local overlayWidth = (totalWidth + 10) * menuScale
+        local overlayHeight = (buttonHeight + 10) * menuScale
+
+        -- Menu-to-overlay offset: buttons are at (BOTTOMRIGHT of menu + (0..totalWidth, 55) in menu-local coords)
+        -- WoW multiplies SetPoint offsets by the frame's own scale, so we use UNSCALED values here.
+        -- Screen displacement = offset * menuScale, which then cancels with button offsets * menuScale.
+        local menuOffX = -(totalWidth / 2)
+        local menuOffY = -(55 + buttonHeight / 2)
 
         if not menu.registeredInEditor then
-            -- Create container frame
-            local microMenuFrame = addon.CreateUIFrame(240, 40, "MicroMenu")
+            -- PATTERN: Overlay = position anchor, real UI anchored TO overlay
+            -- Same as PlayerFrame, TargetFrame, CastBar, etc.
+            local microMenuFrame = addon.CreateUIFrame(overlayWidth, overlayHeight, "MicroMenu")
 
-            -- Define conditional offset (mode-dependent for correct visual positioning)
-            local menuXOffset = isAscensionServer and -170 or (useGrayscale and -100 or -140)
-            local menuYOffset = useGrayscale and -40 or -70
-
-            -- Apply position from widgets DB or use fallback
+            -- Position the OVERLAY from saved config or defaults
             local microMenuConfig = addon.db and addon.db.profile.widgets and addon.db.profile.widgets.micromenu
             if microMenuConfig and microMenuConfig.posX and microMenuConfig.posY then
-                -- Use saved editor position
                 microMenuFrame:SetPoint(microMenuConfig.anchor or "BOTTOMRIGHT", UIParent,
                     microMenuConfig.anchor or "BOTTOMRIGHT",
                     microMenuConfig.posX, microMenuConfig.posY)
             else
-                -- Use default position only if no widget config exists
                 microMenuFrame:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT",
                     xOffset + config.x_position, config.y_position)
             end
 
-            -- Anchor the real menu to the container frame
+            -- Anchor the REAL menu TO the overlay (fixed offset based on button geometry)
             menu:SetParent(UIParent)
             menu:ClearAllPoints()
-            menu:SetPoint("CENTER", microMenuFrame, "CENTER", menuXOffset, menuYOffset)
+            menu:SetPoint("BOTTOMRIGHT", microMenuFrame, "CENTER", menuOffX, menuOffY)
 
-            -- Hook for the menu to follow the container when moved
-            microMenuFrame:HookScript("OnDragStop", function(self)
-                menu:ClearAllPoints()
-                menu:SetPoint("CENTER", self, "CENTER", menuXOffset, menuYOffset)
-            end)
-
-            microMenuFrame:HookScript("OnShow", function(self)
-                menu:ClearAllPoints()
-                menu:SetPoint("CENTER", self, "CENTER", menuXOffset, menuYOffset)
-            end)
-
-            -- Continuous hook to maintain position
-            microMenuFrame:HookScript("OnUpdate", function(self)
-                if not menu:GetPoint() then
-                    menu:ClearAllPoints()
-                    menu:SetPoint("CENTER", self, "CENTER", menuXOffset, menuYOffset)
-                end
-            end)
-
-            -- Widget update function
-            local function UpdateMicroMenuWidgets()
-                local microMenuConfig = addon.db and addon.db.profile.widgets and addon.db.profile.widgets.micromenu
-                if microMenuConfig and microMenuConfig.posX and microMenuConfig.posY then
-                    microMenuFrame:ClearAllPoints()
-                    microMenuFrame:SetPoint(microMenuConfig.anchor or "BOTTOMRIGHT", UIParent,
-                        microMenuConfig.anchor or "BOTTOMRIGHT",
-                        microMenuConfig.posX, microMenuConfig.posY)
-
-                    -- Update real menu position
-                    menu:ClearAllPoints()
-                    menu:SetPoint("CENTER", microMenuFrame, "CENTER", menuXOffset, menuYOffset)
-                end
-            end
+            -- Store reference and offsets for re-anchoring
+            menu.editorFrame = microMenuFrame
+            menu.editorOffX = menuOffX
+            menu.editorOffY = menuOffY
 
             addon:RegisterEditableFrame({
                 name = "micromenu",
@@ -1320,10 +1302,23 @@ local function ApplyMicromenuSystem()
                 blizzardFrame = menu,
                 configPath = {"widgets", "micromenu"},
                 module = addon.MicroMenuModule or {},
-                UpdateWidgets = UpdateMicroMenuWidgets -- Added update function
+                onHide = function()
+                    -- Re-anchor menu when leaving editor mode (overlay may have been dragged)
+                    menu:ClearAllPoints()
+                    menu:SetPoint("BOTTOMRIGHT", microMenuFrame, "CENTER", menuOffX, menuOffY)
+                end
             })
 
             menu.registeredInEditor = true
+        else
+            -- Subsequent calls: re-anchor to existing overlay
+            if menu.editorFrame then
+                menu:ClearAllPoints()
+                menu:SetPoint("BOTTOMRIGHT", menu.editorFrame, "CENTER", menuOffX, menuOffY)
+                menu.editorFrame:SetSize(overlayWidth, overlayHeight)
+                menu.editorOffX = menuOffX
+                menu.editorOffY = menuOffY
+            end
         end
 
         for _, button in pairs(MICRO_BUTTONS) do
@@ -1550,19 +1545,18 @@ local function ApplyMicromenuSystem()
         return
     end
 
+    local menu = _G.pUiMicroMenu
     local frameInfo = addon:GetEditableFrameInfo("micromenu")
     if frameInfo and frameInfo.frame then
-        -- Corrected: Use widget system config instead of old one
+        -- Position the OVERLAY from saved config or defaults
         local microMenuConfig = addon.db and addon.db.profile.widgets and addon.db.profile.widgets.micromenu
 
         if microMenuConfig and microMenuConfig.posX and microMenuConfig.posY then
-            -- Use saved editor position
             frameInfo.frame:ClearAllPoints()
             frameInfo.frame:SetPoint(microMenuConfig.anchor or "BOTTOMRIGHT", UIParent,
                 microMenuConfig.anchor or "BOTTOMRIGHT",
                 microMenuConfig.posX, microMenuConfig.posY)
         else
-            -- Fallback only if no widget config
             local useGrayscale = addon.db.profile.micromenu.grayscale_icons
             local configMode = useGrayscale and "grayscale" or "normal"
             local config = addon.db.profile.micromenu[configMode]
@@ -1573,25 +1567,21 @@ local function ApplyMicromenuSystem()
                 xOffset + config.x_position, config.y_position)
         end
 
-        -- Define conditional offset (mode-dependent)
-        local useGrayscaleForOffset = addon.db.profile.micromenu.grayscale_icons
-        local menuXOffset = isAscensionServer and -170 or (useGrayscaleForOffset and -100 or -140)
-        local menuYOffset = useGrayscaleForOffset and -40 or -70
-
-        -- Ensure the menu follows the container with corrected positioning
-        _G.pUiMicroMenu:ClearAllPoints()
-        _G.pUiMicroMenu:SetPoint("CENTER", frameInfo.frame, "CENTER", menuXOffset, menuYOffset)
+        -- Re-anchor menu TO the overlay using stored offsets (unscaled; WoW applies frame scale automatically)
+        local offX = menu.editorOffX or -(159)
+        local offY = menu.editorOffY or -(75)
+        menu:ClearAllPoints()
+        menu:SetPoint("BOTTOMRIGHT", frameInfo.frame, "CENTER", offX, offY)
     else
-        -- Fallback to old method if no container
+        -- Fallback: no editor frame registered yet
         local useGrayscale = addon.db.profile.micromenu.grayscale_icons
         local configMode = useGrayscale and "grayscale" or "normal"
         local config = addon.db.profile.micromenu[configMode]
 
-        local microMenu = _G.pUiMicroMenu
-        microMenu:SetScale(config.scale_menu)
+        menu:SetScale(config.scale_menu)
         local xOffset = IsAddOnLoaded('ezCollections') and -180 or -166
-        microMenu:ClearAllPoints()
-        microMenu:SetPoint('BOTTOMLEFT', UIParent, 'BOTTOMRIGHT',
+        menu:ClearAllPoints()
+        menu:SetPoint('BOTTOMLEFT', UIParent, 'BOTTOMRIGHT',
             xOffset + config.x_position, config.y_position)
     end
 
