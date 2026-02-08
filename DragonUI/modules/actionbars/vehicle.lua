@@ -108,14 +108,15 @@ local function CreateVehicleExitButton()
     local btnsize = config.additional.size or 30
     vehicleExitButton:SetSize(btnsize, btnsize)
 
-    -- Position: relative to stance bar if exists, else main bar
-    local parent = addon.pUiStanceBar or _G.pUiStanceBar or pUiMainBar
-    if parent then
-        vehicleExitButton:SetParent(parent)
-    end
-
+    -- Keep UIParent as parent (so button stays visible even if stance/main bar hides)
+    -- Anchor relative to stance bar or main bar for positioning only
+    local anchor = addon.pUiStanceBar or _G.pUiStanceBar or pUiMainBar
     local x_pos = config.additional.vehicle and config.additional.vehicle.x_position or -40
-    vehicleExitButton:SetPoint('TOPLEFT', x_pos, -5)
+    if anchor then
+        vehicleExitButton:SetPoint('TOPLEFT', anchor, 'TOPLEFT', x_pos, -5)
+    else
+        vehicleExitButton:SetPoint('BOTTOM', UIParent, 'BOTTOM', x_pos, 115)
+    end
 
     -- Textures
     vehicleExitButton:SetNormalTexture('Interface\\Vehicles\\UI-Vehicles-Button-Exit-Up')
@@ -514,17 +515,12 @@ local function ApplyVehicleSystem()
     pUiMainBar = addon.pUiMainBar or _G.pUiMainBar
     CleanupVehicleFrames()
 
-    -- 1. Vehicle exit button (direct state driver: [vehicleui] show; hide)
-    CreateVehicleExitButton()
-
-    -- 2. Bonus bar page switching (stance-based action page management)
+    -- 1. Bonus bar page switching (always needed for action page management)
     SetupBonusBarVehicle()
 
-    -- 3. Hide bottom bars during vehicle UI
-    SetupBottomBarVehicleVisibility()
-
-    -- 4. Custom vehicle art (organic/mechanical) — only when artstyle=true
+    -- 2. Custom vehicle art OR simple exit button
     if config.additional.vehicle.artstyle then
+        -- artstyle=true: full vehicle art overlay + built-in leave button
         CreateVehicleArtFrames()
         vehiclebar_power_setup()
 
@@ -542,6 +538,13 @@ local function ApplyVehicleSystem()
 
         -- State drivers: show art when [vehicleui], hide main bar
         SetupArtStyleStateDrivers()
+
+        -- Hide bottom bars (main bar is replaced by vehicle art)
+        SetupBottomBarVehicleVisibility()
+    else
+        -- artstyle=false: main bars stay visible, just add an exit button
+        -- Bottom bars remain visible (main bar is not replaced)
+        CreateVehicleExitButton()
     end
 
     VehicleModule.applied = true
@@ -627,7 +630,12 @@ function addon.RefreshVehicle()
     if vehicleExitButton then
         vehicleExitButton:SetSize(btnsize, btnsize)
         vehicleExitButton:ClearAllPoints()
-        vehicleExitButton:SetPoint('TOPLEFT', x_position, -5)
+        local anchor = addon.pUiStanceBar or _G.pUiStanceBar or pUiMainBar
+        if anchor then
+            vehicleExitButton:SetPoint('TOPLEFT', anchor, 'TOPLEFT', x_position, -5)
+        else
+            vehicleExitButton:SetPoint('BOTTOM', UIParent, 'BOTTOM', x_position, 115)
+        end
     end
 
     if vehicleBarBackground then
