@@ -292,11 +292,14 @@ function UF.TargetStyle.Create(opts)
 
             hooksecurefunc(HealthBar, "SetValue", function(self)
                 if not UnitExists(unitToken) then return end
+
+                -- Color: always update immediately (no throttle)
+                UpdateHealthBarColor()
+
+                -- TexCoord: throttled for performance
                 local now = GetTime()
                 if now - updateCache.lastHealthUpdate < 0.05 then return end
                 updateCache.lastHealthUpdate = now
-
-                UpdateHealthBarColor()
 
                 local texture = self:GetStatusBarTexture()
                 if texture then
@@ -307,6 +310,21 @@ function UF.TargetStyle.Create(opts)
                     end
                 end
             end)
+
+            -- Catch value changes that bypass SetValue (Blizzard internal updates)
+            HealthBar:HookScript("OnValueChanged", function(self)
+                if UnitExists(unitToken) then
+                    UpdateHealthBarColor()
+                end
+            end)
+
+            -- Prevent Blizzard from resetting health bar to default green
+            hooksecurefunc(HealthBar, "SetStatusBarColor", function(self)
+                if UnitExists(unitToken) then
+                    UpdateHealthBarColor()
+                end
+            end)
+
             HealthBar.DragonUI_Setup = true
         end
 

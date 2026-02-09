@@ -23,7 +23,7 @@ local defaults = {
             focus = {
                 anchor = "TOPLEFT",
                 posX = 250,
-                posY = -170
+                posY = -220
             },
             party = {
                 anchor = "TOPLEFT",
@@ -264,7 +264,7 @@ local defaults = {
                 enabled = true,
                 scale = 1,
                 x_position = -20,
-                y_position = -10,
+                y_position = -20,
                 text_mode = "simple", -- "simple" (centered spell name only) or "detailed" (name + time)
                 precision_time = 1,
                 precision_max = 1,

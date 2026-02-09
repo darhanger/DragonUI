@@ -1,5 +1,18 @@
 # 🐉 DragonUI - Experimental Changelog
 
+## 2026-02-09
+
+### Refactored
+- Unit frame system restructured with shared factories (`uf_core.lua`, `target_style.lua`, `small_frame.lua`)
+- Target, Focus, ToT, and FoT modules now use shared code instead of duplicated logic (~930 lines removed)
+
+### Fixed
+- Target/Focus background texture no longer shows a floating shadow artifact
+- Castbar aura offset: replaced manual `UnitAura()` counting with Blizzard's native `auraRows` via `TargetFrame_UpdateAuras` hook
+- Castbar no longer overlaps buffs/debuffs on target or focus frames
+- Health bar class color no longer resets to green (race condition fix via `OnValueChanged` + `SetStatusBarColor` hooks)
+- Focus castbar default position adjusted to match target castbar spacing
+
 ## 2026-02-08
 
 ### Fixed

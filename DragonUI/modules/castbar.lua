@@ -464,81 +464,40 @@ local function CreateShield(parent, icon, frameName, iconSize)
 end
 
 -- ============================================================================
--- AURA OFFSET SYSTEM 
+-- AURA OFFSET SYSTEM
 -- ============================================================================
 
-local auraOffsetCache = {
-    target = { offset = 0, guid = nil, lastUpdate = 0 },
-    focus = { offset = 0, guid = nil, lastUpdate = 0 }
-}
+-- Height per aura row (buff icon ~17px + ~2px spacing in WotLK 3.3.5a)
+local AURA_ROW_HEIGHT = 17
 
 local function GetAuraOffset(unit)
     local cfg = GetConfig(unit)
     if not cfg or not cfg.autoAdjust then
         return 0
     end
-    
     if not UnitExists(unit) then
         return 0
     end
-    
-    -- Check cache
-    local cache = auraOffsetCache[unit]
-    if cache and cache.guid == UnitGUID(unit) and (GetTime() - cache.lastUpdate) < 0.5 then
-        return cache.offset
+
+    -- Read Blizzard's native auraRows (set by TargetFrame_UpdateAuras)
+    -- instead of manually counting auras with UnitAura() loops
+    local parentFrame
+    if unit == "target" then
+        parentFrame = _G.TargetFrame
+    elseif unit == "focus" then
+        parentFrame = _G.FocusFrame
     end
-    
-    local buffCount = 0
-    local debuffCount = 0
-    
-    -- Count ALL auras (including player's auras on target/focus)
-    local index = 1
-    while index <= 40 do
-        local name = UnitAura(unit, index, "HELPFUL")
-        if not name then
-            break
-        end
-        buffCount = buffCount + 1
-        index = index + 1
+    if not parentFrame then
+        return 0
     end
-    
-    index = 1
-    while index <= 40 do
-        local name = UnitAura(unit, index, "HARMFUL")
-        if not name then
-            break
-        end
-        debuffCount = debuffCount + 1
-        index = index + 1
+
+    local auraRows = parentFrame.auraRows or 0
+    if auraRows <= 1 then
+        return 0
     end
-    
-    local totalOffset = 0
-    if buffCount > 0 or debuffCount > 0 then
-        -- WotLK 3.3.5a displays 8 auras per row (changed from 6 in earlier versions)
-        local AURAS_PER_ROW = 8
-        -- Each aura row is 22 pixels tall (including spacing)
-        local AURA_ROW_HEIGHT = 22
-        
-        if buffCount > 0 then
-            local buffRows = ceil(buffCount / AURAS_PER_ROW)
-            if buffRows > 1 then
-                totalOffset = totalOffset + ((buffRows - 1) * AURA_ROW_HEIGHT)
-            end
-        end
-        
-        if debuffCount > 0 then
-            totalOffset = totalOffset + AURA_ROW_HEIGHT
-        end
-    end
-    
-    -- Update cache
-    if cache then
-        cache.offset = totalOffset
-        cache.guid = UnitGUID(unit)
-        cache.lastUpdate = GetTime()
-    end
-    
-    return totalOffset
+
+    -- First row is already accounted for by castbar base position
+    return (auraRows - 1) * AURA_ROW_HEIGHT
 end
 
 local function ApplyAuraOffset(unit)
@@ -1646,25 +1605,7 @@ local function InitializeCastbarForEditor()
 end
 
 local function OnEvent(self, event, unit, ...)
-    if event == 'UNIT_AURA' and unit == 'target' then
-        local cfg = GetConfig("target")
-        if cfg and cfg.enabled and cfg.autoAdjust then
-            if addon.core and addon.core.ScheduleTimer then
-                addon.core:ScheduleTimer(function() ApplyAuraOffset("target") end, 0.05)
-            else
-                ApplyAuraOffset("target")
-            end
-        end
-    elseif event == 'UNIT_AURA' and unit == 'focus' then
-        local cfg = GetConfig("focus")
-        if cfg and cfg.enabled and cfg.autoAdjust then
-            if addon.core and addon.core.ScheduleTimer then
-                addon.core:ScheduleTimer(function() ApplyAuraOffset("focus") end, 0.05)
-            else
-                ApplyAuraOffset("focus")
-            end
-        end
-    elseif event == 'PLAYER_TARGET_CHANGED' then
+    if event == 'PLAYER_TARGET_CHANGED' then
         CastbarModule:HandleTargetChanged()
     elseif event == 'PLAYER_FOCUS_CHANGED' then
         CastbarModule:HandleFocusChanged()
@@ -1732,7 +1673,6 @@ local events = {
     'UNIT_SPELLCAST_CHANNEL_START',
     'UNIT_SPELLCAST_CHANNEL_STOP',
     'UNIT_SPELLCAST_CHANNEL_UPDATE',
-    'UNIT_AURA',
     'PLAYER_TARGET_CHANGED',
     'PLAYER_FOCUS_CHANGED'
 }
@@ -1742,18 +1682,26 @@ for _, event in ipairs(events) do
 end
 
 eventFrame:SetScript('OnEvent', OnEvent)
--- Hook native WoW aura positioning
+
+-- Hook Blizzard's TargetFrame_UpdateAuras for immediate castbar repositioning
+-- Fires AFTER auraRows is updated, handles both TargetFrame and FocusFrame
+if _G.TargetFrame_UpdateAuras then
+    hooksecurefunc("TargetFrame_UpdateAuras", function(self)
+        if self == _G.TargetFrame then
+            ApplyAuraOffset("target")
+        elseif self == _G.FocusFrame then
+            ApplyAuraOffset("focus")
+        end
+    end)
+end
+
+-- Fallback: also reposition after Blizzard's spellbar adjustment
 if TargetFrameSpellBar then
-    hooksecurefunc('Target_Spellbar_AdjustPosition', function()
-        local cfg = GetConfig("target")
-        if cfg and cfg.enabled and cfg.autoAdjust then
-            -- PROTECCIÓN AÑADIDA
-            if addon.core and addon.core.ScheduleTimer then
-                addon.core:ScheduleTimer(function() ApplyAuraOffset("target") end, 0.05)
-            else
-                -- Fallback sin timer
-                ApplyAuraOffset("target")
-            end
+    hooksecurefunc('Target_Spellbar_AdjustPosition', function(self)
+        if self and self:GetParent() == _G.TargetFrame then
+            ApplyAuraOffset("target")
+        elseif self and self:GetParent() == _G.FocusFrame then
+            ApplyAuraOffset("focus")
         end
     end)
 end
