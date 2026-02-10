@@ -122,6 +122,9 @@ local ROLE_COORDS = {
     DAMAGER = {0 / 256, 17 / 256, 0 / 256, 17 / 256}
 }
 
+-- Class icon texture path (must be declared before UpdatePlayerDragonDecoration)
+local CLASS_ICON_TEXTURE = "Interface\\TargetingFrame\\UI-Classes-Circles"
+
 -- ============================================================================
 -- UTILITY FUNCTIONS
 -- ============================================================================
@@ -131,25 +134,55 @@ local function GetPlayerConfig()
     return UF.GetConfig("player")
 end
 
--- Check if fat healthbar mode should be active
--- Fat mode is disabled when dragon decoration is active (they use different border textures)
-local function IsFatHealthbarActive()
+-- Cache target-style texture paths for decoration system
+local TARGET_TEXTURES = UF.TEXTURES.targetStyle
+
+-- Check if we're currently in a vehicle
+local function IsInVehicle()
+    return UnitHasVehicleUI("player")
+end
+
+-- Check if fat healthbar is enabled in config (regardless of vehicle/decoration state)
+local function IsFatConfigEnabled()
     local config = GetPlayerConfig()
-    if not config or not config.fat_healthbar then return false end
-    -- Fat healthbar is incompatible with dragon decoration
-    local decorationType = config.dragon_decoration or "none"
-    if decorationType ~= "none" then return false end
+    return config and config.fat_healthbar or false
+end
+
+-- Check if fat healthbar mode should be visually active right now
+-- Fat mode is disabled during vehicle (reverts to normal vehicle frame)
+local function IsFatHealthbarActive()
+    if not IsFatConfigEnabled() then return false end
+    -- Fat mode disabled during vehicle — show standard vehicle interface
+    if IsInVehicle() then return false end
     return true
 end
 
--- Get the correct BASE texture path (fat or normal)
+-- Get the correct BASE texture path (fat or normal, not vehicle — vehicle uses atlas)
 local function GetBaseTexture()
     return IsFatHealthbarActive() and TEXTURES.BASE_FAT or TEXTURES.BASE
 end
 
--- Get the correct BORDER texture path (fat or normal)
+-- Get the correct BORDER texture path (fat or normal, not vehicle — vehicle uses atlas)
 local function GetBorderTexture()
     return IsFatHealthbarActive() and TEXTURES.BORDER_FAT or TEXTURES.BORDER
+end
+
+-- Get the correct decoration BACKGROUND texture (target style, flipped for player)
+-- When fat mode + decoration are both active, use fat variant
+local function GetDecorationBackground()
+    if IsFatConfigEnabled() and not IsInVehicle() then
+        return TARGET_TEXTURES.BACKGROUND_FAT or TARGET_TEXTURES.BACKGROUND
+    end
+    return TARGET_TEXTURES.BACKGROUND
+end
+
+-- Get the correct decoration BORDER texture (target style, flipped for player)
+-- When fat mode + decoration are both active, use fat variant
+local function GetDecorationBorder()
+    if IsFatConfigEnabled() and not IsInVehicle() then
+        return TARGET_TEXTURES.BORDER_FAT or TARGET_TEXTURES.BORDER
+    end
+    return TARGET_TEXTURES.BORDER
 end
 
 -- Get fat mana bar configuration values
@@ -166,7 +199,7 @@ local function GetOrCreateFatManaAnchor()
     if Module.fatManaFrame then return Module.fatManaFrame end
 
     local width, height = GetFatManaConfig()
-    Module.fatManaFrame = addon.CreateUIFrame(width, height + 4, "FatManaBar")
+    Module.fatManaFrame = addon.CreateUIFrame(width, height + 4, "ManaBar")
     Module.fatManaFrame:SetFrameStrata("LOW")
 
     return Module.fatManaFrame
@@ -195,10 +228,16 @@ local function ApplyFatManaBar()
     local hasVehicleUI = UnitHasVehicleUI("player")
 
     if not fatMode then
-        -- Normal mode: standard mana bar positioning (parented to portrait)
+        -- Normal mode: standard mana bar positioning
         PlayerFrameManaBar:ClearAllPoints()
         PlayerFrameManaBar:SetSize(hasVehicleUI and 117 or 125, hasVehicleUI and 9 or 8)
-        PlayerFrameManaBar:SetPoint('LEFT', PlayerPortrait, 'RIGHT', 1, -16.5)
+        if hasVehicleUI then
+            -- Vehicle: position relative to PlayerFrame (matches RetailUI pattern)
+            PlayerFrameManaBar:SetPoint('TOPLEFT', PlayerFrame, 'TOPLEFT', 78, -37)
+        else
+            -- Normal: position relative to portrait
+            PlayerFrameManaBar:SetPoint('LEFT', PlayerPortrait, 'RIGHT', 1, -16.5)
+        end
         PlayerFrameManaBar:Show()
 
         -- Hide the fat anchor if it exists
@@ -288,7 +327,7 @@ local function HideBlizzardGlows()
 end
 
 -- Remove unwanted Blizzard frame elements
-local function RemoveBlizzardFrames()
+local function RemoveBlizzardFrames(isVehicle)
     local elementsToHide = {"PlayerAttackIcon", "PlayerFrameBackground", "PlayerAttackBackground", "PlayerGuideIcon",
                             "PlayerFrameGroupIndicatorLeft", "PlayerFrameGroupIndicatorRight"}
 
@@ -313,11 +352,23 @@ local function RemoveBlizzardFrames()
         end
     end
 
-    -- Hide standard frame textures
-    local textures = {PlayerFrameTexture, PlayerFrameBackground, PlayerFrameVehicleTexture}
-    for _, texture in ipairs(textures) do
-        if texture then
-            texture:SetAlpha(0)
+    -- Hide standard frame textures (always hidden — we use our own custom textures)
+    if PlayerFrameTexture then
+        PlayerFrameTexture:SetAlpha(0)
+    end
+    -- Hide Blizzard's PlayerFrameBackground (global, not our DragonUI one)
+    if PlayerFrameBackground then
+        PlayerFrameBackground:SetAlpha(0)
+    end
+
+    -- Vehicle texture: toggle visibility only — positioning and atlas applied by
+    -- UpdatePlayerDragonDecoration() which runs at the end of ChangePlayerframe()
+    if PlayerFrameVehicleTexture then
+        if isVehicle then
+            PlayerFrameVehicleTexture:Show()
+        else
+            PlayerFrameVehicleTexture:SetAlpha(0)
+            PlayerFrameVehicleTexture:Hide()
         end
     end
 end
@@ -337,6 +388,54 @@ end
 local function UpdateGlowVisibility()
     local dragonFrame = _G["DragonUIUnitframeFrame"]
     if not dragonFrame then
+        return
+    end
+
+    -- Vehicle mode: DragonUI's custom glow textures (uiunitframe/uiunitframe-fat) don't
+    -- match the vehicle border shape. Instead, use dedicated VehicleCombatFlash and
+    -- VehicleStatusGlow frames which use the 209×89 vehicle atlas shape.
+    -- This avoids conflict with Blizzard's UIFrameFlash system on PlayerFrameFlash.
+    if IsInVehicle() then
+        -- Suppress ALL normal/elite custom glows (wrong shape for vehicle frame)
+        if dragonFrame.DragonUICombatGlow then
+            dragonFrame.DragonUICombatGlow:Hide()
+        end
+        if dragonFrame.EliteStatusGlow then
+            dragonFrame.EliteStatusGlow:Hide()
+        end
+        if dragonFrame.EliteCombatGlow then
+            dragonFrame.EliteCombatGlow:Hide()
+        end
+
+        -- Suppress Blizzard's native flash/status to avoid UIFrameFlash conflicts
+        if PlayerFrameFlash then
+            PlayerFrameFlash:Hide()
+            PlayerFrameFlash:SetAlpha(0)
+        end
+        if PlayerStatusTexture then
+            PlayerStatusTexture:Hide()
+            PlayerStatusTexture:SetAlpha(0)
+        end
+
+        -- Vehicle combat flash: dedicated DragonUI frame with vehicle atlas shape
+        if dragonFrame.VehicleCombatFlash then
+            if combatGlowVisible then
+                dragonFrame.VehicleCombatFlash:Show()
+                dragonFrame.VehicleCombatTexture:SetAlpha(1)
+            else
+                dragonFrame.VehicleCombatFlash:Hide()
+            end
+        end
+
+        -- Vehicle status (resting) glow: dedicated DragonUI frame with vehicle atlas shape
+        if dragonFrame.VehicleStatusGlow then
+            if statusGlowVisible then
+                dragonFrame.VehicleStatusGlow:Show()
+                dragonFrame.VehicleStatusTexture:SetAlpha(1)
+            else
+                dragonFrame.VehicleStatusGlow:Hide()
+            end
+        end
         return
     end
 
@@ -400,6 +499,14 @@ local function UpdateGlowVisibility()
             dragonFrame.EliteCombatGlow:Hide()
         end
     end
+
+    -- Hide vehicle glows when NOT in vehicle
+    if dragonFrame.VehicleCombatFlash then
+        dragonFrame.VehicleCombatFlash:Hide()
+    end
+    if dragonFrame.VehicleStatusGlow then
+        dragonFrame.VehicleStatusGlow:Hide()
+    end
 end
 
 -- Set status glow state (replaces original logic)
@@ -446,6 +553,20 @@ local function AnimateCombatFlashPulse(elapsed)
     if not COMBAT_PULSE_SETTINGS.enabled then
         return
     end
+
+    -- Vehicle mode: pulse dedicated VehicleCombatFlash (uses vehicle atlas shape)
+    if IsInVehicle() then
+        local dragonFrame = _G["DragonUIUnitframeFrame"]
+        if dragonFrame and dragonFrame.VehicleCombatFlash and dragonFrame.VehicleCombatFlash:IsVisible() then
+            combatPulseTimer = combatPulseTimer + (elapsed * COMBAT_PULSE_SETTINGS.speed)
+            local pulseAlpha = COMBAT_PULSE_SETTINGS.minAlpha +
+                                   (COMBAT_PULSE_SETTINGS.maxAlpha - COMBAT_PULSE_SETTINGS.minAlpha) *
+                                   (math.sin(combatPulseTimer) * 0.5 + 0.5)
+            dragonFrame.VehicleCombatTexture:SetAlpha(pulseAlpha)
+        end
+        return
+    end
+
     local dragonFrame = _G["DragonUIUnitframeFrame"]
     if not dragonFrame then
         return
@@ -692,25 +813,23 @@ local function UpdateMasterIconPosition()
     end
 end
 
--- Función simple para ocultar/mostrar decoración de dragón en vehículo
+-- Hide/show dragon decoration AND all glow effects for vehicle transitions.
+-- The vehicle frame border has a different shape from normal/fat/elite, so
+-- glow textures designed for those shapes must be suppressed in vehicle mode.
 local function UpdateDragonVisibilityForVehicle(inVehicle, hasEliteDecoration)
-    if not hasEliteDecoration then
-        return -- Solo actuar si hay decoración elite
-    end
-    
     local dragonFrame = _G["DragonUIUnitframeFrame"]
     if not dragonFrame then
         return
     end
     
-    -- Solo cambiar alpha de la decoración del dragón
-    if dragonFrame.PlayerDragonDecoration then
-        if inVehicle then
-            dragonFrame.PlayerDragonDecoration:SetAlpha(0) -- Ocultar en vehículo
-        else
-            dragonFrame.PlayerDragonDecoration:SetAlpha(1) -- Mostrar fuera de vehículo
-        end
+    -- Dragon decoration texture (only relevant with elite/rareelite decoration)
+    if hasEliteDecoration and dragonFrame.PlayerDragonDecoration then
+        dragonFrame.PlayerDragonDecoration:SetAlpha(inVehicle and 0 or 1)
     end
+    
+    -- Update glow visibility: switches between atlas-based glows (vehicle)
+    -- and DragonUI custom glows (normal) based on current vehicle/combat/rest state
+    UpdateGlowVisibility()
 end
 
 -- Función para poner el timer PVP por encima del dragón Y reposicionarlo
@@ -1095,84 +1214,247 @@ local function UpdatePlayerDragonDecoration()
     end
 
     --  Cambiar background, borde Y ESTIRAR MANA BAR según decoración
-    if decorationType ~= "none" then
-        -- Usar texturas del target (invertidas) cuando hay decoración
-        if dragonFrame.PlayerFrameBackground then
-            dragonFrame.PlayerFrameBackground:SetTexture(
-                "Interface\\AddOns\\DragonUI\\Textures\\UI-HUD-UnitFrame-Target-PortraitOn-BACKGROUND")
-            dragonFrame.PlayerFrameBackground:SetSize(255, 130)
-            dragonFrame.PlayerFrameBackground:SetTexCoord(1, 0, 0, 1) -- Invertir horizontalmente
+    local inVehicle = IsInVehicle()
 
-            -- Reposicionar con frame de referencia específico
+    if decorationType ~= "none" and not inVehicle then
+        -- Dragon decoration active (and not in vehicle): use target textures (flipped) 
+        -- GetDecorationBackground/Border will pick fat variant if fat is enabled
+        local decorBg = GetDecorationBackground()
+        local decorBorder = GetDecorationBorder()
+        local fatMode = IsFatHealthbarActive()
+
+        -- Fat mode shifts the health bar 6px lower; compensate so textures stay aligned
+        -- Adjust these offsets to fine-tune fat+decoration positioning
+        local bgX, bgY, bgW, bgH
+        local borderX, borderY
+        if fatMode then
+            -- Fat + decoration: compensate for health bar's -6 Y shift
+            bgX, bgY   = -121, -23.5   -- ←  Y here for fat+decoration background
+            bgW, bgH    = 255, 130
+            borderX, borderY = -121, -23.5   -- ← Y here for fat+decoration border
+        else
+            -- Normal decoration (no fat)
+            bgX, bgY   = -128, -29.5
+            bgW, bgH    = 255, 130
+            borderX, borderY = -128, -29.5
+        end
+
+        if dragonFrame.PlayerFrameBackground then
+            dragonFrame.PlayerFrameBackground:Show()
+            dragonFrame.PlayerFrameBackground:SetTexture(decorBg)
+            dragonFrame.PlayerFrameBackground:SetSize(bgW, bgH)
+            dragonFrame.PlayerFrameBackground:SetTexCoord(1, 0, 0, 1) -- Flip horizontal for player
+
             dragonFrame.PlayerFrameBackground:ClearAllPoints()
-            dragonFrame.PlayerFrameBackground:SetPoint('LEFT', PlayerFrameHealthBar, 'LEFT', -128, -29.5)
+            dragonFrame.PlayerFrameBackground:SetPoint('LEFT', PlayerFrameHealthBar, 'LEFT', bgX, bgY)
         end
         if dragonFrame.PlayerFrameBorder then
-            dragonFrame.PlayerFrameBorder:SetTexture(
-                "Interface\\AddOns\\DragonUI\\Textures\\UI-HUD-UnitFrame-Target-PortraitOn-BORDER")
-            dragonFrame.PlayerFrameBorder:SetTexCoord(1, 0, 0, 1) -- Invertir horizontalmente
+            dragonFrame.PlayerFrameBorder:Show()
+            dragonFrame.PlayerFrameBorder:SetTexture(decorBorder)
+            dragonFrame.PlayerFrameBorder:SetTexCoord(1, 0, 0, 1) -- Flip horizontal for player
 
-            -- Reposicionar con frame de referencia específico
             dragonFrame.PlayerFrameBorder:ClearAllPoints()
-            dragonFrame.PlayerFrameBorder:SetPoint('LEFT', PlayerFrameHealthBar, 'LEFT', -128, -29.5)
+            dragonFrame.PlayerFrameBorder:SetPoint('LEFT', PlayerFrameHealthBar, 'LEFT', borderX, borderY)
         end
 
-        --  NUEVO: Ocultar PlayerFrameDeco cuando hay decoración elite/rare
+        -- Hide deco dot when dragon decoration is active
         if dragonFrame.PlayerFrameDeco then
             dragonFrame.PlayerFrameDeco:Hide()
         end
 
-        --  NUEVO: Estirar mana bar hacia la izquierda
-        if PlayerFrameManaBar then
-            local hasVehicleUI = UnitHasVehicleUI("player")
-            local normalWidth = hasVehicleUI and 117 or 125
-            local extendedWidth = hasVehicleUI and 130 or 130 -- Más ancho
+        -- Mana bar: fat mode uses its own anchor system, non-fat stretches for decoration
+        if fatMode then
+            -- Fat + decoration: stretch health bar leftward to cover gap (same idea as mana stretch in normal decoration)
+            local normalHealthWidth = 125
+            local extendedHealthWidth = 132
+            local HP_OFFSET = 6
+            PlayerFrameHealthBar:ClearAllPoints()
+            PlayerFrameHealthBar:SetSize(extendedHealthWidth, 30)
+            -- Anchor by RIGHT side so it stretches leftward, matching the mana pattern
+            PlayerFrameHealthBar:SetPoint('RIGHT', PlayerPortrait, 'RIGHT', 1 + normalHealthWidth, -HP_OFFSET)
+
+            -- === LAYER ORDER: Background < HealthBar < Portrait < Border ===
+            -- HealthBar is a child frame of PlayerFrame (level +1).
+            -- PlayerPortrait is a Texture on PlayerFrame — child frames always draw
+            -- on top of parent textures, so we need overlay frames for portrait & border.
+
+            -- Portrait overlay frame (level +2, above HealthBar)
+            if not dragonFrame.PortraitOverlay then
+                dragonFrame.PortraitOverlay = CreateFrame("Frame", nil, PlayerFrame)
+                dragonFrame.PortraitOverlayTexture = dragonFrame.PortraitOverlay:CreateTexture(nil, "ARTWORK", nil, 2)
+                dragonFrame.PortraitOverlayTexture:SetAllPoints()
+            end
+            dragonFrame.PortraitOverlay:SetFrameLevel(PlayerFrame:GetFrameLevel() + 2)
+            dragonFrame.PortraitOverlay:ClearAllPoints()
+            dragonFrame.PortraitOverlay:SetPoint("CENTER", PlayerPortrait, "CENTER", 0, 0)
+            dragonFrame.PortraitOverlay:SetSize(56, 56)
+            SetPortraitTexture(dragonFrame.PortraitOverlayTexture, "player")
+            dragonFrame.PortraitOverlay:Show()
+
+            -- Border overlay frame (level +3, above portrait)
+            if not dragonFrame.BorderOverlay then
+                dragonFrame.BorderOverlay = CreateFrame("Frame", nil, PlayerFrame)
+                dragonFrame.BorderOverlay:SetAllPoints(PlayerFrame)
+                dragonFrame.BorderOverlayTexture = dragonFrame.BorderOverlay:CreateTexture(nil, 'OVERLAY', nil, 5)
+            end
+            dragonFrame.BorderOverlay:SetFrameLevel(PlayerFrame:GetFrameLevel() + 3)
+            dragonFrame.BorderOverlay:Show()
+
+            -- Show border on overlay (above portrait), hide original border (on HealthBar level)
+            dragonFrame.PlayerFrameBorder:Hide()
+            dragonFrame.BorderOverlayTexture:SetTexture(decorBorder)
+            dragonFrame.BorderOverlayTexture:SetTexCoord(1, 0, 0, 1)
+            dragonFrame.BorderOverlayTexture:ClearAllPoints()
+            dragonFrame.BorderOverlayTexture:SetPoint('LEFT', PlayerFrameHealthBar, 'LEFT', borderX, borderY)
+            dragonFrame.BorderOverlayTexture:Show()
+
+            -- Handle class portrait: if enabled, show class icon on the portrait overlay frame
+            local pConfig = GetPlayerConfig()
+            if pConfig and pConfig.classPortrait then
+                -- Hide the model portrait and show class icon instead
+                dragonFrame.PortraitOverlay:SetAlpha(0)
+                if not dragonFrame.ClassPortraitOverlay then
+                    local cpf = CreateFrame("Frame", nil, PlayerFrame)
+                    cpf:SetSize(56, 56)
+                    cpf.bg = cpf:CreateTexture(nil, "BACKGROUND", nil, 1)
+                    cpf.bg:SetTexture("Interface\\CHARACTERFRAME\\TempPortraitAlphaMask")
+                    cpf.bg:SetVertexColor(0, 0, 0, 1)
+                    cpf.bg:SetAllPoints()
+                    cpf.icon = cpf:CreateTexture(nil, "OVERLAY", nil, 7)
+                    cpf.icon:SetTexture(CLASS_ICON_TEXTURE)
+                    cpf.icon:SetAllPoints()
+                    dragonFrame.ClassPortraitOverlay = cpf
+                end
+                dragonFrame.ClassPortraitOverlay:SetFrameLevel(PlayerFrame:GetFrameLevel() + 2)
+                dragonFrame.ClassPortraitOverlay:ClearAllPoints()
+                dragonFrame.ClassPortraitOverlay:SetPoint("CENTER", PlayerPortrait, "CENTER", 0, 0)
+                dragonFrame.ClassPortraitOverlay:Show()
+                local _, classFileName = UnitClass("player")
+                if classFileName and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[classFileName] then
+                    local cCoords = CLASS_ICON_TCOORDS[classFileName]
+                    dragonFrame.ClassPortraitOverlay.icon:SetTexCoord(cCoords[1], cCoords[2], cCoords[3], cCoords[4])
+                    dragonFrame.ClassPortraitOverlay.icon:Show()
+                    dragonFrame.ClassPortraitOverlay.bg:Show()
+                end
+            else
+                dragonFrame.PortraitOverlay:SetAlpha(1)
+                if dragonFrame.ClassPortraitOverlay then
+                    dragonFrame.ClassPortraitOverlay:Hide()
+                end
+            end
+
+            -- Fat + decoration: use the same fat mana anchor system as non-decoration
+            ApplyFatManaBar()
+
+            -- Fat + decoration: nudge health text right to compensate for leftward bar stretch
+            -- TextSystem creates elements named PlayerFrameHealthTextLeft/Right (no "Bar")
+            if dragonFrame.PlayerFrameHealthTextLeft then
+                dragonFrame.PlayerFrameHealthTextLeft:ClearAllPoints()
+                dragonFrame.PlayerFrameHealthTextLeft:SetPoint("LEFT", PlayerFrameHealthBar, "LEFT", 9, 0)
+            end
+            if dragonFrame.PlayerFrameHealthTextRight then
+                dragonFrame.PlayerFrameHealthTextRight:ClearAllPoints()
+                dragonFrame.PlayerFrameHealthTextRight:SetPoint("RIGHT", PlayerFrameHealthBar, "RIGHT", -3, 0)
+            end
+        elseif PlayerFrameManaBar then
+            -- Normal (non-fat) decoration: stretch mana bar to fit decoration frame
+            local normalWidth = 125
+            local extendedWidth = 130
 
             PlayerFrameManaBar:ClearAllPoints()
-            PlayerFrameManaBar:SetSize(extendedWidth, hasVehicleUI and 9 or 8)
-            -- CLAVE: Anclar por el lado DERECHO para que solo se estire hacia la izquierda
+            PlayerFrameManaBar:SetSize(extendedWidth, 8)
+            -- Anchor by RIGHT side so it stretches leftward
             PlayerFrameManaBar:SetPoint('RIGHT', PlayerPortrait, 'RIGHT', 1 + normalWidth, -16.5)
         end
+        -- Normal (non-fat) decoration: hide overlay frames (not needed without fat)
+        if not fatMode then
+            if dragonFrame.PortraitOverlay then dragonFrame.PortraitOverlay:Hide() end
+            if dragonFrame.BorderOverlay then dragonFrame.BorderOverlay:Hide() end
+            if dragonFrame.ClassPortraitOverlay then dragonFrame.ClassPortraitOverlay:Hide() end
+        end
     else
-        -- No dragon decoration: use normal or fat textures based on config
-        local fatMode = IsFatHealthbarActive()
-        local baseTexture = GetBaseTexture()
-        local borderTexture = GetBorderTexture()
+        -- No dragon decoration, OR in vehicle: use normal/fat/vehicle textures
+        local fatMode = IsFatHealthbarActive() -- false during vehicle
 
-        local HP_OFFSET = fatMode and 6 or 0
-        if dragonFrame.PlayerFrameBackground then
-            dragonFrame.PlayerFrameBackground:SetTexture(baseTexture)
-            dragonFrame.PlayerFrameBackground:SetTexCoord(0.7890625, 0.982421875, 0.001953125, 0.140625)
-            dragonFrame.PlayerFrameBackground:SetSize(198, 71)
+        -- Hide fat+decoration overlay frames (not needed without decoration)
+        if dragonFrame.PortraitOverlay then dragonFrame.PortraitOverlay:Hide() end
+        if dragonFrame.BorderOverlay then dragonFrame.BorderOverlay:Hide() end
+        if dragonFrame.ClassPortraitOverlay then dragonFrame.ClassPortraitOverlay:Hide() end
 
-            dragonFrame.PlayerFrameBackground:ClearAllPoints()
-            dragonFrame.PlayerFrameBackground:SetPoint('LEFT', PlayerFrameHealthBar, 'LEFT', -67, 0 + HP_OFFSET)
+        if inVehicle then
+            -- VEHICLE MODE: Use atlas on Blizzard's PlayerFrameVehicleTexture (RetailUI pattern)
+            -- This is more reliable than custom textures which can be hidden by Blizzard's frame management
+            if PlayerFrameVehicleTexture then
+                PlayerFrameVehicleTexture:ClearAllPoints()
+                PlayerFrameVehicleTexture:SetPoint('TOPLEFT', PlayerFrame, 'TOPLEFT', 35, 0)
+                SetAtlasTexture(PlayerFrameVehicleTexture, 'PlayerFrame-TextureFrame-Vehicle')
+                PlayerFrameVehicleTexture:SetDrawLayer('BORDER') -- Below flash/status OVERLAY
+                PlayerFrameVehicleTexture:SetBlendMode('BLEND') -- Normal rendering (not ADD)
+                PlayerFrameVehicleTexture:SetVertexColor(1, 1, 1, 1) -- No tint
+                PlayerFrameVehicleTexture:Show()
+                PlayerFrameVehicleTexture:SetAlpha(1)
+            end
+
+            -- Hide our custom bg/border (designed for normal player frame, not vehicle layout)
+            if dragonFrame.PlayerFrameBackground then
+                dragonFrame.PlayerFrameBackground:Hide()
+            end
+            if dragonFrame.PlayerFrameBorder then
+                dragonFrame.PlayerFrameBorder:Hide()
+            end
+            if dragonFrame.PlayerFrameDeco then
+                dragonFrame.PlayerFrameDeco:Hide()
+            end
+
+            -- Hide combat glow in vehicle
+            if dragonFrame.DragonUICombatGlow then
+                dragonFrame.DragonUICombatGlow:Hide()
+            end
+
+            -- Standard vehicle mana bar positioning
+            ApplyFatManaBar() -- IsFatHealthbarActive() is false → normal positioning
+        else
+            -- NORMAL / FAT MODE (no vehicle): show our custom bg/border
+            local baseTexture = GetBaseTexture()
+            local borderTexture = GetBorderTexture()
+            local HP_OFFSET = fatMode and 6 or 0
+
+            if dragonFrame.PlayerFrameBackground then
+                dragonFrame.PlayerFrameBackground:Show()
+                dragonFrame.PlayerFrameBackground:SetTexture(baseTexture)
+                dragonFrame.PlayerFrameBackground:SetTexCoord(0.7890625, 0.982421875, 0.001953125, 0.140625)
+                dragonFrame.PlayerFrameBackground:SetSize(198, 71)
+
+                dragonFrame.PlayerFrameBackground:ClearAllPoints()
+                dragonFrame.PlayerFrameBackground:SetPoint('LEFT', PlayerFrameHealthBar, 'LEFT', -67, 0 + HP_OFFSET)
+            end
+            if dragonFrame.PlayerFrameBorder then
+                dragonFrame.PlayerFrameBorder:Show()
+                dragonFrame.PlayerFrameBorder:SetTexture(borderTexture)
+                dragonFrame.PlayerFrameBorder:SetTexCoord(0, 1, 0, 1)
+
+                dragonFrame.PlayerFrameBorder:ClearAllPoints()
+                dragonFrame.PlayerFrameBorder:SetPoint('LEFT', PlayerFrameHealthBar, 'LEFT', -67, -28.5 + HP_OFFSET)
+            end
+
+            -- Update combat glow texture to match fat/normal mode
+            if dragonFrame.DragonUICombatTexture then
+                dragonFrame.DragonUICombatTexture:SetTexture(baseTexture)
+            end
+
+            -- Show deco dot when no dragon decoration
+            if dragonFrame.PlayerFrameDeco then
+                dragonFrame.PlayerFrameDeco:Show()
+            end
+
+            -- Adjust mana bar for fat/normal mode
+            ApplyFatManaBar()
         end
-        if dragonFrame.PlayerFrameBorder then
-            dragonFrame.PlayerFrameBorder:SetTexture(borderTexture)
-            dragonFrame.PlayerFrameBorder:SetTexCoord(0, 1, 0, 1)
-
-            dragonFrame.PlayerFrameBorder:ClearAllPoints()
-            dragonFrame.PlayerFrameBorder:SetPoint('LEFT', PlayerFrameHealthBar, 'LEFT', -67, -28.5 + HP_OFFSET)
-        end
-
-        -- Update combat glow texture to match fat/normal mode
-        if dragonFrame.DragonUICombatTexture then
-            dragonFrame.DragonUICombatTexture:SetTexture(baseTexture)
-        end
-
-        --  NUEVO: Mostrar PlayerFrameDeco cuando no hay decoración
-        if dragonFrame.PlayerFrameDeco then
-            dragonFrame.PlayerFrameDeco:Show()
-        end
-
-        --  Adjust mana bar for fat/normal mode
-        ApplyFatManaBar()
 
     end
 
-    -- Don't create dragon if decoration is disabled
-    if decorationType == "none" then
+    -- Don't create dragon if decoration is disabled or currently in vehicle
+    if decorationType == "none" or inVehicle then
         return
     end
 
@@ -1278,6 +1560,48 @@ local function CreatePlayerFrameTextures()
         dragonFrame.EliteCombatGlow = combatFrame
         dragonFrame.EliteCombatTexture = eliteCombatTexture
 
+    end
+
+    -- CREATE VEHICLE GLOW SYSTEM - Dedicated frames for vehicle combat/status effects.
+    -- Vehicle border (PlayerFrame-TextureFrame-Vehicle, 209×89) has a different shape than
+    -- normal/fat/elite frames. Using dedicated frames avoids conflict with Blizzard's
+    -- UIFrameFlash system which controls PlayerFrameFlash independently.
+    if not dragonFrame.VehicleCombatFlash then
+        local vehicleCombatFrame = CreateFrame("Frame", "DragonUIVehicleCombatFlash", PlayerFrame)
+        vehicleCombatFrame:SetFrameStrata("MEDIUM")
+        vehicleCombatFrame:SetFrameLevel(PlayerFrame:GetFrameLevel() + 10)
+        vehicleCombatFrame:SetSize(209, 89) -- Vehicle atlas dimensions
+        vehicleCombatFrame:SetPoint('TOPLEFT', PlayerFrame, 'TOPLEFT', 35, 0)
+        vehicleCombatFrame:Hide()
+
+        local vehicleCombatTexture = vehicleCombatFrame:CreateTexture(nil, "OVERLAY", nil, 7)
+        SetAtlasTexture(vehicleCombatTexture, 'PlayerFrame-TextureFrame-Vehicle')
+        vehicleCombatTexture:ClearAllPoints()
+        vehicleCombatTexture:SetPoint('TOPLEFT', vehicleCombatFrame, 'TOPLEFT', 0, 0)
+        vehicleCombatTexture:SetBlendMode("ADD")
+        vehicleCombatTexture:SetVertexColor(1.0, 0.0, 0.0, 1.0) -- Red for combat
+
+        dragonFrame.VehicleCombatFlash = vehicleCombatFrame
+        dragonFrame.VehicleCombatTexture = vehicleCombatTexture
+    end
+
+    if not dragonFrame.VehicleStatusGlow then
+        local vehicleStatusFrame = CreateFrame("Frame", "DragonUIVehicleStatusGlow", PlayerFrame)
+        vehicleStatusFrame:SetFrameStrata("MEDIUM")
+        vehicleStatusFrame:SetFrameLevel(PlayerFrame:GetFrameLevel() + 10)
+        vehicleStatusFrame:SetSize(209, 89) -- Vehicle atlas dimensions
+        vehicleStatusFrame:SetPoint('TOPLEFT', PlayerFrame, 'TOPLEFT', 35, 0)
+        vehicleStatusFrame:Hide()
+
+        local vehicleStatusTexture = vehicleStatusFrame:CreateTexture(nil, "OVERLAY", nil, 7)
+        SetAtlasTexture(vehicleStatusTexture, 'PlayerFrame-TextureFrame-Vehicle')
+        vehicleStatusTexture:ClearAllPoints()
+        vehicleStatusTexture:SetPoint('TOPLEFT', vehicleStatusFrame, 'TOPLEFT', 0, 0)
+        vehicleStatusTexture:SetBlendMode("ADD")
+        vehicleStatusTexture:SetVertexColor(1.0, 0.85, 0.0, 0.6) -- Yellow for resting
+
+        dragonFrame.VehicleStatusGlow = vehicleStatusFrame
+        dragonFrame.VehicleStatusTexture = vehicleStatusTexture
     end
 
     -- Create background texture
@@ -1406,7 +1730,8 @@ local function CreatePlayerFrameTextures()
             dragonFrame[elem.name] = text
         end
     end
-    UpdatePlayerDragonDecoration()
+    -- NOTE: UpdatePlayerDragonDecoration() is called at the end of ChangePlayerframe()
+    -- to ensure all bar/portrait positioning is done before decoration is applied
 end
 
 -- ============================================================================
@@ -1414,7 +1739,7 @@ end
 -- ============================================================================
 
 -- Class icon texture coordinates (matches WoW's CLASS_ICON_TCOORDS)
-local CLASS_ICON_TEXTURE = "Interface\\TargetingFrame\\UI-Classes-Circles"
+-- NOTE: CLASS_ICON_TEXTURE is declared at top of file (before UpdatePlayerDragonDecoration)
 
 -- Class portrait textures (created once, reused)
 local classPortraitBg = nil
@@ -1426,6 +1751,11 @@ local function UpdatePlayerClassPortrait()
     if not config then return end
     
     local useClassPortrait = config.classPortrait
+    
+    -- In vehicle: NEVER show class portrait — Blizzard handles vehicle portrait
+    if IsInVehicle() then
+        useClassPortrait = false
+    end
     
     if useClassPortrait then
         -- Get player's class
@@ -1470,9 +1800,11 @@ local function UpdatePlayerClassPortrait()
         if classPortraitIcon then
             classPortraitIcon:Hide()
         end
-        -- Restore normal portrait
-        SetPortraitTexture(PlayerPortrait, "player")
-        PlayerPortrait:SetTexCoord(0, 1, 0, 1)
+        -- Restore normal portrait (skip in vehicle — Blizzard sets vehicle portrait)
+        if not IsInVehicle() then
+            SetPortraitTexture(PlayerPortrait, "player")
+            PlayerPortrait:SetTexCoord(0, 1, 0, 1)
+        end
         PlayerPortrait:SetAlpha(1)
     end
 end
@@ -1480,21 +1812,22 @@ end
 -- Main frame configuration function
 local function ChangePlayerframe()
     CreatePlayerFrameTextures()
-    RemoveBlizzardFrames()
-    HideBlizzardGlows()
 
-    local hasVehicleUI = UnitHasVehicleUI("player")
+    local hasVehicleUI = IsInVehicle()
+
+    RemoveBlizzardFrames(hasVehicleUI)
+    HideBlizzardGlows()
 
     -- Configure portrait with vehicle-specific positioning
     PlayerPortrait:ClearAllPoints()
     PlayerPortrait:SetDrawLayer('ARTWORK', 2)  -- Lower layer so border is on top
     
     if hasVehicleUI then
-        -- PERSONALIZAR: Posición específica para vehículo
-        PlayerPortrait:SetPoint('TOPLEFT', PlayerFrame, 'TOPLEFT', 47, -17) -- Ajusta X e Y aquí
-        PlayerPortrait:SetSize(56, 56)
+        -- Vehicle: position relative to PlayerFrame (matches RetailUI pattern)
+        PlayerPortrait:SetPoint('LEFT', PlayerFrame, 'LEFT', 45, 5)
+        PlayerPortrait:SetSize(69, 69)
     else
-        -- Posición normal del player
+        -- Normal player position
         PlayerPortrait:SetPoint('TOPLEFT', PlayerFrame, 'TOPLEFT', 42, -15)
         PlayerPortrait:SetSize(56, 56)
     end
@@ -1502,25 +1835,51 @@ local function ChangePlayerframe()
     -- Apply class portrait if enabled
     UpdatePlayerClassPortrait()
 
-    -- Position name and level
+    -- Position name and level (shifted right in vehicle due to larger portrait)
+    -- Ensure name/level are on OVERLAY draw layer so they render above vehicle textures
+    PlayerName:SetDrawLayer('OVERLAY', 7)
+    PlayerName:SetJustifyH("LEFT")
+    PlayerName:SetWidth(90)
     PlayerName:ClearAllPoints()
-    PlayerName:SetPoint('BOTTOMLEFT', PlayerFrameHealthBar, 'TOPLEFT', 0, 2)
+    if hasVehicleUI then
+        PlayerName:SetPoint('CENTER', PlayerFrame, 'CENTER', 50, 20)
+    else
+        PlayerName:SetPoint('BOTTOMLEFT', PlayerFrameHealthBar, 'TOPLEFT', 12, 2)
+    end
+    -- Force name visible — Blizzard vehicle transition can hide it
+    PlayerName:SetAlpha(1)
+    PlayerName:Show()
+
+    PlayerLevelText:SetDrawLayer('OVERLAY', 7)
     PlayerLevelText:ClearAllPoints()
     PlayerLevelText:SetPoint('BOTTOMRIGHT', PlayerFrameHealthBar, 'TOPRIGHT', -5, 3)
+    PlayerLevelText:SetAlpha(1)
+    PlayerLevelText:Show()
 
-    -- Configure health bar (fat mode uses full-width bar)
-    local fatMode = IsFatHealthbarActive()
+    -- Configure health bar (fat mode uses full-width bar, vehicle uses standard)
+    local fatMode = IsFatHealthbarActive() -- false during vehicle
     local HP_OFFSET = fatMode and 6 or 0
     PlayerFrameHealthBar:ClearAllPoints()
-    if fatMode then
-        PlayerFrameHealthBar:SetSize(hasVehicleUI and 117 or 125, 33) -- Taller in fat mode
+    if hasVehicleUI then
+        -- Vehicle: bar position relative to PlayerFrame
+        PlayerFrameHealthBar:SetSize(117.5, 18)
+        PlayerFrameHealthBar:SetPoint('TOPLEFT', PlayerFrame, 'TOPLEFT', 113, -38)
+        -- Raise bars above vehicle border texture
+        PlayerFrameHealthBar:SetFrameLevel(PlayerFrame:GetFrameLevel() + 3)
+        PlayerFrameManaBar:SetFrameLevel(PlayerFrame:GetFrameLevel() + 3)
+    elseif fatMode then
+        PlayerFrameHealthBar:SetSize(125, 29.5) -- Taller in fat mode
         PlayerFrameHealthBar:SetPoint('LEFT', PlayerPortrait, 'RIGHT', 1, -HP_OFFSET)
+        PlayerFrameHealthBar:SetFrameLevel(PlayerFrame:GetFrameLevel() + 1)
+        PlayerFrameManaBar:SetFrameLevel(PlayerFrame:GetFrameLevel() + 1)
     else
-        PlayerFrameHealthBar:SetSize(125, 20) -- Normal size
+        PlayerFrameHealthBar:SetSize(120, 20) -- Normal size
         PlayerFrameHealthBar:SetPoint('LEFT', PlayerPortrait, 'RIGHT', 1, 0)
+        PlayerFrameHealthBar:SetFrameLevel(PlayerFrame:GetFrameLevel() + 1)
+        PlayerFrameManaBar:SetFrameLevel(PlayerFrame:GetFrameLevel() + 1)
     end
 
-    -- Configure mana bar (fat mode uses anchor frame, normal uses inline position)
+    -- Configure mana bar (fat mode uses anchor frame, vehicle/normal use inline position)
     ApplyFatManaBar()
 
     -- Set power bar texture based on type
@@ -1528,38 +1887,79 @@ local function ChangePlayerframe()
     local powerTexture = TEXTURES.POWER_BARS[powerTypeString] or TEXTURES.POWER_BARS.MANA
     PlayerFrameManaBar:GetStatusBarTexture():SetTexture(powerTexture)
 
-    -- Configure status and flash textures (use fat texture if active)
-    local baseTexture = GetBaseTexture()
-    PlayerStatusTexture:SetTexture(baseTexture)
-    PlayerStatusTexture:SetSize(192, 71)
-    PlayerStatusTexture:SetTexCoord(0.1943359375, 0.3818359375, 0.169921875, 0.30859375)
-    PlayerStatusTexture:ClearAllPoints()
-
+    -- Configure status and flash textures 
+    -- In vehicle: hide our custom glow effects (vehicle frame doesn't use them)
     local dragonFrame = _G["DragonUIUnitframeFrame"]
-    if dragonFrame and dragonFrame.PlayerFrameBorder then
-        PlayerStatusTexture:SetPoint('TOPLEFT', PlayerPortrait, 'TOPLEFT', -9, 9)
+    local baseTexture = GetBaseTexture()
+    if hasVehicleUI then
+        -- Vehicle mode: suppress Blizzard's native flash/status completely.
+        -- DragonUI uses dedicated VehicleCombatFlash / VehicleStatusGlow frames
+        -- (created in CreatePlayerFrameTextures) to avoid UIFrameFlash conflicts.
+        if PlayerStatusTexture then
+            PlayerStatusTexture:Hide()
+            PlayerStatusTexture:SetAlpha(0)
+        end
+        if PlayerFrameFlash then
+            PlayerFrameFlash:Hide()
+            PlayerFrameFlash:SetAlpha(0)
+            -- Stop Blizzard's UIFrameFlash animation if running
+            if UIFrameFlashStop then
+                UIFrameFlashStop(PlayerFrameFlash)
+            end
+        end
+        -- Hide DragonUI normal-mode combat glow (wrong shape for vehicle frame)
+        if dragonFrame and dragonFrame.DragonUICombatGlow then
+            dragonFrame.DragonUICombatGlow:Hide()
+        end
+        -- Position dedicated vehicle glow frames
+        if dragonFrame and dragonFrame.VehicleCombatFlash then
+            dragonFrame.VehicleCombatFlash:ClearAllPoints()
+            dragonFrame.VehicleCombatFlash:SetPoint('TOPLEFT', PlayerFrame, 'TOPLEFT', 35, 0)
+        end
+        if dragonFrame and dragonFrame.VehicleStatusGlow then
+            dragonFrame.VehicleStatusGlow:ClearAllPoints()
+            dragonFrame.VehicleStatusGlow:SetPoint('TOPLEFT', PlayerFrame, 'TOPLEFT', 35, 0)
+        end
+    else
+        -- Normal/fat mode: configure status texture with DragonUI's custom glow
+        PlayerStatusTexture:SetTexture(baseTexture)
+        PlayerStatusTexture:SetSize(192, 71)
+        PlayerStatusTexture:SetTexCoord(0.1943359375, 0.3818359375, 0.169921875, 0.30859375)
+        PlayerStatusTexture:ClearAllPoints()
+        PlayerStatusTexture:SetBlendMode("BLEND") -- Reset from vehicle ADD mode
+        PlayerStatusTexture:SetVertexColor(1, 1, 1, 1) -- Reset from vehicle tint
+
+        if dragonFrame and dragonFrame.PlayerFrameBorder then
+            PlayerStatusTexture:SetPoint('TOPLEFT', PlayerPortrait, 'TOPLEFT', -9, 9)
+        end
     end
 
+    -- ALWAYS hide Blizzard's PlayerFrameFlash — DragonUI uses its own glow system
+    -- (DragonUICombatGlow in normal, VehicleCombatFlash in vehicle, EliteCombatGlow in elite)
     if PlayerFrameFlash then
         PlayerFrameFlash:Hide()
         PlayerFrameFlash:SetAlpha(0)
+        if UIFrameFlashStop then
+            UIFrameFlashStop(PlayerFrameFlash)
+        end
     end
 
-    -- Position our high-priority Combat Flash
-
-    if dragonFrame and dragonFrame.DragonUICombatGlow then
-        dragonFrame.DragonUICombatGlow:ClearAllPoints()
-        dragonFrame.DragonUICombatGlow:SetPoint('TOPLEFT', PlayerPortrait, 'TOPLEFT', -9, 9)
-    end
-
-    -- Position Elite Glows
-    if dragonFrame and dragonFrame.EliteStatusGlow then
-        dragonFrame.EliteStatusGlow:ClearAllPoints()
-        dragonFrame.EliteStatusGlow:SetPoint('TOPLEFT', PlayerPortrait, 'TOPLEFT', -24, 20)
-    end
-    if dragonFrame and dragonFrame.EliteCombatGlow then
-        dragonFrame.EliteCombatGlow:ClearAllPoints()
-        dragonFrame.EliteCombatGlow:SetPoint('TOPLEFT', PlayerPortrait, 'TOPLEFT', -24, 20)
+    -- Position glow effects ONLY in normal mode — vehicle hides all glows
+    -- (UpdateGlowVisibility blocks them in vehicle; positioning them at the wrong
+    -- portrait offset would cause misaligned effects if they were ever shown)
+    if not hasVehicleUI then
+        if dragonFrame and dragonFrame.DragonUICombatGlow then
+            dragonFrame.DragonUICombatGlow:ClearAllPoints()
+            dragonFrame.DragonUICombatGlow:SetPoint('TOPLEFT', PlayerPortrait, 'TOPLEFT', -9, 9)
+        end
+        if dragonFrame and dragonFrame.EliteStatusGlow then
+            dragonFrame.EliteStatusGlow:ClearAllPoints()
+            dragonFrame.EliteStatusGlow:SetPoint('TOPLEFT', PlayerPortrait, 'TOPLEFT', -24, 20)
+        end
+        if dragonFrame and dragonFrame.EliteCombatGlow then
+            dragonFrame.EliteCombatGlow:ClearAllPoints()
+            dragonFrame.EliteCombatGlow:SetPoint('TOPLEFT', PlayerPortrait, 'TOPLEFT', -24, 20)
+        end
     end
 
     -- Setup class-specific elements
@@ -1576,45 +1976,54 @@ local function ChangePlayerframe()
     -- Hide Blizzard texts after frame configuration
     HideBlizzardPlayerTexts()
 
+    -- Apply decoration LAST — after all positioning is finalized
+    -- This ensures vehicle atlas, bg/border, and dragon decoration are properly placed
+    UpdatePlayerDragonDecoration()
+
 end
 
 local function SetCombatFlashVisible(visible)
     local dragonFrame = _G["DragonUIUnitframeFrame"]
-    if not dragonFrame or not dragonFrame.PlayerFrameDeco then
-        return
+
+    -- Update deco icon (swords in combat, dot in normal) — skip if deco doesn't exist
+    -- or we're in vehicle (deco is hidden during vehicle anyway)
+    if dragonFrame and dragonFrame.PlayerFrameDeco and not IsInVehicle() then
+        if visible then
+            combatPulseTimer = 0 -- Reset pulse timer
+
+            --  CAMBIAR DECORACIÓN A ICONO DE COMBATE (espadas cruzadas)
+            dragonFrame.PlayerFrameDeco:SetTexCoord(0.9775390625, 0.9931640625, 0.259765625, 0.291015625)
+            --  AJUSTAR TAMAÑO PARA EL ICONO DE COMBATE
+            dragonFrame.PlayerFrameDeco:SetSize(16, 16)
+            dragonFrame.PlayerFrameDeco:SetPoint('CENTER', PlayerPortrait, 'CENTER', 18, -20)
+        else
+            --  RESTAURAR DECORACIÓN NORMAL
+            dragonFrame.PlayerFrameDeco:SetTexCoord(0.953125, 0.9755859375, 0.259765625, 0.3046875)
+            --  RESTAURAR TAMAÑO ORIGINAL
+            dragonFrame.PlayerFrameDeco:SetSize(23, 23)
+            dragonFrame.PlayerFrameDeco:SetPoint('CENTER', PlayerPortrait, 'CENTER', 16, -16.5)
+        end
     end
 
+    -- ALWAYS update glow state — this drives both normal and vehicle combat flash
     if visible then
-        combatPulseTimer = 0 -- Reset pulse timer
-
-        --  CAMBIAR DECORACIÓN A ICONO DE COMBATE (espadas cruzadas)
-        dragonFrame.PlayerFrameDeco:SetTexCoord(0.9775390625, 0.9931640625, 0.259765625, 0.291015625)
-        --  AJUSTAR TAMAÑO PARA EL ICONO DE COMBATE
-        dragonFrame.PlayerFrameDeco:SetSize(16, 16) -- Más pequeño que el original (23x23)
-        dragonFrame.PlayerFrameDeco:SetPoint('CENTER', PlayerPortrait, 'CENTER', 18, -20)
-
-    else
-        --  RESTAURAR DECORACIÓN NORMAL
-        dragonFrame.PlayerFrameDeco:SetTexCoord(0.953125, 0.9755859375, 0.259765625, 0.3046875)
-        --  RESTAURAR TAMAÑO ORIGINAL
-        dragonFrame.PlayerFrameDeco:SetSize(23, 23) -- Tamaño original
-        dragonFrame.PlayerFrameDeco:SetPoint('CENTER', PlayerPortrait, 'CENTER', 16, -16.5)
-
+        combatPulseTimer = 0
     end
-
     SetEliteCombatFlashVisible(visible) -- Use unified system
 end
 
 --  FUNCIÓN PARA APLICAR POSICIÓN DESDE WIDGETS (COMO MINIMAP)
 local function ApplyWidgetPosition()
-    -- SEGURO: No modificar frames seguros durante combate
+    -- COMBAT GUARD: Do NOT touch ANY frame during combat.
+    -- Even our aux frame (DragonUI_PlayerFrame) generates taint when called from
+    -- a secure context (AnimationSystem, vehicle transitions). Defer everything.
     if InCombatLockdown() then
+        deferredPositionUpdate = true
         return
     end
 
     local widgetConfig = addon:GetConfigValue("widgets", "player")
     if not widgetConfig then
-        -- Si no hay widgets config, usar defaults
         widgetConfig = {
             anchor = "TOPLEFT",
             posX = -19,
@@ -1622,30 +2031,20 @@ local function ApplyWidgetPosition()
         }
     end
 
-    -- SEGURO: Proteger con pcall
-    local success, err = pcall(function()
-        --  CLAVE: Posicionar el frame auxiliar
+    -- Position the auxiliary frame
+    if Module.playerFrame then
         Module.playerFrame:ClearAllPoints()
         Module.playerFrame:SetPoint(widgetConfig.anchor or "TOPLEFT", UIParent, widgetConfig.anchor or "TOPLEFT",
             widgetConfig.posX or -19, widgetConfig.posY or -4)
+    end
 
-        --  CLAVE: Anclar PlayerFrame al auxiliar (sistema RetailUI)
-        PlayerFrame:ClearAllPoints()
-
-        -- Ajustar posición ligeramente según si es vehículo o normal
-        local hasVehicleUI = UnitHasVehicleUI("player")
-        if hasVehicleUI then
-            -- Posición del vehículo: un poco más arriba-izquierda para alinearse mejor
-            PlayerFrame:SetPoint("CENTER", Module.playerFrame, "CENTER", -20, -5)
-        else
-            -- Posición normal del player
-            PlayerFrame:SetPoint("CENTER", Module.playerFrame, "CENTER", -15, -7)
-        end
-    end)
-
-    if not success then
-        -- Log error silently pero no interrumpir
-        -- print("DragonUI: Error applying widget position:", err)
+    -- Anchor PlayerFrame to auxiliary frame
+    PlayerFrame:ClearAllPoints()
+    local hasVehicleUI = UnitHasVehicleUI("player")
+    if hasVehicleUI then
+        PlayerFrame:SetPoint("CENTER", Module.playerFrame, "CENTER", -20, -5)
+    else
+        PlayerFrame:SetPoint("CENTER", Module.playerFrame, "CENTER", -15, -7)
     end
 end
 
@@ -1653,8 +2052,8 @@ end
 local function ApplyPlayerConfig()
     local config = GetPlayerConfig()
 
-    -- Aplicar escala
-    PlayerFrame:SetScale(config.scale or 1.0)
+    -- Aplicar escala (protected — pcall for combat safety)
+    pcall(function() PlayerFrame:SetScale(config.scale or 1.0) end)
 
     --  SIEMPRE usar posición de widgets (Editor Mode)
     ApplyWidgetPosition()
@@ -1743,18 +2142,6 @@ local function InitializePlayerFrame()
     if Module.initialized then
         return
     end
-    
-    -- SEGURO: No inicializar durante combate
-    if InCombatLockdown() then
-        -- Registrar para inicializar después del combate
-        local combatFrame = CreateFrame("Frame")
-        combatFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-        combatFrame:SetScript("OnEvent", function(self)
-            self:UnregisterEvent("PLAYER_REGEN_ENABLED")
-            InitializePlayerFrame()
-        end)
-        return
-    end
 
     -- Setup vehicle transition hooks con función segura
     local function SafeHookSecureFunc(funcName, hookFunc)
@@ -1767,18 +2154,33 @@ local function InitializePlayerFrame()
     -- These are hooked at file scope below with richer logic (vehicle transitions section)
     -- HandleRuneFrameVehicleTransition is called from the file-scope hooks instead
 
-    -- SEGURO: Hook con protección adicional
-    SafeHookSecureFunc("PlayerFrame_UpdateStatus", PlayerFrame_UpdateStatus)
-    SafeHookSecureFunc("PlayerFrame_UpdateArt", ChangePlayerframe)
-    -- Phase 2: Removed duplicate UnitFrameHealthBar_Update hook — 
-    -- already hooked in SetupPlayerClassColorHooks() with _G.DragonUI_PlayerHealthHookSetup guard
-    
-    -- Hook for class portrait - intercept Blizzard's portrait updates
-    SafeHookSecureFunc("UnitFramePortrait_Update", function(frame, unit)
-        if frame == PlayerFrame and (unit == "player" or unit == "vehicle") then
-            UpdatePlayerClassPortrait()
-        end
-    end)
+    -- BLIZZARD FUNCTION HOOKS — must defer in combat.
+    -- These hooks fire when Blizzard internally manages PlayerFrame during reload/vehicle
+    -- transitions. If registered during combat, ChangePlayerframe() fires at a time when
+    -- vehicle state isn't fully initialized → disrupts vehicle action bar layout.
+    local function RegisterBlizzardHooks()
+        if Module.blizzardHooksRegistered then return end
+        SafeHookSecureFunc("PlayerFrame_UpdateStatus", PlayerFrame_UpdateStatus)
+        SafeHookSecureFunc("PlayerFrame_UpdateArt", ChangePlayerframe)
+        SafeHookSecureFunc("UnitFramePortrait_Update", function(frame, unit)
+            if frame == PlayerFrame and (unit == "player" or unit == "vehicle") then
+                UpdatePlayerClassPortrait()
+            end
+        end)
+        Module.blizzardHooksRegistered = true
+    end
+
+    if InCombatLockdown() then
+        -- Defer Blizzard hooks to after combat
+        local hookFrame = CreateFrame("Frame")
+        hookFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+        hookFrame:SetScript("OnEvent", function(self)
+            self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+            RegisterBlizzardHooks()
+        end)
+    else
+        RegisterBlizzardHooks()
+    end
     
     -- Alternate mana bar text setup done once in ApplyPlayerConfig() - no need for hooks
 
@@ -1867,6 +2269,37 @@ local function InitializePlayerFrame()
         end
     end
 
+    -- Suppress Blizzard's PlayerFrameFlash permanently — DragonUI uses its own combat flash
+    -- (DragonUICombatGlow / VehicleCombatFlash / EliteCombatGlow depending on mode)
+    if PlayerFrameFlash and PlayerFrameFlash.HookScript then
+        PlayerFrameFlash:HookScript('OnShow', function(self)
+            if not self.DragonUI_ShowGuard then
+                self.DragonUI_ShowGuard = true
+                self:Hide()
+                self:SetAlpha(0)
+                if UIFrameFlashStop then
+                    UIFrameFlashStop(self)
+                end
+                self.DragonUI_ShowGuard = nil
+            end
+        end)
+    end
+
+    -- Suppress Blizzard's PlayerStatusTexture in vehicle and elite modes
+    -- (DragonUI uses VehicleStatusGlow / EliteStatusGlow in those modes)
+    if PlayerStatusTexture and PlayerStatusTexture.HookScript then
+        PlayerStatusTexture:HookScript('OnShow', function(self)
+            if UnitHasVehicleUI("player") or eliteGlowActive then
+                if not self.DragonUI_ShowGuard then
+                    self.DragonUI_ShowGuard = true
+                    self:Hide()
+                    self:SetAlpha(0)
+                    self.DragonUI_ShowGuard = nil
+                end
+            end
+        end)
+    end
+
     -- Hide Blizzard texts after module initialization
     HideBlizzardPlayerTexts()
 
@@ -1898,10 +2331,34 @@ local function SetupPlayerEvents()
         PLAYER_REGEN_ENABLED = function()
             UpdateBothBars()
             SetCombatFlashVisible(false)
+            -- Ensure module is initialized before deferred updates
+            -- (reload in combat defers InitializePlayerFrame; this runs it now)
+            if not Module.initialized then
+                InitializePlayerFrame()
+            end
             -- SEGURO: Aplicar cambios diferidos después del combate
             if deferredPositionUpdate then
-                ApplyWidgetPosition()
+                ApplyPlayerConfig()  -- Includes ApplyWidgetPosition + scale
+                ChangePlayerframe()  -- Re-apply full layout (vehicle state may have changed during combat)
+                HideBlizzardPlayerTexts()
                 deferredPositionUpdate = false
+                -- Delayed retry: Blizzard may reposition PlayerFrame after PLAYER_REGEN_ENABLED
+                -- (vehicle exit animation, level-up, etc.). Re-apply after a few frames to
+                -- ensure our position is the final one.
+                if not Module.regenDelayFrame then
+                    Module.regenDelayFrame = CreateFrame("Frame")
+                end
+                Module.regenDelayAttempts = 0
+                Module.regenDelayFrame:SetScript("OnUpdate", function(self)
+                    Module.regenDelayAttempts = (Module.regenDelayAttempts or 0) + 1
+                    if Module.regenDelayAttempts >= 3 then -- After 3 frames (~0.1s)
+                        if not InCombatLockdown() then
+                            ApplyPlayerConfig()
+                            ChangePlayerframe()
+                        end
+                        self:SetScript("OnUpdate", nil)
+                    end
+                end)
             end
         end,
 
@@ -1917,6 +2374,15 @@ local function SetupPlayerEvents()
         end,
 
         PLAYER_ENTERING_WORLD = function()
+            if InCombatLockdown() then
+                -- Reload happened in combat: touching ANY frame generates taint
+                -- that breaks vehicle action bar. Defer everything to after combat.
+                -- This is a WoW 3.3.5a limitation — RetailUI has the same issue.
+                deferredPositionUpdate = true
+                -- Only safe non-frame operations:
+                UpdateTextSystemUnit()
+                return
+            end
             ChangePlayerframe()
             ApplyPlayerConfig()
             -- Ensure Blizzard texts are hidden after entering world
@@ -2056,86 +2522,74 @@ HideBlizzardPlayerTexts()
 -- HOOKS PARA MANTENER POSICIÓN EN TRANSICIONES DE VEHÍCULO
 -- ===============================================================
 
--- Hook PlayerFrame_ToPlayerArt (al salir del vehículo)
+-- Hook PlayerFrame_ToPlayerArt (exiting vehicle)
 hooksecurefunc("PlayerFrame_ToPlayerArt", function()
+    -- Mark deferred for position (PlayerFrame:SetPoint is protected)
     if InCombatLockdown() then
         deferredPositionUpdate = true
-        return
+    else
+        ApplyWidgetPosition()
     end
-    -- Aplicar posición inmediatamente después de la transición
-    ApplyWidgetPosition()
     
-    -- Phase 2: Merged from InitializePlayerFrame — show DK runes on vehicle exit
+    -- Non-secure visual operations — safe even in combat
     HandleRuneFrameVehicleTransition(false)
     
-    -- CRÍTICO: Sistema robusto para restaurar estiramiento de mana bar en modo decoración
+    -- Restore dragon decoration visibility
     local config = GetPlayerConfig()
     local decorationType = config.dragon_decoration or "none"
     local isEliteMode = decorationType == "elite" or decorationType == "rareelite"
-    
-    -- NUEVO: Mostrar decoración de dragón al salir del vehículo
     UpdateDragonVisibilityForVehicle(false, isEliteMode)
     
-    if isEliteMode then
-        -- Inmediato: primer intento
-        ChangePlayerframe()
-        UpdateLeadershipIcons()
-        
-        -- Con delay: segundo intento más robusto usando OnUpdate (compatible con 3.3.5a)
-        -- Phase 3: Reuse persistent frame to avoid memory leak on repeated vehicle exits
-        if not Module.vehicleDelayFrame then
-            Module.vehicleDelayFrame = CreateFrame("Frame")
-        end
-        Module.vehicleDelayAttempts = 0
-        Module.vehicleDelayFrame:SetScript("OnUpdate", function(self, elapsed)
-            Module.vehicleDelayAttempts = (Module.vehicleDelayAttempts or 0) + 1
-            if Module.vehicleDelayAttempts >= 3 then -- Después de 3 frames (~0.1s)
-                -- Re-aplicar completamente el frame
-                ChangePlayerframe()
-                
-                -- ESPECÍFICO: Forzar el estiramiento de mana bar si no se aplicó correctamente
-                if PlayerFrameManaBar then
-                    local hasVehicleUI = UnitHasVehicleUI("player")
-                    local normalWidth = hasVehicleUI and 117 or 125
-                    local extendedWidth = hasVehicleUI and 130 or 130
-                    
-                    PlayerFrameManaBar:ClearAllPoints()
-                    PlayerFrameManaBar:SetSize(extendedWidth, hasVehicleUI and 9 or 8)
-                    -- CLAVE: Anclar por el lado DERECHO para estiramiento hacia la izquierda
-                    PlayerFrameManaBar:SetPoint('RIGHT', PlayerPortrait, 'RIGHT', 1 + normalWidth, -16.5)
-                end
-                
-                -- También actualizar iconos y decoración
-                UpdateLeadershipIcons()
-                
-                -- Limpiar el frame temporal
-                self:SetScript("OnUpdate", nil)
-            end
-        end)
-    else
-        -- Sin decoración: comportamiento normal
-        ChangePlayerframe()
-        UpdateLeadershipIcons()
+    -- Update glow state (switches from vehicle to normal glow frames)
+    UpdateGlowVisibility()
+    
+    -- Full layout re-apply (child frame positioning is non-secure and works in combat)
+    ChangePlayerframe()
+    UpdatePlayerDragonDecoration()
+    UpdateLeadershipIcons()
+    
+    -- Delayed retry for robustness (decorations need a frame or two to settle)
+    if not Module.vehicleDelayFrame then
+        Module.vehicleDelayFrame = CreateFrame("Frame")
     end
+    Module.vehicleDelayAttempts = 0
+    Module.vehicleDelayFrame:SetScript("OnUpdate", function(self, elapsed)
+        Module.vehicleDelayAttempts = (Module.vehicleDelayAttempts or 0) + 1
+        if Module.vehicleDelayAttempts >= 3 then -- After 3 frames (~0.1s)
+            ChangePlayerframe()
+            UpdatePlayerDragonDecoration()
+            UpdateLeadershipIcons()
+            if not InCombatLockdown() then
+                ApplyWidgetPosition()
+            end
+            self:SetScript("OnUpdate", nil)
+        end
+    end)
 end)
 
--- Hook PlayerFrame_ToVehicleArt con seguridad
+-- Hook PlayerFrame_ToVehicleArt (entering vehicle)
 hooksecurefunc("PlayerFrame_ToVehicleArt", function()
+    -- Mark deferred for position (PlayerFrame:SetPoint is protected)
     if InCombatLockdown() then
         deferredPositionUpdate = true
-        return
+    else
+        ApplyWidgetPosition()
     end
-    -- Aplicar posición inmediatamente después de la transición  
-    ApplyWidgetPosition()
-    
-    -- Phase 2: Merged from InitializePlayerFrame — hide DK runes on vehicle entry
+
+    -- Non-secure visual operations — safe even in combat
     HandleRuneFrameVehicleTransition(true)
-    
-    -- NUEVO: Ocultar decoración de dragón al entrar al vehículo
+
     local config = GetPlayerConfig()
     local decorationType = config.dragon_decoration or "none"
     local isEliteMode = decorationType == "elite" or decorationType == "rareelite"
     UpdateDragonVisibilityForVehicle(true, isEliteMode)
+
+    -- Update glow state for vehicle (dedicated vehicle glow frames don't require secure access)
+    UpdateGlowVisibility()
+
+    -- Full layout re-apply (child frame positioning is non-secure and works in combat)
+    ChangePlayerframe()
+    UpdatePlayerDragonDecoration()
 end)
 
 -- Hook para actualizar texto de alternate mana bar cuando cambie el poder
@@ -2161,36 +2615,27 @@ end)
 -- Hook PlayerFrame_SequenceFinished (final de animaciones)
 if PlayerFrame_SequenceFinished then
     hooksecurefunc("PlayerFrame_SequenceFinished", function()
+        -- ApplyWidgetPosition already guards against combat internally
         ApplyWidgetPosition()
     end)
 end
 
 -- ANTI-FLICKER: Hook SetPoint on PlayerFrame to intercept unwanted Blizzard repositioning
--- Uses hooksecurefunc instead of direct method replacement to avoid taint
--- The hook fires AFTER Blizzard's SetPoint, so we re-apply our position on the next frame
-local playerSetPointPending = false
-local playerSetPointDeferFrame = CreateFrame("Frame")
+-- Uses hooksecurefunc — fires AFTER Blizzard's SetPoint, immediately re-applies our position
+-- This eliminates the single-frame "teleport" flash during vehicle enter/exit
 hooksecurefunc(PlayerFrame, "SetPoint", function(self, point, relativeTo, relativePoint, x, y)
     -- Skip if in combat (cannot modify secure frames)
     if InCombatLockdown() then return end
-    -- Skip if this is our own call via ApplyWidgetPosition (prevent infinite loop)
+    -- Skip if this is our own call (prevent infinite loop)
     if self.DragonUI_SettingPoint then return end
     
-    -- Only intercept Blizzard auto-repositioning (vehicle transitions, etc.)
+    -- Only intercept Blizzard auto-repositioning (vehicle transitions, level-up, etc.)
+    -- Blizzard anchors PlayerFrame to UIParent with TOPLEFT or CENTER
     if point and relativeTo == UIParent and (point == "TOPLEFT" or point == "CENTER") then
-        -- Defer to next frame to avoid re-entering SetPoint during Blizzard's call
-        if not playerSetPointPending then
-            playerSetPointPending = true
-            playerSetPointDeferFrame:SetScript("OnUpdate", function(f)
-                f:SetScript("OnUpdate", nil)
-                playerSetPointPending = false
-                if not InCombatLockdown() then
-                    PlayerFrame.DragonUI_SettingPoint = true
-                    pcall(ApplyWidgetPosition)
-                    PlayerFrame.DragonUI_SettingPoint = nil
-                end
-            end)
-        end
+        -- Immediately re-apply our position in the same frame (no defer = no flicker)
+        self.DragonUI_SettingPoint = true
+        pcall(ApplyWidgetPosition)
+        self.DragonUI_SettingPoint = nil
     end
 end)
 

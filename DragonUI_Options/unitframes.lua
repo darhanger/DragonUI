@@ -236,7 +236,7 @@ local unitframeOptions = {
                 fat_healthbar = {
                     type = 'toggle',
                     name = "Fat Health Bar",
-                    desc = "Full-width health bar that fills the entire frame area. Uses modified border texture that removes the inner divider line. |cffFF6600Note:|r Not compatible with Dragon Decoration - will be ignored if a dragon decoration is active.",
+                    desc = "Full-width health bar that fills the entire frame area. Uses modified border texture that removes the inner divider line. Compatible with Dragon Decoration (requires fat variant textures). |cffFF6600Note:|r Automatically disabled during vehicle UI.",
                     get = function()
                         return addon.db.profile.unitframe.player.fat_healthbar
                     end,

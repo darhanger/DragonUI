@@ -449,19 +449,30 @@ local function vehiclebutton_position()
     if not vehiclebar then return end
     if InCombatLockdown() then return end
 
-    for index = 1, VEHICLE_MAX_ACTIONBUTTONS do
+    -- Center vehicle buttons within the visible action area of the vehicle art.
+    -- The art frame is 800px wide, but the right portion (~160px) holds the
+    -- leave-button buckle and power bar area, so the action-button region is
+    -- shifted ~40px left of the frame center.
+    local btnSize = 52
+    local btnGap = 6
+    local numButtons = VEHICLE_MAX_ACTIONBUTTONS
+    local totalWidth = numButtons * btnSize + (numButtons - 1) * btnGap
+    local artOffset = -48  -- compensate for asymmetric art layout
+    local startOffset = -(totalWidth / 2) + artOffset
+
+    for index = 1, numButtons do
         local button = _G['VehicleMenuBarActionButton'..index]
         if button then
             button:ClearAllPoints()
             button:SetParent(vehiclebar)
-            button:SetSize(52, 52)
+            button:SetSize(btnSize, btnSize)
             button:Show()
             if index == 1 then
-                button:SetPoint('BOTTOMLEFT', vehiclebar, 'BOTTOMRIGHT', -594, 21)
+                button:SetPoint('BOTTOMLEFT', vehiclebar, 'BOTTOM', startOffset, 21)
             else
                 local previous = _G['VehicleMenuBarActionButton'..(index-1)]
                 if previous then
-                    button:SetPoint('LEFT', previous, 'RIGHT', 6, 0)
+                    button:SetPoint('LEFT', previous, 'RIGHT', btnGap, 0)
                 end
             end
         end
@@ -594,6 +605,10 @@ local function ApplyVehicleSystem()
                 end
             end)
         end
+        -- Fallback: also register on initFrame in case CombatQueue doesn't fire
+        if VehicleModule.eventFrame then
+            VehicleModule.eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+        end
         return
     end
 
@@ -631,6 +646,23 @@ local function ApplyVehicleSystem()
 
         -- State drivers: show art when [vehicleui], hide main bar + bottom bars
         SetupArtStyleStateDrivers()
+
+        -- If player is ALREADY in a vehicle (e.g. after /reload), immediately
+        -- apply vehicle layout — UNIT_ENTERED_VEHICLE won't fire again.
+        if UnitHasVehicleUI('player') then
+            vehiclebar_layout_setup()
+            vehiclebutton_position()
+            if addon.vehiclebuttons_template then
+                addon.vehiclebuttons_template()
+            end
+            -- Safe to call only if VehicleMenuBarHealthBar exists (it should in vehicle UI)
+            if VehicleMenuBarHealthBar then
+                pcall(UnitFrameHealthBar_Update, VehicleMenuBarHealthBar, 'vehicle')
+            end
+            if VehicleMenuBarPowerBar then
+                pcall(UnitFrameManaBar_Update, VehicleMenuBarPowerBar, 'vehicle')
+            end
+        end
     else
         -- artstyle=false: main bars stay visible, show exit button during vehicle
         -- Bottom bars remain visible (main bar is not replaced)

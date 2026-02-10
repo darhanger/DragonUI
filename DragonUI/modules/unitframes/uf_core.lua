@@ -20,7 +20,9 @@ UF.TEXTURES = {
     -- Target-style frames (TargetFrame, FocusFrame)
     targetStyle = {
         BACKGROUND     = "Interface\\AddOns\\DragonUI\\Textures\\UI-HUD-UnitFrame-Target-PortraitOn-BACKGROUND",
+        BACKGROUND_FAT = "Interface\\AddOns\\DragonUI\\Textures\\UI-HUD-UnitFrame-Target-PortraitOn-BACKGROUND-Fat",
         BORDER         = "Interface\\AddOns\\DragonUI\\Textures\\UI-HUD-UnitFrame-Target-PortraitOn-BORDER",
+        BORDER_FAT     = "Interface\\AddOns\\DragonUI\\Textures\\UI-HUD-UnitFrame-Target-PortraitOn-BORDER-Fat",
         BAR_PREFIX     = "Interface\\AddOns\\DragonUI\\Textures\\Unitframe\\UI-HUD-UnitFrame-Target-PortraitOn-Bar-",
         NAME_BACKGROUND = "Interface\\AddOns\\DragonUI\\Textures\\TargetFrame\\NameBackground",
         BOSS           = "Interface\\AddOns\\DragonUI\\Textures\\uiunitframeboss2x",
@@ -37,6 +39,7 @@ UF.TEXTURES = {
     },
 
     -- Player frame (unique textures)
+    -- NOTE: Vehicle border uses atlas 'PlayerFrame-TextureFrame-Vehicle' from UnitFrame.blp (defined in Atlas.lua)
     player = {
         BASE          = "Interface\\Addons\\DragonUI\\Textures\\uiunitframe",
         BASE_FAT      = "Interface\\Addons\\DragonUI\\Textures\\uiunitframe-fat",
