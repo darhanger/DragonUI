@@ -14,8 +14,8 @@ local addon = select(2, ...)
 -- ============================================================================
 
 -- Open configuration panel (uses ToggleOptionsUI which loads DragonUI_Options)
-local function OpenConfig()
-    addon:ToggleOptionsUI()
+local function OpenConfig(msg)
+    addon:ToggleOptionsUI(msg)
 end
 
 -- Toggle editor/move mode
@@ -140,6 +140,7 @@ local function ShowHelp()
     addon:Print("=== DragonUI Commands ===")
     print("  |cFF00FF00/dragonui|r or |cFF00FF00/dui|r - Open configuration")
     print("  |cFF00FF00/dragonui config|r - Open configuration")
+    print("  |cFF00FF00/dragonui legacy|r - Open legacy AceConfig options")
     print("  |cFF00FF00/dragonui edit|r - Toggle editor mode (move UI elements)")
     print("  |cFF00FF00/dragonui reset|r - Reset all positions to defaults")
     print("  |cFF00FF00/dragonui reset <name>|r - Reset specific mover")
@@ -165,6 +166,8 @@ local function SlashCommandHandler(input)
     
     if cmd == "config" or cmd == "options" or cmd == "opt" then
         OpenConfig()
+    elseif cmd == "legacy" or cmd == "old" then
+        OpenConfig("legacy")
     elseif cmd == "edit" or cmd == "editor" or cmd == "move" or cmd == "moveui" then
         ToggleEditorMode()
     elseif cmd == "reset" then

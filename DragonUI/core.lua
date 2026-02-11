@@ -62,7 +62,7 @@ end
 -- OPTIONS UI LOADING (ElvUI Pattern)
 -- ============================================================================
 
-function addon:ToggleOptionsUI()
+function addon:ToggleOptionsUI(msg)
     if InCombatLockdown() then
         print("|cFFFF0000[DragonUI]|r Cannot open options in combat.")
         return
@@ -91,14 +91,33 @@ function addon:ToggleOptionsUI()
         end
     end
 
-    -- Open the options dialog
-    local AceConfigDialog = LibStub("AceConfigDialog-3.0")
-    if AceConfigDialog then
-        local ConfigOpen = AceConfigDialog.OpenFrames and AceConfigDialog.OpenFrames["DragonUI"]
-        if ConfigOpen then
-            AceConfigDialog:Close("DragonUI")
-        else
-            AceConfigDialog:Open("DragonUI")
+    -- Check for "legacy" argument to open old AceConfigDialog
+    if msg and (msg == "legacy" or msg == "config" or msg == "old") then
+        local AceConfigDialog = LibStub("AceConfigDialog-3.0")
+        if AceConfigDialog then
+            local ConfigOpen = AceConfigDialog.OpenFrames and AceConfigDialog.OpenFrames["DragonUI"]
+            if ConfigOpen then
+                AceConfigDialog:Close("DragonUI")
+            else
+                AceConfigDialog:Open("DragonUI")
+            end
+        end
+        return
+    end
+
+    -- Use the new custom panel
+    if addon.OptionsPanel then
+        addon.OptionsPanel:Toggle(msg)
+    else
+        -- Fallback to AceConfigDialog if panel not available
+        local AceConfigDialog = LibStub("AceConfigDialog-3.0")
+        if AceConfigDialog then
+            local ConfigOpen = AceConfigDialog.OpenFrames and AceConfigDialog.OpenFrames["DragonUI"]
+            if ConfigOpen then
+                AceConfigDialog:Close("DragonUI")
+            else
+                AceConfigDialog:Open("DragonUI")
+            end
         end
     end
 end
@@ -162,6 +181,8 @@ function addon.core:SlashCommand(input)
             addon:ToggleOptionsUI()
         elseif input:lower() == "config" then
             addon:ToggleOptionsUI()
+        elseif input:lower() == "legacy" or input:lower() == "old" then
+            addon:ToggleOptionsUI("legacy")
         elseif input:lower() == "edit" or input:lower() == "editor" then
             addon.CommandHandlers.ToggleEditorMode()
         elseif input:lower() == "help" then

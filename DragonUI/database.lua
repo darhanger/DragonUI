@@ -1,6 +1,6 @@
 local addon = select(2, ...);
 
--- Default values for new profiles (only used         bagsbar = { anchor = "BOTTOMRIGHT", posX = 1, posY = 41 },hen creating new profiles)
+-- Default values for new profiles
 local defaults = {
     profile = {
         -- Widgets
@@ -38,7 +38,7 @@ local defaults = {
             pet = {
                 anchor = "TOPLEFT",
                 posX = 63,
-                posY = -80
+                posY = -85
             },
             petbar = {
                 anchor = "BOTTOM",
@@ -341,6 +341,17 @@ local defaults = {
                 fat_manabar_width = 200,
                 fat_manabar_height = 8,
                 fat_manabar_hidden = false,
+                manabar_texture = "dragonui", -- "dragonui", "blizzard", "blizzard_flat", "smooth", "aluminium", "litestep"
+                -- Dragonflight-style power bar colors (applied on override textures in fat mode)
+                power_colors = {
+                    MANA         = { r = 0.02, g = 0.32, b = 0.71 },
+                    RAGE         = { r = 1.00, g = 0.00, b = 0.00 },
+                    FOCUS        = { r = 1.00, g = 0.50, b = 0.25 },
+                    ENERGY       = { r = 1.00, g = 1.00, b = 0.00 },
+                    HAPPINESS    = { r = 0.00, g = 1.00, b = 1.00 },
+                    RUNES        = { r = 0.50, g = 0.50, b = 0.50 },
+                    RUNIC_POWER  = { r = 0.00, g = 0.82, b = 1.00 },
+                },
             },
             target = {
                 classcolor = false,

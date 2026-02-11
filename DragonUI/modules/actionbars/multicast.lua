@@ -400,10 +400,11 @@ local function SetupShamanMulticast()
         end
     end
     
-    -- Register visibility state driver
+    -- Register visibility state driver (hide during vehicle)
     if not MulticastModule.stateDrivers.visibility then
-        MulticastModule.stateDrivers.visibility = {frame = totembar, state = 'visibility', condition = 'show'}
-        RegisterStateDriver(totembar, 'visibility', 'show')
+        local visCondition = '[vehicleui] hide; show'
+        MulticastModule.stateDrivers.visibility = {frame = totembar, state = 'visibility', condition = visCondition}
+        RegisterStateDriver(totembar, 'visibility', visCondition)
     end
 end
 

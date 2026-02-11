@@ -59,13 +59,13 @@ local UnitAffectingCombat = UnitAffectingCombat;
 local NUM_SHAPESHIFT_SLOTS = 10; -- Fixed value for 3.3.5a compatibility
 
 local stance = {
-	['DEATHKNIGHT'] = 'show',
-	['DRUID'] = 'show',
-	['PALADIN'] = 'show',
-	['PRIEST'] = 'show',
-	['ROGUE'] = 'show',
-	['WARLOCK'] = 'show',
-	['WARRIOR'] = 'show'
+	['DEATHKNIGHT'] = '[vehicleui] hide; show',
+	['DRUID'] = '[vehicleui] hide; show',
+	['PALADIN'] = '[vehicleui] hide; show',
+	['PRIEST'] = '[vehicleui] hide; show',
+	['ROGUE'] = '[vehicleui] hide; show',
+	['WARLOCK'] = '[vehicleui] hide; show',
+	['WARRIOR'] = '[vehicleui] hide; show'
 };
 
 -- Module frames (created only when enabled)

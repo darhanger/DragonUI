@@ -194,6 +194,45 @@ local function GetFatManaConfig()
            config.fat_manabar_hidden or false
 end
 
+-- Mana bar texture override lookup (vanilla Blizzard textures available in 3.3.5a)
+local MANABAR_TEXTURE_OVERRIDES = {
+    blizzard       = "Interface\\TargetingFrame\\UI-StatusBar",
+    blizzard_flat  = "Interface\\ChatFrame\\ChatFrameBackground",
+    smooth         = "Interface\\PaperDollInfoFrame\\UI-Character-Skills-Bar",
+    aluminium      = "Interface\\BUTTONS\\WHITE8X8",
+    litestep       = "Interface\\PaperDollInfoFrame\\UI-Character-Tab-Highlight",
+}
+
+-- Dragonflight-style power bar colors (from RetailUI reference)
+-- These are applied via SetStatusBarColor on vanilla override textures
+-- which are neutral/grayscale and need explicit coloring.
+local DF_POWER_COLORS = {
+    ["MANA"]         = { r = 0.02, g = 0.32, b = 0.71 },
+    ["RAGE"]         = { r = 1.00, g = 0.00, b = 0.00 },
+    ["FOCUS"]        = { r = 1.00, g = 0.50, b = 0.25 },
+    ["ENERGY"]       = { r = 1.00, g = 1.00, b = 0.00 },
+    ["HAPPINESS"]    = { r = 0.00, g = 1.00, b = 1.00 },
+    ["RUNES"]        = { r = 0.50, g = 0.50, b = 0.50 },
+    ["RUNIC_POWER"]  = { r = 0.00, g = 0.82, b = 1.00 },
+    ["AMMOSLOT"]     = { r = 0.80, g = 0.60, b = 0.00 },
+    ["FUEL"]         = { r = 0.00, g = 0.55, b = 0.50 },
+}
+
+-- Get the correct power bar texture path, applying user texture override ONLY in fat mode
+local function GetPowerBarTexture(powerTypeString)
+    -- Override textures only apply when fat healthbar is active
+    if IsFatHealthbarActive() then
+        local config = GetPlayerConfig()
+        local textureSetting = config and config.manabar_texture or "dragonui"
+        if textureSetting ~= "dragonui" and MANABAR_TEXTURE_OVERRIDES[textureSetting] then
+            return MANABAR_TEXTURE_OVERRIDES[textureSetting]
+        end
+    end
+    
+    -- Default DragonUI per-power-type textures (normal mode always uses these)
+    return TEXTURES.POWER_BARS[powerTypeString] or TEXTURES.POWER_BARS.MANA
+end
+
 -- Create or get the fat mana bar anchor frame (for editor mode movability)
 local function GetOrCreateFatManaAnchor()
     if Module.fatManaFrame then return Module.fatManaFrame end
@@ -228,7 +267,7 @@ local function ApplyFatManaBar()
     local hasVehicleUI = UnitHasVehicleUI("player")
 
     if not fatMode then
-        -- Normal mode: standard mana bar positioning
+        -- Normal mode: standard mana bar positioning (ignore fat settings)
         PlayerFrameManaBar:ClearAllPoints()
         PlayerFrameManaBar:SetSize(hasVehicleUI and 117 or 125, hasVehicleUI and 9 or 8)
         if hasVehicleUI then
@@ -247,9 +286,8 @@ local function ApplyFatManaBar()
         return
     end
 
-    -- Fat mode: use configurable width/height and anchor frame
+    -- Fat mode: check hidden state
     local width, height, hidden = GetFatManaConfig()
-
     if hidden then
         PlayerFrameManaBar:Hide()
         if Module.fatManaFrame then
@@ -258,6 +296,7 @@ local function ApplyFatManaBar()
         return
     end
 
+    -- Fat mode: use configurable width/height and anchor frame
     PlayerFrameManaBar:Show()
 
     -- Create anchor if needed and apply position
@@ -271,6 +310,7 @@ local function ApplyFatManaBar()
             name = "fat_manabar",
             frame = anchor,
             configPath = {"widgets", "fat_manabar"},
+            editorVisible = function() return IsFatHealthbarActive() end,
             onHide = function()
                 ApplyFatManaBar()
             end,
@@ -959,11 +999,28 @@ local function UpdateHealthBarColor(statusBar, unit)
     UpdatePlayerHealthBarColor()
 end
 
--- Update mana bar color (always white for texture purity)
+-- Update mana bar color based on texture mode:
+-- DragonUI textures: force white (1,1,1) because color is baked into the texture.
+-- Override textures: apply power colors from DB (user-customizable) or DF defaults.
+-- (vanilla textures are neutral/grayscale and need explicit coloring).
 local function UpdateManaBarColor(statusBar)
-    if statusBar == PlayerFrameManaBar then
-        statusBar:SetStatusBarColor(1, 1, 1)
+    if statusBar ~= PlayerFrameManaBar then return end
+
+    local useOverride = IsFatHealthbarActive()
+    if useOverride then
+        local config = GetPlayerConfig()
+        local textureSetting = config and config.manabar_texture or "dragonui"
+        if textureSetting ~= "dragonui" then
+            -- Override texture: use DB color if available, else fall back to DF defaults
+            local _, powerToken = UnitPowerType('player')
+            local dbColors = config and config.power_colors
+            local color = (dbColors and dbColors[powerToken]) or DF_POWER_COLORS[powerToken] or DF_POWER_COLORS["MANA"]
+            statusBar:SetStatusBarColor(color.r or 1, color.g or 1, color.b or 1)
+            return
+        end
     end
+    -- DragonUI textures (or normal mode): force white so baked color shows
+    statusBar:SetStatusBarColor(1, 1, 1)
 end
 
 -- Update power bar texture based on current power type (handles druid forms)
@@ -973,14 +1030,16 @@ local function UpdatePowerBarTexture(statusBar)
     end
 
     local powerType, powerTypeString = UnitPowerType('player')
-    local powerTexture = TEXTURES.POWER_BARS[powerTypeString] or TEXTURES.POWER_BARS.MANA
+    local powerTexture = GetPowerBarTexture(powerTypeString)
 
     --  CAMBIAR TEXTURA según el tipo de poder actual
     local currentTexture = statusBar:GetStatusBarTexture():GetTexture()
     if currentTexture ~= powerTexture then
         statusBar:GetStatusBarTexture():SetTexture(powerTexture)
-
     end
+
+    -- Update color after texture change (druid form shifts change power type)
+    UpdateManaBarColor(statusBar)
 end
 -- ============================================================================
 -- VEHICLE SYSTEM INTEGRATION
@@ -1916,7 +1975,7 @@ local function ChangePlayerframe()
         PlayerFrameHealthBar:SetFrameLevel(PlayerFrame:GetFrameLevel() + 1)
         PlayerFrameManaBar:SetFrameLevel(PlayerFrame:GetFrameLevel() + 1)
     else
-        PlayerFrameHealthBar:SetSize(120, 20) -- Normal size
+        PlayerFrameHealthBar:SetSize(125, 20) -- Normal size
         PlayerFrameHealthBar:SetPoint('LEFT', PlayerPortrait, 'RIGHT', 1, 0)
         PlayerFrameHealthBar:SetFrameLevel(PlayerFrame:GetFrameLevel() + 1)
         PlayerFrameManaBar:SetFrameLevel(PlayerFrame:GetFrameLevel() + 1)
@@ -1925,9 +1984,9 @@ local function ChangePlayerframe()
     -- Configure mana bar (fat mode uses anchor frame, vehicle/normal use inline position)
     ApplyFatManaBar()
 
-    -- Set power bar texture based on type
+    -- Set power bar texture based on type (respects user texture override)
     local powerType, powerTypeString = UnitPowerType('player')
-    local powerTexture = TEXTURES.POWER_BARS[powerTypeString] or TEXTURES.POWER_BARS.MANA
+    local powerTexture = GetPowerBarTexture(powerTypeString)
     PlayerFrameManaBar:GetStatusBarTexture():SetTexture(powerTexture)
 
     -- Configure status and flash textures 
@@ -2267,6 +2326,7 @@ local function InitializePlayerFrame()
             name = "fat_manabar",
             frame = fatAnchor,
             configPath = {"widgets", "fat_manabar"},
+            editorVisible = function() return IsFatHealthbarActive() end,
             onHide = function()
                 ApplyFatManaBar()
             end,

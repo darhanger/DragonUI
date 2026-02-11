@@ -451,6 +451,7 @@ function addon:RegisterEditableFrame(frameInfo)
         showTest = frameInfo.showTest,            -- Function to show with fake data
         hideTest = frameInfo.hideTest,            -- Function to hide fake frame
         hasTarget = frameInfo.hasTarget,          -- Function to check if should be visible
+        editorVisible = frameInfo.editorVisible,  -- Function to check if frame should appear in editor mode
         module = frameInfo.module                 -- Reference to the module
     }
     
@@ -461,15 +462,20 @@ end
 function addon:ShowAllEditableFrames()
     for name, frameData in pairs(self.EditableFrames) do
         if frameData.frame then
-            addon.HideUIFrame(frameData.frame) -- Show green overlay
-            
-            -- Show frame with fake data if needed
-            if frameData.showTest then
-                frameData.showTest()
-            end
-            
-            if frameData.onShow then
-                frameData.onShow()
+            -- Skip frames that explicitly declare they shouldn't appear in editor
+            if frameData.editorVisible and not frameData.editorVisible() then
+                frameData.frame:Hide()
+            else
+                addon.HideUIFrame(frameData.frame) -- Show green overlay
+
+                -- Show frame with fake data if needed
+                if frameData.showTest then
+                    frameData.showTest()
+                end
+
+                if frameData.onShow then
+                    frameData.onShow()
+                end
             end
         end
     end

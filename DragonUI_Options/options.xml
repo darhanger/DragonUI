@@ -36,4 +36,19 @@
     
     <!-- Profiles (must be registered after DB initialization) -->
     <Script file="profiles.lua"/>
+    
+    <!-- New custom panel system (AceGUI-based) -->
+    <Script file="panel\controls.lua"/>
+    <Script file="panel\panel.lua"/>
+    <Script file="panel\tab_general.lua"/>
+    <Script file="panel\tab_modules.lua"/>
+    <Script file="panel\tab_actionbars.lua"/>
+    <Script file="panel\tab_additionalbars.lua"/>
+    <Script file="panel\tab_xprepbars.lua"/>
+    <Script file="panel\tab_unitframes.lua"/>
+    <Script file="panel\tab_castbars.lua"/>
+    <Script file="panel\tab_minimap.lua"/>
+    <Script file="panel\tab_micromenu.lua"/>
+    <Script file="panel\tab_questtracker.lua"/>
+    <Script file="panel\tab_profiles.lua"/>
 </Ui>

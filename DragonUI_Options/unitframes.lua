@@ -284,7 +284,6 @@ local unitframeOptions = {
                     end,
                     disabled = function()
                         return not addon.db.profile.unitframe.player.fat_healthbar
-                            or addon.db.profile.unitframe.player.fat_manabar_hidden
                     end,
                     order = 23
                 },
@@ -306,7 +305,6 @@ local unitframeOptions = {
                     end,
                     disabled = function()
                         return not addon.db.profile.unitframe.player.fat_healthbar
-                            or addon.db.profile.unitframe.player.fat_manabar_hidden
                     end,
                     order = 24
                 }

@@ -42,3 +42,18 @@ unitframes.lua
 
 # Profiles
 profiles.lua
+
+# New custom panel system (AceGUI-based)
+panel\controls.lua
+panel\panel.lua
+panel\tab_general.lua
+panel\tab_modules.lua
+panel\tab_actionbars.lua
+panel\tab_additionalbars.lua
+panel\tab_xprepbars.lua
+panel\tab_unitframes.lua
+panel\tab_castbars.lua
+panel\tab_minimap.lua
+panel\tab_micromenu.lua
+panel\tab_questtracker.lua
+panel\tab_profiles.lua
