@@ -116,20 +116,63 @@ local defaults = {
         },
         -- ACTIONBAR SETTINGS
         mainbars = {
-            --  Only keep orientation and scale settings - position handled by centralized system
+            -- Per-bar layout (nested sub-tables with rows/columns/buttons_shown)
+            player = {
+                rows = 1,
+                columns = 12,
+                buttons_shown = 12
+            },
             left = {
-                horizontal = false
+                horizontal = false,
+                rows = 12,
+                columns = 1,
+                buttons_shown = 12
             },
             right = {
-                horizontal = false
+                horizontal = false,
+                rows = 12,
+                columns = 1,
+                buttons_shown = 12
+            },
+            bottom_left = {
+                rows = 1,
+                columns = 12,
+                buttons_shown = 12
+            },
+            bottom_right = {
+                rows = 1,
+                columns = 12,
+                buttons_shown = 12
             },
 
+            -- Per-bar scales
             scale_actionbar = 0.9,
             scale_rightbar = 0.9,
             scale_leftbar = 0.9,
             scale_bottomleft = 0.9,
             scale_bottomright = 0.9,
             scale_vehicle = 1
+        },
+
+        -- ACTION BAR VISIBILITY SETTINGS
+        actionbars = {
+            -- Enable/disable secondary bars
+            bottom_left_enabled = true,
+            bottom_right_enabled = true,
+            right_enabled = true,
+            left_enabled = true,
+
+            -- Hover/combat visibility per bar
+            main_show_on_hover = false,
+            main_show_in_combat = false,
+            bottom_left_show_on_hover = false,
+            bottom_left_show_in_combat = false,
+            bottom_right_show_on_hover = false,
+            bottom_right_show_in_combat = false,
+            right_show_on_hover = false,
+            right_show_in_combat = false,
+            left_show_on_hover = false,
+            left_show_in_combat = false
         },
 
         micromenu = {

@@ -2,7 +2,7 @@
 ================================================================================
 DragonUI Options Panel - Action Bars Tab
 ================================================================================
-Scales, positions, button appearance for action bars.
+Scales, positions, button appearance, bar size for action bars.
 ================================================================================
 ]]
 
@@ -11,6 +11,18 @@ if not addon then return end
 
 local C = addon.PanelControls
 local Panel = addon.OptionsPanel
+
+-- ============================================================================
+-- SUB-TAB DEFINITIONS
+-- ============================================================================
+
+local activeSubTab = "general"
+
+local subTabs = {
+    { key = "general", label = "General" },
+    { key = "layout",  label = "Layout" },
+    { key = "visibility", label = "Visibility" },
+}
 
 -- ============================================================================
 -- REFRESH HELPER
@@ -29,10 +41,10 @@ local function RefreshCooldowns()
 end
 
 -- ============================================================================
--- ACTION BARS TAB BUILDER
+-- GENERAL SUB-TAB (existing action bar settings)
 -- ============================================================================
 
-local function BuildActionbarsTab(scroll)
+local function BuildGeneralTab(scroll)
     -- ====================================================================
     -- SCALES
     -- ====================================================================
@@ -64,7 +76,6 @@ local function BuildActionbarsTab(scroll)
                 C:SetDBValue(bar.path, 0.9)
             end
             RefreshBars()
-            -- Refresh the tab to update slider positions
             Panel:SelectTab("actionbars")
             print("|cFF00FF00[DragonUI]|r All action bar scales reset to 0.9")
         end,
@@ -286,10 +297,357 @@ local function BuildActionbarsTab(scroll)
         width = 70,
         height = 90,
     })
+end
 
+-- ============================================================================
+-- LAYOUT SUB-TAB (grid layout: rows/columns/buttons per bar)
+-- ============================================================================
+
+local function BuildLayoutTab(scroll)
+    -- ---- Main Bar ----
+    local mainSection = C:AddSection(scroll, "Main Bar Layout")
+
+    C:AddDescription(mainSection,
+        "Configure the main action bar grid layout. " ..
+        "Rows are determined automatically from columns and buttons shown.")
+
+    C:AddSlider(mainSection, {
+        dbPath = "mainbars.player.columns",
+        label = "Columns",
+        min = 1, max = 12, step = 1,
+        width = 200,
+        callback = RefreshBars,
+    })
+
+    C:AddSlider(mainSection, {
+        dbPath = "mainbars.player.buttons_shown",
+        label = "Buttons Shown",
+        min = 1, max = 12, step = 1,
+        width = 200,
+        callback = RefreshBars,
+    })
+
+    local mainPresetRow = C:AddRow(mainSection)
+
+    C:AddButton(mainPresetRow, {
+        label = "1x12",
+        width = 60,
+        callback = function()
+            C:SetDBValue("mainbars.player.columns", 12)
+            C:SetDBValue("mainbars.player.buttons_shown", 12)
+            RefreshBars()
+            Panel:SelectTab("actionbars")
+        end,
+    })
+
+    C:AddButton(mainPresetRow, {
+        label = "2x6",
+        width = 60,
+        callback = function()
+            C:SetDBValue("mainbars.player.columns", 6)
+            C:SetDBValue("mainbars.player.buttons_shown", 12)
+            RefreshBars()
+            Panel:SelectTab("actionbars")
+        end,
+    })
+
+    C:AddButton(mainPresetRow, {
+        label = "3x4",
+        width = 60,
+        callback = function()
+            C:SetDBValue("mainbars.player.columns", 4)
+            C:SetDBValue("mainbars.player.buttons_shown", 12)
+            RefreshBars()
+            Panel:SelectTab("actionbars")
+        end,
+    })
+
+    C:AddButton(mainPresetRow, {
+        label = "4x3",
+        width = 60,
+        callback = function()
+            C:SetDBValue("mainbars.player.columns", 3)
+            C:SetDBValue("mainbars.player.buttons_shown", 12)
+            RefreshBars()
+            Panel:SelectTab("actionbars")
+        end,
+    })
+
+    -- ---- Bottom Left Bar ----
+    local blSection = C:AddSection(scroll, "Bottom Left Bar Layout")
+
+    C:AddSlider(blSection, {
+        dbPath = "mainbars.bottom_left.columns",
+        label = "Columns",
+        min = 1, max = 12, step = 1,
+        width = 200,
+        callback = RefreshBars,
+    })
+
+    C:AddSlider(blSection, {
+        dbPath = "mainbars.bottom_left.buttons_shown",
+        label = "Buttons Shown",
+        min = 1, max = 12, step = 1,
+        width = 200,
+        callback = RefreshBars,
+    })
+
+    -- ---- Bottom Right Bar ----
+    local brSection = C:AddSection(scroll, "Bottom Right Bar Layout")
+
+    C:AddSlider(brSection, {
+        dbPath = "mainbars.bottom_right.columns",
+        label = "Columns",
+        min = 1, max = 12, step = 1,
+        width = 200,
+        callback = RefreshBars,
+    })
+
+    C:AddSlider(brSection, {
+        dbPath = "mainbars.bottom_right.buttons_shown",
+        label = "Buttons Shown",
+        min = 1, max = 12, step = 1,
+        width = 200,
+        callback = RefreshBars,
+    })
+
+    -- ---- Right Bar ----
+    local rightSection = C:AddSection(scroll, "Right Bar Layout")
+
+    C:AddSlider(rightSection, {
+        dbPath = "mainbars.right.columns",
+        label = "Columns",
+        min = 1, max = 12, step = 1,
+        width = 200,
+        callback = RefreshBars,
+    })
+
+    C:AddSlider(rightSection, {
+        dbPath = "mainbars.right.buttons_shown",
+        label = "Buttons Shown",
+        min = 1, max = 12, step = 1,
+        width = 200,
+        callback = RefreshBars,
+    })
+
+    -- ---- Left Bar (Blizzard: MultiBarLeft = "Right 2") ----
+    local leftSection = C:AddSection(scroll, "Left Bar Layout")
+
+    C:AddSlider(leftSection, {
+        dbPath = "mainbars.left.columns",
+        label = "Columns",
+        min = 1, max = 12, step = 1,
+        width = 200,
+        callback = RefreshBars,
+    })
+
+    C:AddSlider(leftSection, {
+        dbPath = "mainbars.left.buttons_shown",
+        label = "Buttons Shown",
+        min = 1, max = 12, step = 1,
+        width = 200,
+        callback = RefreshBars,
+    })
+
+    -- ---- Quick Presets ----
+    local presetSection = C:AddSection(scroll, "Quick Presets")
+
+    C:AddDescription(presetSection, "Apply layout presets to multiple bars at once.")
+
+    local presetRow = C:AddRow(presetSection)
+
+    C:AddButton(presetRow, {
+        label = "Both 1x12",
+        width = 90,
+        callback = function()
+            for _, key in ipairs({"bottom_left", "bottom_right"}) do
+                C:SetDBValue("mainbars." .. key .. ".columns", 12)
+                C:SetDBValue("mainbars." .. key .. ".buttons_shown", 12)
+            end
+            RefreshBars()
+            Panel:SelectTab("actionbars")
+        end,
+    })
+
+    C:AddButton(presetRow, {
+        label = "Both 2x6",
+        width = 90,
+        callback = function()
+            for _, key in ipairs({"bottom_left", "bottom_right"}) do
+                C:SetDBValue("mainbars." .. key .. ".columns", 6)
+                C:SetDBValue("mainbars." .. key .. ".buttons_shown", 12)
+            end
+            RefreshBars()
+            Panel:SelectTab("actionbars")
+        end,
+    })
+
+    C:AddButton(presetRow, {
+        label = "Reset All",
+        width = 90,
+        callback = function()
+            C:SetDBValue("mainbars.player.columns", 12)
+            C:SetDBValue("mainbars.player.buttons_shown", 12)
+            for _, key in ipairs({"bottom_left", "bottom_right"}) do
+                C:SetDBValue("mainbars." .. key .. ".columns", 12)
+                C:SetDBValue("mainbars." .. key .. ".buttons_shown", 12)
+            end
+            C:SetDBValue("mainbars.right.columns", 1)
+            C:SetDBValue("mainbars.right.buttons_shown", 12)
+            C:SetDBValue("mainbars.left.columns", 1)
+            C:SetDBValue("mainbars.left.buttons_shown", 12)
+            RefreshBars()
+            Panel:SelectTab("actionbars")
+            print("|cFF00FF00[DragonUI]|r All bar layouts reset to defaults.")
+        end,
+    })
+end
+
+-- ============================================================================
+-- VISIBILITY SUB-TAB (hover/combat show/hide per bar)
+-- ============================================================================
+
+local function RefreshVisibility()
+    if addon.RefreshActionBarVisibility then addon.RefreshActionBarVisibility() end
+end
+
+local function BuildVisibilityTab(scroll)
+    local desc = C:AddSection(scroll, "Bar Visibility")
+    C:AddDescription(desc,
+        "Control when action bars are visible. " ..
+        "Bars can show only on hover, only in combat, or both. " ..
+        "When no option is checked the bar is always visible.")
+
+    -- Enable/disable secondary bars
+    local enableSection = C:AddSection(scroll, "Enable / Disable Bars")
+
+    C:AddToggle(enableSection, {
+        label = "Bottom Left Bar",
+        dbPath = "actionbars.bottom_left_enabled",
+        callback = RefreshVisibility,
+    })
+
+    C:AddToggle(enableSection, {
+        label = "Bottom Right Bar",
+        dbPath = "actionbars.bottom_right_enabled",
+        callback = RefreshVisibility,
+    })
+
+    C:AddToggle(enableSection, {
+        label = "Right Bar",
+        dbPath = "actionbars.right_enabled",
+        callback = RefreshVisibility,
+    })
+
+    C:AddToggle(enableSection, {
+        label = "Left Bar",
+        dbPath = "actionbars.left_enabled",
+        callback = RefreshVisibility,
+    })
+
+    -- Main bar hover/combat
+    local mainVis = C:AddSection(scroll, "Main Bar")
+
+    C:AddToggle(mainVis, {
+        label = "Show on Hover Only",
+        desc = "Hide the main bar until you hover over it.",
+        dbPath = "actionbars.main_show_on_hover",
+        callback = RefreshVisibility,
+    })
+
+    C:AddToggle(mainVis, {
+        label = "Show in Combat Only",
+        desc = "Hide the main bar until you enter combat.",
+        dbPath = "actionbars.main_show_in_combat",
+        callback = RefreshVisibility,
+    })
+
+    -- Bottom left hover/combat
+    local blVis = C:AddSection(scroll, "Bottom Left Bar")
+
+    C:AddToggle(blVis, {
+        label = "Show on Hover Only",
+        dbPath = "actionbars.bottom_left_show_on_hover",
+        callback = RefreshVisibility,
+    })
+
+    C:AddToggle(blVis, {
+        label = "Show in Combat Only",
+        dbPath = "actionbars.bottom_left_show_in_combat",
+        callback = RefreshVisibility,
+    })
+
+    -- Bottom right hover/combat
+    local brVis = C:AddSection(scroll, "Bottom Right Bar")
+
+    C:AddToggle(brVis, {
+        label = "Show on Hover Only",
+        dbPath = "actionbars.bottom_right_show_on_hover",
+        callback = RefreshVisibility,
+    })
+
+    C:AddToggle(brVis, {
+        label = "Show in Combat Only",
+        dbPath = "actionbars.bottom_right_show_in_combat",
+        callback = RefreshVisibility,
+    })
+
+    -- Right bar hover/combat
+    local rightVis = C:AddSection(scroll, "Right Bar")
+
+    C:AddToggle(rightVis, {
+        label = "Show on Hover Only",
+        dbPath = "actionbars.right_show_on_hover",
+        callback = RefreshVisibility,
+    })
+
+    C:AddToggle(rightVis, {
+        label = "Show in Combat Only",
+        dbPath = "actionbars.right_show_in_combat",
+        callback = RefreshVisibility,
+    })
+
+    -- Left bar hover/combat
+    local leftVis = C:AddSection(scroll, "Left Bar")
+
+    C:AddToggle(leftVis, {
+        label = "Show on Hover Only",
+        dbPath = "actionbars.left_show_on_hover",
+        callback = RefreshVisibility,
+    })
+
+    C:AddToggle(leftVis, {
+        label = "Show in Combat Only",
+        dbPath = "actionbars.left_show_in_combat",
+        callback = RefreshVisibility,
+    })
+end
+
+-- ============================================================================
+-- SUB-TAB DISPATCH
+-- ============================================================================
+
+local subTabBuilders = {
+    general    = BuildGeneralTab,
+    layout     = BuildLayoutTab,
+    visibility = BuildVisibilityTab,
+}
+
+-- ============================================================================
+-- MAIN TAB BUILDER
+-- ============================================================================
+
+local function BuildActionbarsTab(scroll)
+    C:AddSubTabs(scroll, subTabs, activeSubTab, function(key)
+        activeSubTab = key
+        Panel:SelectTab("actionbars")
+    end)
+
+    local builder = subTabBuilders[activeSubTab]
+    if builder then
+        builder(scroll)
+    end
 end
 
 -- Register the tab
 Panel:RegisterTab("actionbars", "Action Bars", BuildActionbarsTab, 3)
-
-print("|cFF00FF00[DragonUI]|r Panel tab: Action Bars loaded")

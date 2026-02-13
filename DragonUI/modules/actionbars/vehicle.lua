@@ -504,35 +504,85 @@ end
 -- NOT explicitly hidden) so buttons parented to it become visible when
 -- vehicleBarBackground is shown.
 
+-- ============================================================================
+-- BAR HIDING DURING VEHICLE (common to both artstyle modes)
+-- ============================================================================
+-- Uses SECURE STATE DRIVERS for ALL bars (main + secondary).
+-- This is combat-safe and fires immediately on vehicle state change.
+-- Previous event-based approach was unreliable because:
+--   1) wasShown captured at setup time (not vehicle-entry time)
+--   2) Other code could call :Show() overriding event-based :Hide()
+--   3) InCombatLockdown() blocked event handler during combat vehicle entry
+
+local function SetupVehicleBarHiding()
+    local mainBar = pUiMainBar or addon.pUiMainBar or _G.pUiMainBar
+    if not mainBar then return end
+
+    -- 1) pUiMainBar: use built-in 'visibility' state driver.
+    --    SecureHandlerStateTemplate auto-manages Show/Hide for 'show'/'hide' values.
+    VehicleModule.stateDrivers.mainBarVehicle = {frame = mainBar, state = 'visibility'}
+    RegisterStateDriver(mainBar, 'visibility', '[vehicleui] hide; show')
+
+    -- 2) Secondary bars: use a helper SecureHandlerStateTemplate with frame refs.
+    --    The restricted handler can call Hide()/Show() on any frame ref — combat-safe.
+    local hider = CreateFrame('Frame', 'DragonUIVehicleBarHider', UIParent, 'SecureHandlerStateTemplate')
+    VehicleModule.frames.vehicleHider = hider
+
+    -- Register frame references for all secondary bars
+    if MultiBarBottomLeft  then hider:SetFrameRef('bl', MultiBarBottomLeft)  end
+    if MultiBarBottomRight then hider:SetFrameRef('br', MultiBarBottomRight) end
+    if MultiBarRight       then hider:SetFrameRef('r',  MultiBarRight)       end
+    if MultiBarLeft        then hider:SetFrameRef('l',  MultiBarLeft)        end
+
+    -- Restricted handler: fires immediately on [vehicleui] state change
+    hider:SetAttribute('_onstate-vehiclehide', [[
+        local bl = self:GetFrameRef('bl')
+        local br = self:GetFrameRef('br')
+        local r  = self:GetFrameRef('r')
+        local l  = self:GetFrameRef('l')
+
+        if newstate == 'hide' then
+            if bl then bl:Hide() end
+            if br then br:Hide() end
+            if r  then r:Hide()  end
+            if l  then l:Hide()  end
+        else
+            if bl then bl:Show() end
+            if br then br:Show() end
+            if r  then r:Show()  end
+            if l  then l:Show()  end
+        end
+    ]])
+
+    VehicleModule.stateDrivers.vehicleHide = {frame = hider, state = 'vehiclehide'}
+    RegisterStateDriver(hider, 'vehiclehide', '[vehicleui] hide; show')
+
+    -- 3) Belt-and-suspenders: hook MultiActionBar_Update to re-hide secondary bars
+    --    that Blizzard's CVar check tries to re-show during vehicle.
+    if not VehicleModule.hooks.multiActionBarUpdate and MultiActionBar_Update then
+        hooksecurefunc('MultiActionBar_Update', function()
+            if not VehicleModule.applied then return end
+            if not UnitHasVehicleUI('player') then return end
+            if InCombatLockdown() then return end
+            if MultiBarBottomLeft  then MultiBarBottomLeft:Hide()  end
+            if MultiBarBottomRight then MultiBarBottomRight:Hide() end
+            if MultiBarRight       then MultiBarRight:Hide()       end
+            if MultiBarLeft        then MultiBarLeft:Hide()        end
+        end)
+        VehicleModule.hooks.multiActionBarUpdate = true
+    end
+end
+
+-- ============================================================================
+-- ARTSTYLE VISIBILITY STATE DRIVERS (artstyle=true only)
+-- ============================================================================
+
 local function SetupArtStyleStateDrivers()
-    if not vehicleBarBackground or not pUiMainBar then return end
+    if not vehicleBarBackground then return end
 
     -- Direct state driver on vehicleBarBackground: show/hide based on [vehicleui]
     VehicleModule.stateDrivers.vehicleArtVisibility = {frame = vehicleBarBackground, state = 'visibility'}
     RegisterStateDriver(vehicleBarBackground, 'visibility', '[vehicleui] show; hide')
-
-    -- Hide main bar during vehicle UI
-    VehicleModule.stateDrivers.mainBarVehicle = {frame = pUiMainBar, state = 'vehicleupdate'}
-    pUiMainBar:SetAttribute('_onstate-vehicleupdate', [[
-        if newstate == '1' then
-            self:Hide()
-        else
-            self:Show()
-        end
-    ]])
-    RegisterStateDriver(pUiMainBar, 'vehicleupdate', '[vehicleui] 1; 2')
-
-    -- Hide bottom bars during vehicle UI via direct state drivers
-    if MultiBarBottomLeft then
-        VehicleModule.stateDrivers.bottomLeftVisibility = {frame = MultiBarBottomLeft, state = 'visibility'}
-        VehicleModule.stateDrivers_bottomLeftRegistered = true
-        RegisterStateDriver(MultiBarBottomLeft, 'visibility', '[vehicleui] hide; show')
-    end
-    if MultiBarBottomRight then
-        VehicleModule.stateDrivers.bottomRightVisibility = {frame = MultiBarBottomRight, state = 'visibility'}
-        VehicleModule.stateDrivers_bottomRightRegistered = true
-        RegisterStateDriver(MultiBarBottomRight, 'visibility', '[vehicleui] hide; show')
-    end
 end
 
 -- ============================================================================
@@ -644,8 +694,9 @@ local function ApplyVehicleSystem()
         end
         vehiclebar:SetScript('OnEvent', OnVehicleEvent)
 
-        -- State drivers: show art when [vehicleui], hide main bar + bottom bars
+        -- State drivers: show art when [vehicleui], hide main bar + all secondary bars
         SetupArtStyleStateDrivers()
+        SetupVehicleBarHiding()
 
         -- If player is ALREADY in a vehicle (e.g. after /reload), immediately
         -- apply vehicle layout — UNIT_ENTERED_VEHICLE won't fire again.
@@ -662,12 +713,15 @@ local function ApplyVehicleSystem()
             if VehicleMenuBarPowerBar then
                 pcall(UnitFrameManaBar_Update, VehicleMenuBarPowerBar, 'vehicle')
             end
+            -- Bar hiding for /reload in vehicle is handled by
+            -- SetupVehicleBarHiding (UnitHasVehicleUI check inside)
         end
     else
-        -- artstyle=false: main bars stay visible, show exit button during vehicle
-        -- Bottom bars remain visible (main bar is not replaced)
+        -- artstyle=false: no vehicle art overlay, but still hide all action bars
+        -- during vehicle (same as default WoW behaviour)
         VehicleModule.stateDrivers.vehicleExitVisibility = {frame = vehicleExitButton, state = 'visibility'}
         RegisterStateDriver(vehicleExitButton, 'visibility', '[vehicleui] show; hide')
+        SetupVehicleBarHiding()
     end
 
     VehicleModule.applied = true
@@ -698,17 +752,24 @@ local function RestoreVehicleSystem()
     if vehicleBarBackground then vehicleBarBackground:Hide() end
     if vehicleExitButton then vehicleExitButton:Hide() end
 
-    -- Bottom bars: state drivers were unregistered above, which leaves them
-    -- in their last state. Re-show them (the state driver only hid bars that
-    -- were already shown, so restoring show is always safe here).
-    if MultiBarBottomLeft and VehicleModule.stateDrivers_bottomLeftRegistered then
-        MultiBarBottomLeft:Show()
+    -- Clean up secure handler attributes
+    local mainBar = pUiMainBar or addon.pUiMainBar or _G.pUiMainBar
+    if mainBar then
+        mainBar:SetAttribute('_onstate-vehicleupdate', nil)
     end
-    if MultiBarBottomRight and VehicleModule.stateDrivers_bottomRightRegistered then
-        MultiBarBottomRight:Show()
+
+    -- Clean up vehicle hider frame (secure state driver for secondary bars)
+    if VehicleModule.frames.vehicleHider then
+        VehicleModule.frames.vehicleHider:SetAttribute('_onstate-vehiclehide', nil)
+        VehicleModule.frames.vehicleHider:Hide()
+        VehicleModule.frames.vehicleHider = nil
     end
-    VehicleModule.stateDrivers_bottomLeftRegistered = nil
-    VehicleModule.stateDrivers_bottomRightRegistered = nil
+
+    -- Restore secondary bars via Blizzard's MultiActionBar_Update
+    -- (it reads CVars and shows/hides bars appropriately)
+    if MultiActionBar_Update then
+        pcall(MultiActionBar_Update)
+    end
 
     CleanupVehicleFrames()
     if VehicleMenuBar then VehicleMenuBar:Show() end

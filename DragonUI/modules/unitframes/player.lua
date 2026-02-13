@@ -364,6 +364,15 @@ local function HideBlizzardGlows()
             glow:SetAlpha(0)
         end
     end
+    -- Always suppress Blizzard's PlayerFrameFlash (combat red flash)
+    -- UIFrameFlash drives alpha in an OnUpdate loop, so we must stop it here too
+    if PlayerFrameFlash then
+        PlayerFrameFlash:Hide()
+        PlayerFrameFlash:SetAlpha(0)
+        if UIFrameFlashStop then
+            UIFrameFlashStop(PlayerFrameFlash)
+        end
+    end
 end
 
 -- Remove unwanted Blizzard frame elements

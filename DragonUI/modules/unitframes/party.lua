@@ -471,8 +471,9 @@ local function SetupHealthBarClipping(frame)
         local current = value or self:GetValue()
 
         if max > 0 and current then
-            -- CRITICAL FIX: Clamp to minimum 0.001 to prevent zero-width invisible texture
-            local percentage = math.max(current / max, 0.001)
+            -- Clamp to [0.001, 1] — max=1 can happen during BG loading/phasing
+            -- while current holds the real health value, producing TexCoord out of range
+            local percentage = math.min(math.max(current / max, 0.001), 1)
             texture:SetTexCoord(0, percentage, 0, 1)
         else
             texture:SetTexCoord(0, 1, 0, 1)
@@ -507,8 +508,9 @@ local function SetupManaBarClipping(frame)
         local current = value or self:GetValue()
 
         if max > 0 and current then
-            -- CRITICAL FIX: Clamp to minimum 0.001 to prevent zero-width invisible texture
-            local percentage = math.max(current / max, 0.001)
+            -- Clamp to [0.001, 1] — max=1 can happen during BG loading/phasing
+            -- while current holds the real mana value, producing TexCoord out of range
+            local percentage = math.min(math.max(current / max, 0.001), 1)
             texture:SetTexCoord(0, percentage, 0, 1)
         else
             texture:SetTexCoord(0, 1, 0, 1)
@@ -1382,7 +1384,7 @@ local function SetupPartyHooks()
                 local min, max = statusbar:GetMinMaxValues()
                 local current = statusbar:GetValue()
                 if max > 0 and current then
-                    local percentage = math.max(current / max, 0.001)
+                    local percentage = math.min(math.max(current / max, 0.001), 1)
                     texture:SetTexCoord(0, percentage, 0, 1)
                 end
             end
@@ -1410,7 +1412,7 @@ local function SetupPartyHooks()
                     local min, max = statusbar:GetMinMaxValues()
                     local current = statusbar:GetValue()
                     if max > 0 and current then
-                        local percentage = math.max(current / max, 0.001)
+                        local percentage = math.min(math.max(current / max, 0.001), 1)
                         texture:SetTexCoord(0, percentage, 0, 1)
                         texture:SetTexture(powerTexture)
                     end
@@ -1610,7 +1612,7 @@ recoveryFrame:SetScript("OnEvent", function(self, event, unit)
                         local _, max = healthbar:GetMinMaxValues()
                         local current = healthbar:GetValue()
                         if max > 0 and current then
-                            local percentage = math.max(current / max, 0.001)
+                            local percentage = math.min(math.max(current / max, 0.001), 1)
                             texture:SetTexCoord(0, percentage, 0, 1)
                         end
                     end
@@ -1622,7 +1624,7 @@ recoveryFrame:SetScript("OnEvent", function(self, event, unit)
                         local _, max = manabar:GetMinMaxValues()
                         local current = manabar:GetValue()
                         if max > 0 and current then
-                            local percentage = math.max(current / max, 0.001)
+                            local percentage = math.min(math.max(current / max, 0.001), 1)
                             texture:SetTexCoord(0, percentage, 0, 1)
                         end
                     end
@@ -1646,7 +1648,7 @@ recoveryFrame:SetScript("OnEvent", function(self, event, unit)
                     local _, max = healthbar:GetMinMaxValues()
                     local current = healthbar:GetValue()
                     if max > 0 and current then
-                        local percentage = math.max(current / max, 0.001)
+                        local percentage = math.min(math.max(current / max, 0.001), 1)
                         texture:SetTexCoord(0, percentage, 0, 1)
                     end
                 end
@@ -1658,7 +1660,7 @@ recoveryFrame:SetScript("OnEvent", function(self, event, unit)
                     local _, max = manabar:GetMinMaxValues()
                     local current = manabar:GetValue()
                     if max > 0 and current then
-                        local percentage = math.max(current / max, 0.001)
+                        local percentage = math.min(math.max(current / max, 0.001), 1)
                         texture:SetTexCoord(0, percentage, 0, 1)
                     end
                 end
