@@ -558,7 +558,7 @@ local defaults = {
                 custom_color = { r = 0.15, g = 0.15, b = 0.15 } -- Custom tint RGB
             },
             tooltip = {
-                enabled = false, -- Enhanced tooltip styling with class colors
+                enabled = true, -- Enhanced tooltip styling with class colors
                 class_colored_border = true, -- Color tooltip border by class/reaction
                 class_colored_name = true, -- Color unit name by class
                 target_of_target = true, -- Show target-of-target line
@@ -566,7 +566,7 @@ local defaults = {
                 anchor_cursor = false -- Anchor tooltip to cursor
             },
             itemquality = {
-                enabled = false, -- Color item borders by quality in bags, character panel, bank, merchant
+                enabled = true, -- Color item borders by quality in bags, character panel, bank, merchant
                 min_quality = 2 -- Minimum quality to show (2 = Uncommon/green)
             }
         }
