@@ -86,6 +86,14 @@ local ELITE_COMBAT_PULSE_SETTINGS = {
     enabled = true
 }
 
+-- Normal Status/Rest animation settings (when NO elite decoration)
+local NORMAL_STATUS_PULSE_SETTINGS = {
+    speed = 5, -- Speed for resting in normal mode
+    minAlpha = 0,
+    maxAlpha = 0.7,
+    enabled = true
+}
+
 -- Elite Status/Rest animation settings (when elite decoration is ON)
 local ELITE_STATUS_PULSE_SETTINGS = {
     speed = 5, -- Speed for resting in elite mode
@@ -448,6 +456,10 @@ local function UpdateGlowVisibility()
         return
     end
 
+    -- Check if rest glow is disabled by user option
+    local config = GetPlayerConfig()
+    local restGlowEnabled = config.show_rest_glow ~= false -- default true
+
     -- Vehicle mode: DragonUI's custom glow textures (uiunitframe/uiunitframe-fat) don't
     -- match the vehicle border shape. Instead, use dedicated VehicleCombatFlash and
     -- VehicleStatusGlow frames which use the 209×89 vehicle atlas shape.
@@ -456,6 +468,9 @@ local function UpdateGlowVisibility()
         -- Suppress ALL normal/elite custom glows (wrong shape for vehicle frame)
         if dragonFrame.DragonUICombatGlow then
             dragonFrame.DragonUICombatGlow:Hide()
+        end
+        if dragonFrame.DragonUIStatusGlow then
+            dragonFrame.DragonUIStatusGlow:Hide()
         end
         if dragonFrame.EliteStatusGlow then
             dragonFrame.EliteStatusGlow:Hide()
@@ -486,7 +501,7 @@ local function UpdateGlowVisibility()
 
         -- Vehicle status (resting) glow: dedicated DragonUI frame with vehicle atlas shape
         if dragonFrame.VehicleStatusGlow then
-            if statusGlowVisible then
+            if statusGlowVisible and restGlowEnabled then
                 dragonFrame.VehicleStatusGlow:Show()
                 dragonFrame.VehicleStatusTexture:SetAlpha(1)
             else
@@ -497,7 +512,7 @@ local function UpdateGlowVisibility()
     end
 
     --  DragonUI always suppresses Blizzard's PlayerStatusTexture
-    --  Custom glow is handled by EliteStatusGlow / VehicleStatusGlow
+    --  Custom glow is handled by DragonUIStatusGlow / EliteStatusGlow / VehicleStatusGlow
     if PlayerStatusTexture then
         PlayerStatusTexture:Hide()
         PlayerStatusTexture:SetAlpha(0)
@@ -507,7 +522,7 @@ local function UpdateGlowVisibility()
 
     if dragonFrame.DragonUICombatGlow then
         if eliteGlowActive then
-            -- In elite mode: hide original glow
+            -- In elite mode: hide normal combat glow
             dragonFrame.DragonUICombatGlow:Hide()
             dragonFrame.DragonUICombatGlow:SetAlpha(0)
         else
@@ -521,10 +536,19 @@ local function UpdateGlowVisibility()
         end
     end
 
+    -- Normal/fat status glow (only when NOT in elite mode)
+    if dragonFrame.DragonUIStatusGlow then
+        if not eliteGlowActive and statusGlowVisible and restGlowEnabled then
+            dragonFrame.DragonUIStatusGlow:Show()
+        else
+            dragonFrame.DragonUIStatusGlow:Hide()
+        end
+    end
+
     -- Update elite glows (only in elite mode)
     if eliteGlowActive then
         if dragonFrame.EliteStatusGlow then
-            if statusGlowVisible then
+            if statusGlowVisible and restGlowEnabled then
                 dragonFrame.EliteStatusGlow:Show()
             else
                 dragonFrame.EliteStatusGlow:Hide()
@@ -652,26 +676,33 @@ local function AnimateCombatFlashPulse(elapsed)
     end
 end
 
--- Animate Elite Status/Rest pulse effect
-local function AnimateEliteStatusPulse(elapsed)
-    if not ELITE_STATUS_PULSE_SETTINGS.enabled then
-        return
-    end
-
+-- Animate Status/Rest pulse effect (both normal and elite modes)
+local function AnimateStatusPulse(elapsed)
     local dragonFrame = _G["DragonUIUnitframeFrame"]
     if not dragonFrame then
         return
     end
 
-    -- Only animate if we're in elite mode AND the status glow is visible
-    if eliteGlowActive and dragonFrame.EliteStatusGlow and dragonFrame.EliteStatusGlow:IsVisible() then
-        eliteStatusPulseTimer = eliteStatusPulseTimer + (elapsed * ELITE_STATUS_PULSE_SETTINGS.speed)
-
-        local pulseAlpha = ELITE_STATUS_PULSE_SETTINGS.minAlpha +
-                               (ELITE_STATUS_PULSE_SETTINGS.maxAlpha - ELITE_STATUS_PULSE_SETTINGS.minAlpha) *
-                               (math.sin(eliteStatusPulseTimer) * 0.5 + 0.5)
-
-        dragonFrame.EliteStatusTexture:SetAlpha(pulseAlpha)
+    -- Elite mode: pulse EliteStatusGlow
+    if eliteGlowActive then
+        if not ELITE_STATUS_PULSE_SETTINGS.enabled then return end
+        if dragonFrame.EliteStatusGlow and dragonFrame.EliteStatusGlow:IsVisible() then
+            eliteStatusPulseTimer = eliteStatusPulseTimer + (elapsed * ELITE_STATUS_PULSE_SETTINGS.speed)
+            local pulseAlpha = ELITE_STATUS_PULSE_SETTINGS.minAlpha +
+                                   (ELITE_STATUS_PULSE_SETTINGS.maxAlpha - ELITE_STATUS_PULSE_SETTINGS.minAlpha) *
+                                   (math.sin(eliteStatusPulseTimer) * 0.5 + 0.5)
+            dragonFrame.EliteStatusTexture:SetAlpha(pulseAlpha)
+        end
+    else
+        -- Normal/fat mode: pulse DragonUIStatusGlow
+        if not NORMAL_STATUS_PULSE_SETTINGS.enabled then return end
+        if dragonFrame.DragonUIStatusGlow and dragonFrame.DragonUIStatusGlow:IsVisible() then
+            eliteStatusPulseTimer = eliteStatusPulseTimer + (elapsed * NORMAL_STATUS_PULSE_SETTINGS.speed)
+            local pulseAlpha = NORMAL_STATUS_PULSE_SETTINGS.minAlpha +
+                                   (NORMAL_STATUS_PULSE_SETTINGS.maxAlpha - NORMAL_STATUS_PULSE_SETTINGS.minAlpha) *
+                                   (math.sin(eliteStatusPulseTimer) * 0.5 + 0.5)
+            dragonFrame.DragonUIStatusTexture:SetAlpha(pulseAlpha)
+        end
     end
 end
 
@@ -685,8 +716,8 @@ local function PlayerFrame_OnUpdate(self, elapsed)
     -- Combat Flash pulse animation
     AnimateCombatFlashPulse(elapsed)
 
-    -- Elite Status pulse animation
-    AnimateEliteStatusPulse(elapsed)
+    -- Status/Rest pulse animation (normal and elite)
+    AnimateStatusPulse(elapsed)
 end
 
 -- Override Blizzard status update to prevent glow interference
@@ -1546,9 +1577,12 @@ local function UpdatePlayerDragonDecoration()
                 dragonFrame.PlayerFrameBorder:SetPoint('LEFT', PlayerFrameHealthBar, 'LEFT', -67, -28.5 + HP_OFFSET)
             end
 
-            -- Update combat glow texture to match fat/normal mode
+            -- Update combat and status glow textures to match fat/normal mode
             if dragonFrame.DragonUICombatTexture then
                 dragonFrame.DragonUICombatTexture:SetTexture(baseTexture)
+            end
+            if dragonFrame.DragonUIStatusTexture then
+                dragonFrame.DragonUIStatusTexture:SetTexture(baseTexture)
             end
 
             -- Show deco dot when no dragon decoration
@@ -1636,6 +1670,25 @@ local function CreatePlayerFrameTextures()
         dragonFrame.DragonUICombatGlow = combatFlashFrame
         dragonFrame.DragonUICombatTexture = combatTexture
 
+    end
+
+    -- CREATE NORMAL STATUS GLOW (rest glow for normal/fat mode, no elite)
+    if not dragonFrame.DragonUIStatusGlow then
+        local statusGlowFrame = CreateFrame("Frame", "DragonUIStatusGlow", PlayerFrame)
+        statusGlowFrame:SetFrameStrata("LOW")
+        statusGlowFrame:SetFrameLevel(998)
+        statusGlowFrame:SetSize(192, 71)
+        statusGlowFrame:Hide()
+
+        local statusGlowTexture = statusGlowFrame:CreateTexture(nil, "OVERLAY")
+        statusGlowTexture:SetTexture(GetBaseTexture()) -- uses uiunitframe or uiunitframe-fat
+        statusGlowTexture:SetTexCoord(0.1943359375, 0.3818359375, 0.169921875, 0.30859375)
+        statusGlowTexture:SetAllPoints(statusGlowFrame)
+        statusGlowTexture:SetBlendMode("ADD")
+        statusGlowTexture:SetVertexColor(1.0, 0.82, 0.0, 0.6) -- Gold/yellow for resting
+
+        dragonFrame.DragonUIStatusGlow = statusGlowFrame
+        dragonFrame.DragonUIStatusTexture = statusGlowTexture
     end
 
     -- CREATE ELITE GLOW SYSTEM - Two glows using ELITE_GLOW_COORDINATES
@@ -2035,16 +2088,14 @@ local function ChangePlayerframe()
             dragonFrame.VehicleStatusGlow:SetPoint('TOPLEFT', PlayerFrame, 'TOPLEFT', 35, 0)
         end
     else
-        -- Normal/fat mode: configure status texture with DragonUI's custom glow
-        PlayerStatusTexture:SetTexture(baseTexture)
-        PlayerStatusTexture:SetSize(192, 71)
-        PlayerStatusTexture:SetTexCoord(0.1943359375, 0.3818359375, 0.169921875, 0.30859375)
-        PlayerStatusTexture:ClearAllPoints()
-        PlayerStatusTexture:SetBlendMode("ADD") -- Additive glow (matches combat/elite glow style)
-        PlayerStatusTexture:SetVertexColor(1.0, 0.82, 0.0, 0.6) -- Gold/yellow for resting state
-
-        if dragonFrame and dragonFrame.PlayerFrameBorder then
-            PlayerStatusTexture:SetPoint('TOPLEFT', PlayerPortrait, 'TOPLEFT', -9, 9)
+        -- Normal/fat mode: update DragonUIStatusGlow texture to match current base texture
+        -- (PlayerStatusTexture is permanently suppressed by UpdateGlowVisibility)
+        if dragonFrame and dragonFrame.DragonUIStatusTexture then
+            dragonFrame.DragonUIStatusTexture:SetTexture(baseTexture)
+        end
+        -- Also update combat glow texture to match fat/normal
+        if dragonFrame and dragonFrame.DragonUICombatTexture then
+            dragonFrame.DragonUICombatTexture:SetTexture(baseTexture)
         end
     end
 
@@ -2065,6 +2116,10 @@ local function ChangePlayerframe()
         if dragonFrame and dragonFrame.DragonUICombatGlow then
             dragonFrame.DragonUICombatGlow:ClearAllPoints()
             dragonFrame.DragonUICombatGlow:SetPoint('TOPLEFT', PlayerPortrait, 'TOPLEFT', -9, 9)
+        end
+        if dragonFrame and dragonFrame.DragonUIStatusGlow then
+            dragonFrame.DragonUIStatusGlow:ClearAllPoints()
+            dragonFrame.DragonUIStatusGlow:SetPoint('TOPLEFT', PlayerPortrait, 'TOPLEFT', -9, 9)
         end
         if dragonFrame and dragonFrame.EliteStatusGlow then
             dragonFrame.EliteStatusGlow:ClearAllPoints()

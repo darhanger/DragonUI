@@ -32,8 +32,9 @@ local defaults = {
             },
             buffs = {
                 anchor = "TOPRIGHT",
-                posX = -260,
-                posY = -20
+                posX = -300,
+                posY = -39,
+                custom_position = false
             },
             pet = {
                 anchor = "TOPLEFT",
@@ -86,10 +87,15 @@ local defaults = {
                 posX = -3,
                 posY = 45
             },
-            repexpbar = {
+            xpbar = {
                 anchor = "BOTTOM",
                 posX = 1,
                 posY = 7
+            },
+            repbar = {
+                anchor = "BOTTOM",
+                posX = 1,
+                posY = 23
             },
             fat_manabar = {
                 anchor = "TOPLEFT",
@@ -205,20 +211,35 @@ local defaults = {
         },
 
         xprepbar = {
+            -- Style: "dragonflightui" (custom bars) or "retailui" (atlas reskin)
+            style = "dragonflightui",
+            -- Bar dimensions
+            bar_width = 466,
+            bar_height_dfui = 14,
+            bar_height_retailui = 9,
+            -- Positioning offsets (used by both styles)
             bothbar_offset = 39,
             singlebar_offset = 24,
             nobar_offset = 18,
             repbar_abovexp_offset = 16,
             repbar_offset = 2,
+            dual_bar_gap = 2,
             -- Configurable scales for the bars
-            expbar_scale = 0.9,
-            repbar_scale = 0.9
+            expbar_scale = 1.0,
+            repbar_scale = 1.0,
+            -- Rested XP
+            show_rested_bar = true,
+            show_rested_mark = true,
+            -- Text display
+            always_show_text = false,
+            show_xp_percent = false,
+            show_rep_text_on_hover = true,
         },
 
         style = {
             gryphons = 'new',
-            xpbar = 'new',
-            exhaustion_tick = true -- Show exhaustion tick (false to hide like RetailUI)
+            xpbar = 'dragonflightui',
+            exhaustion_tick = true -- Show exhaustion tick (on by default)
         },
 
         buttons = {
@@ -393,6 +414,7 @@ local defaults = {
                 alwaysShowAlternateManaText = false,
                 alternateManaFormat = "both",
                 show_runes = true, -- DK rune display (used by player.lua)
+                show_rest_glow = true, -- Show golden glow when resting (inn/city)
                 fat_healthbar = false, -- Full-width health bar (incompatible with dragon decoration)
                 fat_manabar_width = 200,
                 fat_manabar_height = 8,

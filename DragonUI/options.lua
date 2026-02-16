@@ -877,6 +877,39 @@ function addon:CreateOptionsTable()
                 name = "XP & Rep Bars",
                 order = 6,
                 args = {
+                    style = {
+                        type = 'select',
+                        name = "Bar Style",
+                        desc = "DragonflightUI: fully custom bars with rested XP background. RetailUI: atlas-based reskin of Blizzard bars.",
+                        values = {
+                            dragonflightui = "DragonflightUI",
+                            retailui = "RetailUI",
+                        },
+                        get = function()
+                            return addon.db.profile.xprepbar.style or "dragonflightui"
+                        end,
+                        set = function(info, val)
+                            if addon.SetXpBarStyle then
+                                addon.SetXpBarStyle(val)
+                            else
+                                addon.db.profile.xprepbar.style = val
+                                addon.db.profile.style.xpbar = val
+                            end
+                        end,
+                        order = 0
+                    },
+                    bar_height = {
+                        type = 'range',
+                        name = "Bar Height",
+                        desc = "Height of the XP and Reputation bars (pixels)",
+                        min = 6, max = 30, step = 1,
+                        get = function() return addon.db.profile.xprepbar.bar_height end,
+                        set = function(info, value)
+                            addon.db.profile.xprepbar.bar_height = value
+                            if addon.RefreshXpRepBars then addon.RefreshXpRepBars() end
+                        end,
+                        order = 0.6
+                    },
                     bothbar_offset = {
                         type = 'range',
                         name = "Both Bars Offset",

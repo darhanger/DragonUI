@@ -35,6 +35,16 @@ local function ApplyNoopChangesImpl()
     BonusActionBarFrame:EnableMouse(false)
     BonusActionBarFrame:SetScale(0.001)
     
+    -- Kill ExhaustionTick OnUpdate to prevent Blizzard nil crashes
+    -- (GetXPExhaustion() returns nil for non-rested players, Blizzard code doesn't check)
+    if ExhaustionTick then
+        ExhaustionTick:Hide()
+        ExhaustionTick:SetScript("OnUpdate", nil)
+    end
+    if ExhaustionLevelFillBar then
+        ExhaustionLevelFillBar:Hide()
+    end
+
     local elements_texture = {
         MainMenuXPBarTexture0,
         MainMenuXPBarTexture1,

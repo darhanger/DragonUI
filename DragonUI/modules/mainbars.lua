@@ -213,7 +213,8 @@ local function InitializeMainbars()
         leftbar = nil,
         bottombarleft = nil,
         bottombarright = nil,
-        repexpbar = nil
+        xpbar = nil,
+        repbar = nil
     }
 
     -- Set initial scale and properties
@@ -682,162 +683,874 @@ end
         end
     end
 
+    -- ============================================================================
+    -- XP & REPUTATION BAR SYSTEM
+    -- ============================================================================
+    -- Dual-style system: "dragonflightui" (custom bars) or "retailui" (atlas reskin)
+    -- All state is managed here; options callbacks are exported via addon.*
+
+    -- Helper: get xprepbar config from database
+    local function GetXpRepConfig()
+        return addon.db and addon.db.profile and addon.db.profile.xprepbar
+    end
+
+    -- Helper: get the current style
+    local function GetXpBarStyle()
+        local cfg = GetXpRepConfig()
+        return cfg and cfg.style or "dragonflightui"
+    end
+
+    -- Helper: get height for current (or specified) style
+    local function GetXpBarHeight(styleOverride)
+        local cfg = GetXpRepConfig() or {}
+        local s = styleOverride or GetXpBarStyle()
+        if s == "retailui" then
+            return cfg.bar_height_retailui or 9
+        else
+            return cfg.bar_height_dfui or 14
+        end
+    end
+
+    -- Helper: check if player is at max level (no XP bar needed)
+    local function IsPlayerMaxLevel()
+        return UnitLevel("player") >= (GetMaxPlayerLevel and GetMaxPlayerLevel() or 80)
+    end
+
+    -- Helper: check if both XP and Rep bars are visible simultaneously
+    local function AreBothXpRepBarsVisible()
+        if IsPlayerMaxLevel() then return false end -- No XP bar at max level
+        local hasWatchedFaction = GetWatchedFactionInfo() ~= nil
+        return hasWatchedFaction
+    end
+
+    -- Helper: get the vertical offset that bars above XP/Rep need when both are visible.
+    -- Returns 0 when only one bar (or none) is shown.
+    local function GetDualBarVerticalOffset()
+        if not AreBothXpRepBarsVisible() then return 0 end
+        local barH = GetXpBarHeight()
+        return barH + 2 -- bar height + 2px gap
+    end
+
+    -- Known default positions for BOTTOM-anchored frames.
+    -- Used to detect if user moved a frame via editor mode.
+    local defaultBottomPositions = {
+        mainbar         = { posX = 0,  posY = 22  },
+        bottombarleft   = { posX = 0,  posY = 64  },
+        bottombarright  = { posX = 0,  posY = 105 },
+        petbar          = { posX = 1,  posY = 148 },
+    }
+
+    -- Check if a widget is still at its default BOTTOM position (not moved by editor)
+    local function IsWidgetAtDefaultPosition(widgetName)
+        local known = defaultBottomPositions[widgetName]
+        if not known then return false end
+        local w = addon.db and addon.db.profile and addon.db.profile.widgets
+                  and addon.db.profile.widgets[widgetName]
+        if not w then return true end -- No saved position = default
+        if w.anchor and w.anchor ~= "BOTTOM" then return false end
+        -- Allow ±1 tolerance for floating-point rounding from previous saves
+        local dx = math.abs((w.posX or known.posX) - known.posX)
+        local dy = math.abs((w.posY or known.posY) - known.posY)
+        return dx <= 1 and dy <= 1
+    end
+
+    -- Export offset function so external modules (stance, petbar) can query it
+    addon.GetDualBarVerticalOffset = GetDualBarVerticalOffset
+    addon.IsWidgetAtDefaultPosition = IsWidgetAtDefaultPosition
+    addon.AreBothXpRepBarsVisible = AreBothXpRepBarsVisible
+
+    -- DragonflightUI custom bar frames (created once, shown/hidden per style)
+    local dfXpBar = nil   -- custom XP bar frame
+    local dfRepBar = nil  -- custom Rep bar frame
+
+    -- ========== PET BAR SETUP (unchanged) ==========
     function MainMenuBarMixin:statusbar_setup()
-        -- Setup pet bar initial configuration
         if PetActionBarFrame then
-            -- Ensure pet bar uses correct scale from config
             local db = addon.db and addon.db.profile and addon.db.profile.mainbars
             if db and db.scale_petbar then
                 PetActionBarFrame:SetScale(db.scale_petbar)
             elseif config.mainbars.scale_petbar then
                 PetActionBarFrame:SetScale(config.mainbars.scale_petbar)
             end
-
-            -- Enable mouse interaction
             PetActionBarFrame:EnableMouse(true)
         end
 
-        -- Initial setup for XP/Rep bars with NEW style sizes
-        if MainMenuExpBar then
-            MainMenuExpBar:SetClearPoint('BOTTOM', UIParent, 0, 6)
-            MainMenuExpBar:SetFrameLevel(1) -- Lower level for editor overlay visibility
-            -- Set NEW style size immediately
-            MainMenuExpBar:SetSize(537, 10)
-
-            if MainMenuBarExpText then
-                MainMenuBarExpText:SetParent(MainMenuExpBar)
-                -- Text will be positioned later based on style
-            end
-        end
-
-        -- Setup reputation bar with NEW style sizes
-        if ReputationWatchBar then
-            ReputationWatchBar:SetFrameLevel(1) -- Lower level for editor overlay visibility
-            -- Set NEW style size immediately
-            ReputationWatchBar:SetSize(537, 10)
-
-            if ReputationWatchStatusBar then
-                -- Set NEW style size for status bar too
-                ReputationWatchStatusBar:SetSize(537, 10)
-
-                -- CRITICAL: Configure reputation text properly from the start
-                if ReputationWatchStatusBarText then
-                    -- Ensure correct parent
-                    ReputationWatchStatusBarText:SetParent(ReputationWatchStatusBar)
-                    -- Set reasonable layering - not excessively high
-                    ReputationWatchStatusBarText:SetDrawLayer("OVERLAY", 2)
-                    -- Position for NEW style (offset +1)
-                    ReputationWatchStatusBarText:SetClearPoint('CENTER', ReputationWatchStatusBar, 'CENTER', 0, 1)
-                    -- IMPORTANT: Hide by default (only show on hover)
-                    ReputationWatchStatusBarText:Hide()
-                end
-            end
-        end
+        -- Hide Blizzard XP/Rep text by default (both styles manage their own)
+        if MainMenuBarExpText then MainMenuBarExpText:Hide() end
+        if ReputationWatchBarText then ReputationWatchBarText:Hide() end
     end
 
-    -- Connect XP/Rep bars to the editor system
-    local function ConnectBarsToEditor()
-        if not addon.ActionBarFrames.repexpbar then
+    -- ========== DRAGONFLIGHTUI STYLE: CUSTOM BARS ==========
+
+    -- Create the DragonflightUI-style XP bar (custom StatusBar with rested background)
+    local function CreateDragonflightUIXPBar()
+        if dfXpBar then return dfXpBar end
+
+        local cfg = GetXpRepConfig() or {}
+        local sizeX = cfg.bar_width or 466
+        local sizeY = GetXpBarHeight("dragonflightui")
+
+        local f = CreateFrame("Frame", "DragonUI_XPBar", UIParent)
+        f:SetSize(sizeX, sizeY)
+        f:SetFrameLevel(2)
+
+        -- Background layer
+        f.Background = f:CreateTexture(nil, "BACKGROUND")
+        f.Background:SetAllPoints()
+        f.Background:SetTexture(addon._dir .. "xp\\Background")
+        f.Background:SetTexCoord(0, 0.55517578, 0, 1)
+
+        -- Rested XP background bar (shows the TOTAL rested range behind main fill)
+        f.RestedBar = CreateFrame("StatusBar", nil, f)
+        f.RestedBar:SetPoint("TOPLEFT", 0, 0)
+        f.RestedBar:SetPoint("BOTTOMRIGHT", 0, 0)
+        f.RestedBar.Texture = f.RestedBar:CreateTexture(nil, "ARTWORK")
+        f.RestedBar.Texture:SetTexture(addon._dir .. "xp\\RestedBackground")
+        f.RestedBar.Texture:SetAllPoints()
+        f.RestedBar.Texture:SetDrawLayer("ARTWORK", 0)
+        f.RestedBar:SetStatusBarTexture(f.RestedBar.Texture)
+        f.RestedBar:SetFrameLevel(3)
+        f.RestedBar:SetAlpha(0.69)
+
+        -- Rested mark tick (small indicator at the end of rested range)
+        local markSizeX, markSizeY = 14, sizeY + 6
+        f.RestedBarMark = CreateFrame("Frame", nil, f)
+        f.RestedBarMark:SetSize(markSizeX, markSizeY)
+        f.RestedBarMark.Texture = f.RestedBarMark:CreateTexture(nil, "OVERLAY")
+        f.RestedBarMark.Texture:SetTexture(addon._dir .. "uiexperiencebar")
+        f.RestedBarMark.Texture:SetTexCoord(1170 / 2048, 1192 / 2048, 201 / 256, 231 / 256)
+        f.RestedBarMark.Texture:SetAllPoints()
+
+        -- Main XP progress bar
+        f.Bar = CreateFrame("StatusBar", nil, f)
+        f.Bar:SetPoint("TOPLEFT", 0, 0)
+        f.Bar:SetPoint("BOTTOMRIGHT", 0, 0)
+        f.Bar.Texture = f.Bar:CreateTexture(nil, "ARTWORK")
+        f.Bar.Texture:SetTexture(addon._dir .. "xp\\Main")
+        f.Bar.Texture:SetAllPoints()
+        f.Bar:SetStatusBarTexture(f.Bar.Texture)
+        f.Bar.Texture:SetDrawLayer("ARTWORK", 1)
+        f.Bar:SetFrameLevel(4)
+        f.Bar:EnableMouse(true)
+
+        -- Border overlay
+        f.Border = f.Bar:CreateTexture(nil, "OVERLAY")
+        f.Border:SetTexture(addon._dir .. "xp\\Overlay")
+        f.Border:SetTexCoord(0, 0.55517578, 0, 1)
+        f.Border:SetPoint("TOPLEFT", 0, 1)
+        f.Border:SetPoint("BOTTOMRIGHT", 0, -1)
+
+        -- Text (shown on hover via HIGHLIGHT, or always via OVERLAY)
+        f.Text = f.Bar:CreateFontString(nil, "HIGHLIGHT", "SystemFont_Outline_Small")
+        f.Text:SetTextColor(1, 1, 1, 1)
+        f.Text:SetPoint("CENTER", 0, 1)
+
+        f.TextPercent = f.Bar:CreateFontString(nil, "HIGHLIGHT", "SystemFont_Outline_Small")
+        f.TextPercent:SetTextColor(1, 1, 1, 1)
+        f.TextPercent:SetPoint("LEFT", f.Text, "RIGHT", 0, 0)
+
+        -- Tooltip (borrowed from DragonflightUI)
+        f.Bar:SetScript("OnEnter", function(self)
+            GameTooltip_AddNewbieTip(self, XPBAR_LABEL, 1.0, 1.0, 1.0, NEWBIE_TOOLTIP_XPBAR, 1)
+            GameTooltip.canAddRestStateLine = 1
+            ExhaustionToolTipText()
+            local currXP = UnitXP("player")
+            local maxXP = UnitXPMax("player")
+            local pct = (maxXP > 0) and (100 * currXP / maxXP) or 0
+            local left = maxXP - currXP
+            local leftPct = 100 - pct
+            local restedXP = GetXPExhaustion() or 0
+            local restedMax = maxXP * 1.5
+            local restedPct = (restedMax > 0) and (100 * restedXP / restedMax) or 0
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddDoubleLine("XP: ", format("|cFFFFFFFF%s/%s (%.1f%%)", currXP, maxXP, pct))
+            GameTooltip:AddDoubleLine("Remaining: ", format("|cFFFFFFFF%s (%.1f%%)", left, leftPct))
+            GameTooltip:AddDoubleLine("Rested: ", format("|cFFFFFFFF%s (%.1f%%)", restedXP, restedPct))
+            GameTooltip:Show()
+        end)
+        f.Bar:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+        dfXpBar = f
+        return f
+    end
+
+    -- Create the DragonflightUI-style Rep bar (custom StatusBar with standing colors)
+    local function CreateDragonflightUIRepBar()
+        if dfRepBar then return dfRepBar end
+
+        local cfg = GetXpRepConfig() or {}
+        local sizeX = cfg.bar_width or 466
+        local sizeY = GetXpBarHeight("dragonflightui")
+
+        local f = CreateFrame("Frame", "DragonUI_RepBar", UIParent)
+        f:SetSize(sizeX, sizeY)
+        f:SetFrameLevel(2)
+
+        -- Background
+        f.Background = f:CreateTexture(nil, "BACKGROUND")
+        f.Background:SetAllPoints()
+        f.Background:SetTexture(addon._dir .. "xp\\Background")
+        f.Background:SetTexCoord(0, 0.55517578, 0, 1)
+
+        -- Main rep progress bar
+        f.Bar = CreateFrame("StatusBar", nil, f)
+        f.Bar:SetPoint("TOPLEFT", 0, 0)
+        f.Bar:SetPoint("BOTTOMRIGHT", 0, 0)
+        f.Bar.Texture = f.Bar:CreateTexture(nil, "ARTWORK")
+        f.Bar.Texture:SetTexture(addon._dir .. "reputation\\Rep")
+        f.Bar.Texture:SetAllPoints()
+        f.Bar:SetStatusBarTexture(f.Bar.Texture)
+        f.Bar:EnableMouse(true)
+
+        -- Border overlay
+        f.Border = f.Bar:CreateTexture(nil, "OVERLAY")
+        f.Border:SetTexture(addon._dir .. "xp\\Overlay")
+        f.Border:SetTexCoord(0, 0.55517578, 0, 1)
+        f.Border:SetPoint("TOPLEFT", 0, 1)
+        f.Border:SetPoint("BOTTOMRIGHT", 0, -1)
+
+        -- Text (hover by default)
+        f.Text = f.Bar:CreateFontString(nil, "HIGHLIGHT", "SystemFont_Outline_Small")
+        f.Text:SetTextColor(1, 1, 1, 1)
+        f.Text:SetPoint("CENTER", 0, 1)
+
+        -- Click to open reputation panel
+        f.Bar:SetScript("OnMouseDown", function(self, button)
+            if button == "LeftButton" and not InCombatLockdown() then
+                ToggleCharacter("ReputationFrame")
+            end
+        end)
+
+        -- Tooltip
+        f.Bar:SetScript("OnEnter", function(self)
+            local name, standing, minRep, maxRep, value = GetWatchedFactionInfo()
+            if name then
+                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                GameTooltip:AddLine(name, 1, 1, 1)
+                local standingLabel = _G["FACTION_STANDING_LABEL" .. standing] or ""
+                GameTooltip:AddLine(standingLabel, NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b)
+                GameTooltip:AddDoubleLine("Reputation: ", format("|cFFFFFFFF%s / %s", value - minRep, maxRep - minRep))
+                GameTooltip:Show()
+            end
+        end)
+        f.Bar:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+        dfRepBar = f
+        return f
+    end
+
+    -- Update the DragonflightUI XP bar values and visuals
+    local function UpdateDragonflightUIXPBar()
+        if not dfXpBar then return end
+
+        local cfg = GetXpRepConfig() or {}
+        local sizeX = cfg.bar_width or 466
+        local sizeY = GetXpBarHeight("dragonflightui")
+        local markSizeX = 14
+
+        local showXP = UnitLevel("player") < (GetMaxPlayerLevel and GetMaxPlayerLevel() or 80)
+        if not showXP then
+            dfXpBar:Hide()
             return
         end
+        dfXpBar:Show()
 
-        local mainMenuExpBar = MainMenuExpBar
-        if mainMenuExpBar then
-            mainMenuExpBar:SetParent(addon.ActionBarFrames.repexpbar)
-            mainMenuExpBar:ClearAllPoints()
-            mainMenuExpBar:SetSize(537, 10)
-            mainMenuExpBar:SetFrameLevel(1)
-            mainMenuExpBar:SetScale(0.9)
-            mainMenuExpBar:SetFrameStrata("MEDIUM")
+        local exhaustionStateID = GetRestState()
+        local currXP = UnitXP("player")
+        local maxXP = UnitXPMax("player")
+        if maxXP == 0 then maxXP = 1 end
+        local restedXP = GetXPExhaustion() or 0
+        local pct = 100 * currXP / maxXP
 
-            -- CORRECT BEHAVIOR: Initial position
-            mainMenuExpBar:SetPoint("CENTER", addon.ActionBarFrames.repexpbar, "CENTER", 0, 0)
+        -- Set main bar texture based on rested state
+        if exhaustionStateID == 1 then
+            dfXpBar.Bar.Texture:SetTexture(addon._dir .. "xp\\Rested")
+        else
+            dfXpBar.Bar.Texture:SetTexture(addon._dir .. "xp\\Main")
         end
+        dfXpBar.Bar:SetMinMaxValues(0, maxXP)
+        dfXpBar.Bar:SetValue(currXP)
 
-        local repWatchBar = ReputationWatchBar
-        if repWatchBar then
-            repWatchBar:SetParent(addon.ActionBarFrames.repexpbar)
-            repWatchBar:ClearAllPoints()
-            repWatchBar:SetSize(537, 10)
-            repWatchBar:SetScale(0.9)
-            repWatchBar:SetFrameLevel(1)
-            repWatchBar:SetFrameStrata("MEDIUM")
-
-            -- CORRECT BEHAVIOR: Rep goes on top, then UpdateBarPositions adjusts XP
-            repWatchBar:SetPoint("CENTER", addon.ActionBarFrames.repexpbar, "CENTER", 0, 0)
-
-            if ReputationWatchStatusBar then
-                ReputationWatchStatusBar:SetSize(537, 10)
-
-                if ReputationWatchStatusBarText then
-                    ReputationWatchStatusBarText:SetParent(ReputationWatchStatusBar)
-                    ReputationWatchStatusBarText:SetDrawLayer("OVERLAY", 2)
-                    ReputationWatchStatusBarText:SetClearPoint('CENTER', ReputationWatchStatusBar, 'CENTER', 0, 1)
-                    ReputationWatchStatusBarText:Hide()
-                end
-            end
-        end
-    end
-
-    -- Force reputation text configuration (ensures text is properly configured but hidden by default)
-    local function ForceReputationTextConfiguration()
-        if ReputationWatchStatusBarText and ReputationWatchStatusBar then
-            -- Force correct parent
-            ReputationWatchStatusBarText:SetParent(ReputationWatchStatusBar)
-            -- Force reasonable layering - not excessively high
-            ReputationWatchStatusBarText:SetDrawLayer("OVERLAY", 2)
-            -- Force correct positioning for NEW style
-            ReputationWatchStatusBarText:SetClearPoint('CENTER', ReputationWatchStatusBar, 'CENTER', 0, 1)
-            -- IMPORTANT: Hide by default - only show on hover (Blizzard handles this)
-            ReputationWatchStatusBarText:Hide()
-        end
-    end
-
-    -- Update bar positioning when needed
-    local function UpdateBarPositions()
-        if not addon.ActionBarFrames.repexpbar then
-            return
-        end
-
-        local mainMenuExpBar = MainMenuExpBar
-        local repWatchBar = ReputationWatchBar
-
-        if repWatchBar and repWatchBar:IsShown() then
-            -- When Rep is visible: Rep takes the original XP position (center)
-            repWatchBar:ClearAllPoints()
-            repWatchBar:SetSize(537, 10)
-            repWatchBar:SetScale(0.9)
-            repWatchBar:SetFrameLevel(1)
-            repWatchBar:SetPoint("CENTER", addon.ActionBarFrames.repexpbar, "CENTER", 0, -3)
-
-            -- XP se mueve hacia abajo
-            if mainMenuExpBar then
-                mainMenuExpBar:ClearAllPoints()
-                mainMenuExpBar:SetSize(537, 10)
-                mainMenuExpBar:SetFrameLevel(1)
-                mainMenuExpBar:SetScale(0.9)
-                mainMenuExpBar:SetPoint("CENTER", addon.ActionBarFrames.repexpbar, "CENTER", 0, -22)
-            end
-
-            if ReputationWatchStatusBar then
-                ReputationWatchStatusBar:SetSize(537, 10)
-
-                if ReputationWatchStatusBarText then
-                    ReputationWatchStatusBarText:SetParent(ReputationWatchStatusBar)
-                    ReputationWatchStatusBarText:SetDrawLayer("OVERLAY", 2)
-                    ReputationWatchStatusBarText:SetClearPoint('CENTER', ReputationWatchStatusBar, 'CENTER', 0, 1)
-                    ReputationWatchStatusBarText:Hide()
+        -- Rested XP background bar
+        local showRested = cfg.show_rested_bar ~= false
+        if showRested and restedXP and restedXP > 0 then
+            dfXpBar.RestedBar:Show()
+            dfXpBar.RestedBar:SetMinMaxValues(0, maxXP)
+            if (currXP + restedXP) > maxXP then
+                dfXpBar.RestedBar:SetValue(maxXP)
+                dfXpBar.RestedBarMark:Hide()
+            else
+                dfXpBar.RestedBar:SetValue(currXP + restedXP)
+                local showMark = cfg.show_rested_mark ~= false
+                if showMark then
+                    dfXpBar.RestedBarMark:Show()
+                    dfXpBar.RestedBarMark:ClearAllPoints()
+                    dfXpBar.RestedBarMark:SetPoint("LEFT", dfXpBar, "LEFT",
+                        (currXP + restedXP) / maxXP * sizeX - markSizeX / 2, 0)
+                else
+                    dfXpBar.RestedBarMark:Hide()
                 end
             end
         else
-            -- When Rep is NOT visible: XP returns to center
-            if mainMenuExpBar then
-                mainMenuExpBar:ClearAllPoints()
-                mainMenuExpBar:SetSize(537, 10)
-                mainMenuExpBar:SetFrameLevel(1)
-                mainMenuExpBar:SetScale(0.9)
-                mainMenuExpBar:SetPoint("CENTER", addon.ActionBarFrames.repexpbar, "CENTER", 0, 0)
+            dfXpBar.RestedBar:Hide()
+            dfXpBar.RestedBarMark:Hide()
+        end
+
+        -- Text
+        local alwaysText = cfg.always_show_text
+        if alwaysText then
+            dfXpBar.Text:SetDrawLayer("OVERLAY")
+            dfXpBar.TextPercent:SetDrawLayer("OVERLAY")
+        else
+            dfXpBar.Text:SetDrawLayer("HIGHLIGHT")
+            dfXpBar.TextPercent:SetDrawLayer("HIGHLIGHT")
+        end
+
+        dfXpBar.Text:SetText("XP: " .. currXP .. "/" .. maxXP)
+
+        local showPercent = cfg.show_xp_percent ~= false
+        if showPercent then
+            local restedMax = maxXP * 1.5
+            local restedPct = (restedMax > 0) and (100 * restedXP / restedMax) or 0
+            local percentText = " = " .. format("%.1f%%", pct)
+            if restedPct > 0 then
+                percentText = percentText .. " (" .. format("%.1f%%", restedPct) .. " Rested)"
             end
+            dfXpBar.TextPercent:SetText(percentText)
+            dfXpBar.TextPercent:Show()
+            -- Offset main text left by half the percent text width so the combined visual is centered
+            local percentWidth = dfXpBar.TextPercent:GetStringWidth() or 0
+            dfXpBar.Text:ClearAllPoints()
+            dfXpBar.Text:SetPoint("CENTER", 0 - percentWidth / 2, 1)
+        else
+            dfXpBar.TextPercent:Hide()
+            -- Reset to normal centering when percentage is off
+            dfXpBar.Text:ClearAllPoints()
+            dfXpBar.Text:SetPoint("CENTER", 0, 1)
+        end
+    end
+
+    -- Update the DragonflightUI Rep bar values and visuals
+    local function UpdateDragonflightUIRepBar()
+        if not dfRepBar then return end
+
+        local name, standing, minRep, maxRep, value = GetWatchedFactionInfo()
+        if not name then
+            dfRepBar:Hide()
+            return
+        end
+        dfRepBar:Show()
+
+        local cfg = GetXpRepConfig() or {}
+
+        -- Standing-based texture color
+        if standing == 1 or standing == 2 then
+            dfRepBar.Bar.Texture:SetTexture(addon._dir .. "reputation\\RepRed")
+        elseif standing == 3 then
+            dfRepBar.Bar.Texture:SetTexture(addon._dir .. "reputation\\RepOrange")
+        elseif standing == 4 then
+            dfRepBar.Bar.Texture:SetTexture(addon._dir .. "reputation\\RepYellow")
+        else
+            dfRepBar.Bar.Texture:SetTexture(addon._dir .. "reputation\\RepGreen")
+        end
+
+        dfRepBar.Bar:SetMinMaxValues(0, maxRep - minRep)
+        dfRepBar.Bar:SetValue(value - minRep)
+
+        -- Text
+        local alwaysText = cfg.always_show_text
+        if alwaysText then
+            dfRepBar.Text:SetDrawLayer("OVERLAY")
+        else
+            dfRepBar.Text:SetDrawLayer("HIGHLIGHT")
+        end
+        dfRepBar.Text:SetText(name .. " " .. (value - minRep) .. " / " .. (maxRep - minRep))
+    end
+
+    -- ========== RETAILUI STYLE: ATLAS-BASED BLIZZARD RESKIN ==========
+
+    -- Apply RetailUI styling matching the RetailUI reference addon pattern exactly.
+    -- Reference: ReplaceBlizzardRepExpBarFrame() in Reference/RetailUI/Modules/ActionBar.lua
+    -- Key principles:
+    --   1. Replace BACKGROUND textures IN-PLACE (SetTexture + SetTexCoord + SetSize)
+    --   2. DON'T change the StatusBar fill texture (leave Blizzard default)
+    --   3. Re-use MainMenuXPBarTexture0 as border (noop clears it, we re-apply)
+    --   4. Let ExhaustionLevelFillBar handle rested display (just set height)
+    local function ApplyRetailUIExpRepBarStyling()
+        local cfg = GetXpRepConfig() or {}
+        local barW = cfg.bar_width or 466
+        local barH = GetXpBarHeight("retailui")
+        local ExperienceBarAsset = "Interface\\AddOns\\DragonUI\\Textures\\UI\\ExperienceBar"
+
+        -- === XP BAR ===
+        -- NOTE: Do NOT ClearAllPoints here — positioning is handled by
+        -- ConnectBarsToEditor() and UpdateBarPositions(). Clearing anchors
+        -- here would leave the bar floating at 0,0 between function calls.
+        if MainMenuExpBar then
+            MainMenuExpBar:SetSize(barW, barH)
+            MainMenuExpBar:SetFrameLevel(1)
+
+            -- Replace all BACKGROUND textures in-place with ExperienceBar-Background atlas
+            -- Clear original anchors first so our sizing takes effect (2-point anchors override SetSize)
+            -- Extend 1px left, 2px right so background fully covers the area inside the border
+            local bgFound = false
+            for _, region in pairs({MainMenuExpBar:GetRegions()}) do
+                if region:GetObjectType() == "Texture" and region:GetDrawLayer() == "BACKGROUND" then
+                    if not bgFound then
+                        -- Use the first BACKGROUND texture as our single full-width background
+                        region:ClearAllPoints()
+                        region:SetPoint("TOPLEFT", MainMenuExpBar, "TOPLEFT", -1, 0)
+                        region:SetPoint("BOTTOMRIGHT", MainMenuExpBar, "BOTTOMRIGHT", 2, 0)
+                        region:SetTexture(ExperienceBarAsset)
+                        region:SetTexCoord(0.00088878125 / 2048, 570 / 2048, 20 / 64, 29 / 64)
+                        region:SetAlpha(1) -- RemoveBlizzardFrames sets alpha 0, must restore
+                        region:Show()
+                        bgFound = true
+                    else
+                        -- Hide extra BACKGROUND textures (only need one)
+                        region:Hide()
+                    end
+                end
+            end
+
+            -- Clean up old custom background from previous approach
+            if MainMenuExpBar._dragonuiBg then
+                MainMenuExpBar._dragonuiBg:Hide()
+            end
+
+            -- ExhaustionLevelFillBar: match reference (set height, keep visible for rested display)
+            if ExhaustionLevelFillBar then
+                ExhaustionLevelFillBar:SetHeight(barH)
+                ExhaustionLevelFillBar:Show()
+            end
+
+            -- Border: MainMenuXPBarTexture0 (noop.lua clears with SetTexture(nil), we re-apply)
+            -- Reference: SetAllPoints first, then override with offset anchors, then SetAtlasTexture
+            local borderTex = MainMenuXPBarTexture0
+            if borderTex then
+                borderTex:SetAllPoints(MainMenuExpBar)
+                borderTex:SetPoint("TOPLEFT", MainMenuExpBar, "TOPLEFT", -3, 3)
+                borderTex:SetPoint("BOTTOMRIGHT", MainMenuExpBar, "BOTTOMRIGHT", 3, -6)
+                borderTex:SetTexture(ExperienceBarAsset)
+                borderTex:SetTexCoord(1 / 2048, 572 / 2048, 1 / 64, 18 / 64)
+                borderTex:SetSize(571, 17)
+                borderTex:Show()
+            end
+
+            -- DON'T change the StatusBar fill texture — reference leaves Blizzard default intact
+            -- Clean up old custom fill texture if it exists from previous approach
+            if MainMenuExpBar._dragonuiTex then
+                MainMenuExpBar._dragonuiTex:Hide()
+            end
+
+            -- Clean up old custom rested overlay if it exists from previous approach
+            if MainMenuExpBar._restedOverlay then
+                MainMenuExpBar._restedOverlay:Hide()
+            end
+
+            -- XP text: handle visibility (always show vs hover only)
+            if MainMenuBarExpText then
+                MainMenuBarExpText:SetParent(MainMenuExpBar)
+                MainMenuBarExpText:ClearAllPoints()
+                MainMenuBarExpText:SetPoint("CENTER", MainMenuExpBar, "CENTER", 0, 2)
+
+                -- Visibility: OVERLAY = always visible, HIGHLIGHT = hover only
+                local alwaysText = cfg.always_show_text
+                if alwaysText then
+                    MainMenuBarExpText:SetDrawLayer("OVERLAY", 3)
+                else
+                    MainMenuBarExpText:SetDrawLayer("HIGHLIGHT")
+                end
+                -- Must Show() to undo the explicit Hide() from init
+                MainMenuBarExpText:Show()
+            end
+
+            -- Exhaustion tick (safe handler replaces Blizzard's crash-prone OnUpdate)
+            if ExhaustionTick then
+                local showTick = addon.db and addon.db.profile and addon.db.profile.style
+                    and addon.db.profile.style.exhaustion_tick
+                local exhaustionThreshold = GetXPExhaustion()
+                local currXP = UnitXP("player")
+                local maxXP = UnitXPMax("player")
+                if not maxXP or maxXP == 0 then maxXP = 1 end
+
+                -- Hide tick if rested XP fills the entire remaining bar
+                local remainingXP = maxXP - currXP
+                local isFullyRested = exhaustionThreshold and exhaustionThreshold >= remainingXP
+
+                if showTick and exhaustionThreshold and exhaustionThreshold > 0 and not isFullyRested then
+                    -- Re-parent to MainMenuExpBar and ensure it renders above everything
+                    ExhaustionTick:SetParent(MainMenuExpBar)
+                    ExhaustionTick:SetFrameStrata("HIGH")
+                    ExhaustionTick:SetFrameLevel(20)
+                    -- Position immediately
+                    local tickPos = math.min(((currXP + exhaustionThreshold) / maxXP) * barW, barW)
+                    tickPos = math.max(tickPos, 0)
+                    ExhaustionTick:ClearAllPoints()
+                    ExhaustionTick:SetPoint("CENTER", MainMenuExpBar, "LEFT", tickPos, 0)
+                    -- Install a nil-safe OnUpdate for continuous tracking
+                    ExhaustionTick:SetScript("OnUpdate", function(self, elapsed)
+                        if not self.timer then return end
+                        self.timer = self.timer - elapsed
+                        if self.timer > 0 then return end
+                        self.timer = 1
+                        local et = GetXPExhaustion()
+                        if not et or et <= 0 then
+                            self:Hide()
+                            return
+                        end
+                        local cx = UnitXP("player")
+                        local mx = UnitXPMax("player")
+                        if not mx or mx == 0 then return end
+                        -- Hide if fully rested
+                        if et >= (mx - cx) then
+                            self:Hide()
+                            return
+                        end
+                        local bw = MainMenuExpBar:GetWidth()
+                        if not bw or bw == 0 then return end
+                        local tp = math.min(((cx + et) / mx) * bw, bw)
+                        tp = math.max(tp, 0)
+                        self:ClearAllPoints()
+                        self:SetPoint("CENTER", MainMenuExpBar, "LEFT", tp, 0)
+                    end)
+                    ExhaustionTick.timer = 0
+                    ExhaustionTick:Show()
+                else
+                    ExhaustionTick:Hide()
+                    ExhaustionTick:SetScript("OnUpdate", nil)
+                end
+            end
+
+            -- Hide the status overlay if it was created before (cleanup from old code)
+            if MainMenuExpBar.status then
+                MainMenuExpBar.status:Hide()
+            end
+
+            MainMenuExpBar:Show()
+        end
+
+        -- === REP BAR ===
+        -- Reference: ReplaceBlizzardRepExpBarFrame — rep bar section
+        -- NOTE: Do NOT ClearAllPoints here — positioning handled by UpdateBarPositions()
+        if ReputationWatchBar and ReputationWatchStatusBar then
+            ReputationWatchBar:SetSize(barW, barH)
+            ReputationWatchBar:SetFrameLevel(1)
+            ReputationWatchStatusBar:SetAllPoints(ReputationWatchBar)
+            ReputationWatchStatusBar:SetSize(barW, barH)
+            -- DON'T change rep StatusBar fill texture — leave Blizzard default
+
+            -- Background: use named background texture per reference pattern
+            -- Reference: _G[repStatusBar:GetName() .. "Background"]
+            -- Extend 1px left, 2px right so background fully covers the area inside the border
+            local repBgTex = ReputationWatchStatusBarBackground
+            if repBgTex then
+                repBgTex:ClearAllPoints()
+                repBgTex:SetPoint("TOPLEFT", ReputationWatchStatusBar, "TOPLEFT", -1, 0)
+                repBgTex:SetPoint("BOTTOMRIGHT", ReputationWatchStatusBar, "BOTTOMRIGHT", 2, 0)
+                repBgTex:SetTexture(ExperienceBarAsset)
+                repBgTex:SetTexCoord(0.00088878125 / 2048, 570 / 2048, 20 / 64, 29 / 64)
+                repBgTex:SetAlpha(1) -- RemoveBlizzardFrames may set alpha 0, must restore
+            end
+
+            -- Border: ReputationXPBarTexture0 (noop.lua clears, we re-apply)
+            local repBorder = ReputationXPBarTexture0
+            if repBorder then
+                repBorder:SetAllPoints(ReputationWatchStatusBar)
+                repBorder:SetPoint("TOPLEFT", ReputationWatchStatusBar, "TOPLEFT", -3, 2)
+                repBorder:SetPoint("BOTTOMRIGHT", ReputationWatchStatusBar, "BOTTOMRIGHT", 3, -7)
+                repBorder:SetTexture(ExperienceBarAsset)
+                repBorder:SetTexCoord(1 / 2048, 572 / 2048, 1 / 64, 18 / 64)
+                repBorder:SetSize(571, 17)
+                repBorder:Show()
+            end
+
+            -- Border: ReputationWatchBarTexture0 (noop.lua clears, we re-apply)
+            local repBorder2 = ReputationWatchBarTexture0
+            if repBorder2 then
+                repBorder2:SetAllPoints(ReputationWatchStatusBar)
+                repBorder2:SetPoint("TOPLEFT", ReputationWatchStatusBar, "TOPLEFT", -3, 2)
+                repBorder2:SetPoint("BOTTOMRIGHT", ReputationWatchStatusBar, "BOTTOMRIGHT", 3, -7)
+                repBorder2:SetTexture(ExperienceBarAsset)
+                repBorder2:SetTexCoord(1 / 2048, 572 / 2048, 1 / 64, 18 / 64)
+                repBorder2:SetSize(571, 17)
+                repBorder2:Show()
+            end
+
+            -- Hide the status overlay if it was created before (cleanup from old code)
+            if ReputationWatchStatusBar.status then
+                ReputationWatchStatusBar.status:Hide()
+            end
+
+            -- Rep text: handle visibility (always show vs hover only)
+            if ReputationWatchStatusBarText then
+                ReputationWatchStatusBarText:SetParent(ReputationWatchStatusBar)
+                ReputationWatchStatusBarText:ClearAllPoints()
+                ReputationWatchStatusBarText:SetPoint("CENTER", ReputationWatchStatusBar, "CENTER", 0, 1)
+                local alwaysText = cfg.always_show_text
+                if alwaysText then
+                    ReputationWatchStatusBarText:SetDrawLayer("OVERLAY", 3)
+                else
+                    ReputationWatchStatusBarText:SetDrawLayer("HIGHLIGHT")
+                end
+                ReputationWatchStatusBarText:Show()
+            end
+        end
+    end
+
+    -- ========== SHARED: CONNECT BARS TO EDITOR & POSITIONING ==========
+
+    -- Connect bars to their individual editor frames (XP and Rep are separate)
+    local function ConnectBarsToEditor()
+        if not addon.ActionBarFrames.xpbar or not addon.ActionBarFrames.repbar then return end
+
+        local cfg = GetXpRepConfig() or {}
+        local style = GetXpBarStyle()
+
+        if style == "dragonflightui" then
+            -- Hide Blizzard bars, show custom bars
+            if MainMenuExpBar then
+                MainMenuExpBar:SetParent(UIParent)
+                MainMenuExpBar:ClearAllPoints()
+                MainMenuExpBar:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, -500)
+                MainMenuExpBar:SetAlpha(0)
+            end
+            if ReputationWatchBar then
+                ReputationWatchBar:SetParent(UIParent)
+                ReputationWatchBar:ClearAllPoints()
+                ReputationWatchBar:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, -500)
+                ReputationWatchBar:SetAlpha(0)
+            end
+            if ExhaustionTick then
+                -- In DFUI, ExhaustionTick is managed by the tick logic below (if enabled)
+                -- Always hide initially; the style-specific tick code will show if needed
+                ExhaustionTick:Hide()
+                ExhaustionTick:SetScript("OnUpdate", nil)
+            end
+            if ExhaustionLevelFillBar then ExhaustionLevelFillBar:Hide() end
+
+            -- Create and parent custom bars to their own editor frames
+            local xpBar = CreateDragonflightUIXPBar()
+            local repBar = CreateDragonflightUIRepBar()
+
+            xpBar:SetParent(addon.ActionBarFrames.xpbar)
+            xpBar:SetScale(cfg.expbar_scale or 1.0)
+            xpBar:SetFrameStrata("MEDIUM")
+
+            repBar:SetParent(addon.ActionBarFrames.repbar)
+            repBar:SetScale(cfg.repbar_scale or 1.0)
+            repBar:SetFrameStrata("MEDIUM")
+
+            -- Exhaustion tick for DragonflightUI: parent to custom XP bar
+            if ExhaustionTick and dfXpBar then
+                local showTick = addon.db and addon.db.profile and addon.db.profile.style
+                    and addon.db.profile.style.exhaustion_tick
+                local exhaustionThreshold = GetXPExhaustion()
+                local currXP = UnitXP("player")
+                local maxXP = UnitXPMax("player")
+                if not maxXP or maxXP == 0 then maxXP = 1 end
+                local remainingXP = maxXP - currXP
+                local isFullyRested = exhaustionThreshold and exhaustionThreshold >= remainingXP
+
+                if showTick and exhaustionThreshold and exhaustionThreshold > 0 and not isFullyRested then
+                    local barW = cfg.bar_width or 466
+                    ExhaustionTick:SetParent(dfXpBar)
+                    ExhaustionTick:SetFrameStrata("HIGH")
+                    ExhaustionTick:SetFrameLevel(20)
+                    local tickPos = math.min(((currXP + exhaustionThreshold) / maxXP) * barW, barW)
+                    tickPos = math.max(tickPos, 0)
+                    ExhaustionTick:ClearAllPoints()
+                    ExhaustionTick:SetPoint("CENTER", dfXpBar, "LEFT", tickPos, 0)
+                    ExhaustionTick:SetScript("OnUpdate", function(self, elapsed)
+                        if not self.timer then return end
+                        self.timer = self.timer - elapsed
+                        if self.timer > 0 then return end
+                        self.timer = 1
+                        local et = GetXPExhaustion()
+                        if not et or et <= 0 then self:Hide() return end
+                        local cx = UnitXP("player")
+                        local mx = UnitXPMax("player")
+                        if not mx or mx == 0 then return end
+                        if et >= (mx - cx) then self:Hide() return end
+                        local bw = dfXpBar:GetWidth()
+                        if not bw or bw == 0 then return end
+                        local tp = math.min(((cx + et) / mx) * bw, bw)
+                        tp = math.max(tp, 0)
+                        self:ClearAllPoints()
+                        self:SetPoint("CENTER", dfXpBar, "LEFT", tp, 0)
+                    end)
+                    ExhaustionTick.timer = 0
+                    ExhaustionTick:Show()
+                else
+                    ExhaustionTick:Hide()
+                    ExhaustionTick:SetScript("OnUpdate", nil)
+                end
+            end
+
+        else -- retailui
+            -- Hide custom bars if they exist
+            if dfXpBar then dfXpBar:Hide() end
+            if dfRepBar then dfRepBar:Hide() end
+
+            -- Parent Blizzard XP bar to its own editor frame
+            if MainMenuExpBar then
+                MainMenuExpBar:SetAlpha(1)
+                MainMenuExpBar:ClearAllPoints()
+                MainMenuExpBar:SetParent(addon.ActionBarFrames.xpbar)
+                MainMenuExpBar:SetPoint("CENTER", addon.ActionBarFrames.xpbar, "CENTER", 0, 0)
+                MainMenuExpBar:SetScale(cfg.expbar_scale or 1.0)
+                MainMenuExpBar:SetFrameStrata("MEDIUM")
+                MainMenuExpBar:SetFrameLevel(1)
+                MainMenuExpBar:Show()
+            end
+            -- Parent Blizzard Rep bar to its own editor frame
+            if ReputationWatchBar then
+                ReputationWatchBar:SetAlpha(1)
+                ReputationWatchBar:ClearAllPoints()
+                ReputationWatchBar:SetParent(addon.ActionBarFrames.repbar)
+                ReputationWatchBar:SetPoint("CENTER", addon.ActionBarFrames.repbar, "CENTER", 0, 0)
+                ReputationWatchBar:SetScale(cfg.repbar_scale or 1.0)
+                ReputationWatchBar:SetFrameStrata("MEDIUM")
+                ReputationWatchBar:SetFrameLevel(1)
+            end
+
+            -- Re-apply styling since noop may have cleared textures
+            ApplyRetailUIExpRepBarStyling()
+        end
+    end
+
+    -- Position bars centered within their individual editor frames
+    local function UpdateBarPositions()
+        local cfg = GetXpRepConfig() or {}
+        local style = GetXpBarStyle()
+        local barW = cfg.bar_width or 466
+        local barH = GetXpBarHeight()
+
+        -- Resize editor frames to match bar dimensions
+        if addon.ActionBarFrames.xpbar then
+            addon.ActionBarFrames.xpbar:SetSize(barW, barH)
+        end
+        if addon.ActionBarFrames.repbar then
+            addon.ActionBarFrames.repbar:SetSize(barW, barH)
+        end
+
+        if style == "dragonflightui" then
+            -- Resize custom bars to current config
+            if dfXpBar then
+                dfXpBar:SetSize(barW, barH)
+                dfXpBar.Background:SetTexCoord(0, barW / 842, 0, 1)
+                dfXpBar.Border:SetTexCoord(0, barW / 842, 0, 1)
+                dfXpBar:ClearAllPoints()
+                dfXpBar:SetPoint("CENTER", addon.ActionBarFrames.xpbar, "CENTER", 0, 0)
+            end
+            if dfRepBar then
+                dfRepBar:SetSize(barW, barH)
+                dfRepBar.Background:SetTexCoord(0, barW / 842, 0, 1)
+                dfRepBar.Border:SetTexCoord(0, barW / 842, 0, 1)
+                dfRepBar:ClearAllPoints()
+                dfRepBar:SetPoint("CENTER", addon.ActionBarFrames.repbar, "CENTER", 0, 0)
+            end
+
+            -- Update bar values
+            UpdateDragonflightUIXPBar()
+            UpdateDragonflightUIRepBar()
+
+        else -- retailui
+            -- Position Blizzard XP bar centered in its editor frame
+            if MainMenuExpBar then
+                MainMenuExpBar:ClearAllPoints()
+                MainMenuExpBar:SetSize(barW, barH)
+                MainMenuExpBar:SetScale(cfg.expbar_scale or 1.0)
+                MainMenuExpBar:SetPoint("CENTER", addon.ActionBarFrames.xpbar, "CENTER", 0, 0)
+            end
+
+            -- Position Blizzard Rep bar centered in its editor frame
+            if ReputationWatchBar then
+                ReputationWatchBar:ClearAllPoints()
+                ReputationWatchBar:SetSize(barW, barH)
+                ReputationWatchBar:SetScale(cfg.repbar_scale or 1.0)
+                ReputationWatchBar:SetPoint("CENTER", addon.ActionBarFrames.repbar, "CENTER", 0, 0)
+                if ReputationWatchStatusBar then
+                    ReputationWatchStatusBar:SetAllPoints(ReputationWatchBar)
+                    ReputationWatchStatusBar:SetSize(barW, barH)
+                end
+            end
+        end
+
+        -- ========== MAX LEVEL: REPOSITION REP BAR TO XP BAR SLOT ==========
+        -- When player is max level, XP bar is hidden. Move rep bar editor frame
+        -- to the XP bar's position so it fills the gap. Uses DB config directly
+        -- instead of GetPoint() to avoid timing/ordering issues.
+        if addon.ActionBarFrames.xpbar and addon.ActionBarFrames.repbar then
+            if IsPlayerMaxLevel() then
+                -- Read the XP bar's saved position from the database
+                local widgets = addon.db and addon.db.profile and addon.db.profile.widgets
+                local xpConfig = widgets and widgets.xpbar
+                local xpAnchor = xpConfig and xpConfig.anchor or "BOTTOM"
+                local xpPosX = xpConfig and xpConfig.posX or 1
+                local xpPosY = xpConfig and xpConfig.posY or 7
+                -- Move rep bar editor frame to where the XP bar would be
+                addon.ActionBarFrames.repbar:ClearAllPoints()
+                addon.ActionBarFrames.repbar:SetPoint(xpAnchor, UIParent, xpAnchor, xpPosX, xpPosY)
+                -- Hide XP bar editor frame (nothing to show)
+                addon.ActionBarFrames.xpbar:Hide()
+            else
+                -- Not max level: ensure XP bar editor frame is visible
+                addon.ActionBarFrames.xpbar:Show()
+            end
+        end
+    end
+
+    -- ========== EXPORTED REFRESH / CALLBACK FUNCTIONS ==========
+    -- These are called from options.lua and tab_xprepbars.lua
+
+    -- Full refresh of XP/Rep bar system (style, sizing, positioning)
+    local function RefreshXpRepBars()
+        local style = GetXpBarStyle()
+        ConnectBarsToEditor()
+        if style == "dragonflightui" then
+            UpdateDragonflightUIXPBar()
+            UpdateDragonflightUIRepBar()
+        else
+            ApplyRetailUIExpRepBarStyling()
+        end
+        UpdateBarPositions()
+    end
+
+    -- Export functions for options callbacks
+    addon.RefreshXpRepBarPosition = RefreshXpRepBars
+    addon.RefreshXpBarPosition = RefreshXpRepBars
+    addon.RefreshRepBarPosition = RefreshXpRepBars
+    addon.UpdateExhaustionTick = function()
+        -- Exhaustion tick works in BOTH styles (RetailUI and DragonflightUI)
+        -- Just refresh the full bar system which handles tick visibility
+        RefreshXpRepBars()
+    end
+    addon.RefreshXpRepBars = RefreshXpRepBars
+
+    -- Switch style at runtime (called from options dropdown)
+    addon.SetXpBarStyle = function(newStyle)
+        if addon.db and addon.db.profile and addon.db.profile.xprepbar then
+            addon.db.profile.xprepbar.style = newStyle
+        end
+        if addon.db and addon.db.profile and addon.db.profile.style then
+            addon.db.profile.style.xpbar = newStyle
+        end
+        -- Full refresh: reconnect, re-style, reposition
+        RefreshXpRepBars()
+        -- When switching to RetailUI, force Blizzard bar updates to run
+        -- so bar values/textures are properly initialized without reload
+        if newStyle == "retailui" then
+            if MainMenuExpBar_Update then
+                MainMenuExpBar_Update()
+            end
+            if ReputationWatchBar_Update then
+                ReputationWatchBar_Update()
+            end
+            -- Re-apply our styling after Blizzard resets (our hook also runs,
+            -- but explicit call ensures correct order)
+            ApplyRetailUIExpRepBarStyling()
+            UpdateBarPositions()
         end
     end
    -- Specific function to disable MainMenuBarMaxLevelBar
@@ -905,8 +1618,12 @@ end
         addon.ActionBarFrames.bottombarleft  = addon.CreateUIFrame(blW, blH, "BottomBarLeft")
         addon.ActionBarFrames.bottombarright = addon.CreateUIFrame(brW, brH, "BottomBarRight")
 
-        -- RepExp bar container (RetailUI pattern)
-        addon.ActionBarFrames.repexpbar = addon.CreateUIFrame(addon.ActionBarFrames.mainbar:GetWidth(), 10, "RepExpBar")
+        -- Separate XP and Rep bar editor frames (allows independent movement)
+        local xpRepWidth = addon.ActionBarFrames.mainbar:GetWidth()
+        local cfg = GetXpRepConfig() or {}
+        local barH = GetXpBarHeight()
+        addon.ActionBarFrames.xpbar = addon.CreateUIFrame(xpRepWidth, barH, "XPBar")
+        addon.ActionBarFrames.repbar = addon.CreateUIFrame(xpRepWidth, barH, "RepBar")
     end
 
     -- Position action bars to their container frames (initialization only - safe during addon load)
@@ -963,10 +1680,9 @@ end
 
     -- Apply saved positions from database (RetailUI pattern)
     local function ApplyActionBarPositions()
-        -- CRITICAL: Don't touch frames during combat to avoid taint
-        if InCombatLockdown() then
-            return
-        end
+        -- CRITICAL: Don't touch secure frames during combat to avoid taint
+        -- XP/Rep bars are custom frames and can be positioned any time
+        local inCombat = InCombatLockdown()
 
         if not addon.db or not addon.db.profile or not addon.db.profile.widgets then
             return
@@ -974,50 +1690,108 @@ end
 
         local widgets = addon.db.profile.widgets
 
-        -- Apply mainbar container position
-        if widgets.mainbar and addon.ActionBarFrames.mainbar then
+        -- Calculate vertical offset when both XP and Rep bars are visible
+        local dualBarOffset = GetDualBarVerticalOffset()
+
+        -- Apply mainbar container position (with dual-bar offset if at default)
+        -- Skip secure frames (mainbar, action bars) during combat to avoid taint
+        if not inCombat and widgets.mainbar and addon.ActionBarFrames.mainbar then
             local config = widgets.mainbar
             if config.anchor then
+                local extraY = 0
+                if IsWidgetAtDefaultPosition("mainbar") then
+                    extraY = dualBarOffset
+                end
                 addon.ActionBarFrames.mainbar:ClearAllPoints()
-                addon.ActionBarFrames.mainbar:SetPoint(config.anchor, config.posX, config.posY)
+                addon.ActionBarFrames.mainbar:SetPoint(config.anchor, config.posX, config.posY + extraY)
             end
         end
 
         -- Apply other bar positions
+        -- Secure frames (action bars) are skipped during combat; custom frames
+        -- (xpbar, repbar) are always safe to reposition.
+        local secureFrames = {
+            rightbar = true,
+            leftbar = true,
+            bottombarleft = true,
+            bottombarright = true,
+        }
+
         local barConfigs = {{
+            name = "rightbar",
             frame = addon.ActionBarFrames.rightbar,
             config = widgets.rightbar,
             default = {"RIGHT", -10, -70}
         }, {
+            name = "leftbar",
             frame = addon.ActionBarFrames.leftbar,
             config = widgets.leftbar,
             default = {"RIGHT", -45, -70}
         }, {
+            name = "bottombarleft",
             frame = addon.ActionBarFrames.bottombarleft,
             config = widgets.bottombarleft,
             default = {"BOTTOM", 0, 120}
         }, {
+            name = "bottombarright",
             frame = addon.ActionBarFrames.bottombarright,
             config = widgets.bottombarright,
             default = {"BOTTOM", 0, 160}
-        }, -- RetailUI pattern: RepExp bar positioning
+        }, -- Separate XP and Rep bar positioning
         {
-            frame = addon.ActionBarFrames.repexpbar,
-            config = widgets.repexpbar,
-            default = {"BOTTOM", 0, 35}
+            name = "xpbar",
+            frame = addon.ActionBarFrames.xpbar,
+            config = widgets.xpbar,
+            default = {"BOTTOM", 0, 7}
+        },
+        {
+            name = "repbar",
+            frame = addon.ActionBarFrames.repbar,
+            -- At max level, use XP bar's config so rep bar takes XP bar's position
+            config = IsPlayerMaxLevel() and widgets.xpbar or widgets.repbar,
+            default = {"BOTTOM", 0, IsPlayerMaxLevel() and 7 or 23}
         }}
 
+        -- Frames that should receive the dual-bar vertical offset
+        local dualBarOffsetFrames = {
+            mainbar = true,  -- already handled above, but listed for clarity
+            bottombarleft = true,
+            bottombarright = true,
+        }
+
         for _, barData in ipairs(barConfigs) do
-            if barData.frame and barData.config and barData.config.anchor then
-                local config = barData.config
-                barData.frame:ClearAllPoints()
-                barData.frame:SetPoint(config.anchor, config.posX, config.posY)
-            elseif barData.frame then
-                -- Apply default position
-                local default = barData.default
-                barData.frame:ClearAllPoints()
-                barData.frame:SetPoint(default[1], UIParent, default[1], default[2], default[3])
+            -- Skip secure frames during combat to avoid taint
+            if inCombat and secureFrames[barData.name] then
+                -- skip this frame
+            else
+                -- Calculate extra Y for this frame (only if at default position)
+                local extraY = 0
+                if dualBarOffsetFrames[barData.name] and IsWidgetAtDefaultPosition(barData.name) then
+                    extraY = dualBarOffset
+                end
+
+                if barData.frame and barData.config and barData.config.anchor then
+                    local config = barData.config
+                    barData.frame:ClearAllPoints()
+                    barData.frame:SetPoint(config.anchor, config.posX, config.posY + extraY)
+                elseif barData.frame then
+                    -- Apply default position
+                    local default = barData.default
+                    barData.frame:ClearAllPoints()
+                    barData.frame:SetPoint(default[1], UIParent, default[1], default[2], default[3] + extraY)
+                end
             end
+        end
+    end
+
+    -- Notify external modules (stance, multicast) that the dual-bar offset may have changed.
+    -- Must be defined AFTER ApplyActionBarPositions (Lua local scoping).
+    local function NotifyDualBarOffsetChanged()
+        -- Re-apply action bar positions (mainbar, bottombarleft, bottombarright)
+        ApplyActionBarPositions()
+        -- Notify stance bar to update its position
+        if addon.UpdateStanceBarPosition then
+            addon.UpdateStanceBarPosition()
         end
     end
 
@@ -1049,12 +1823,34 @@ end
             frame = addon.ActionBarFrames.bottombarright,
             blizzardFrame = MultiBarBottomRight,
             configPath = {"widgets", "bottombarright"}
-        }, -- RetailUI pattern: RepExp bar registration
+        }, -- Separate XP and Rep bar registration with visibility-aware editor
         {
-            name = "repexpbar",
-            frame = addon.ActionBarFrames.repexpbar,
+            name = "xpbar",
+            frame = addon.ActionBarFrames.xpbar,
             blizzardFrame = nil,
-            configPath = {"widgets", "repexpbar"}
+            configPath = {"widgets", "xpbar"},
+            editorVisible = function()
+                local style = GetXpBarStyle()
+                if style == "dragonflightui" then
+                    return dfXpBar and dfXpBar:IsShown()
+                else
+                    return MainMenuExpBar and MainMenuExpBar:IsShown()
+                end
+            end
+        },
+        {
+            name = "repbar",
+            frame = addon.ActionBarFrames.repbar,
+            blizzardFrame = nil,
+            configPath = {"widgets", "repbar"},
+            editorVisible = function()
+                local style = GetXpBarStyle()
+                if style == "dragonflightui" then
+                    return dfRepBar and dfRepBar:IsShown()
+                else
+                    return ReputationWatchBar and ReputationWatchBar:IsShown()
+                end
+            end
         }}
 
         for _, registration in ipairs(frameRegistrations) do
@@ -1064,6 +1860,7 @@ end
                     frame = registration.frame,
                     blizzardFrame = registration.blizzardFrame,
                     configPath = registration.configPath,
+                    editorVisible = registration.editorVisible,
                     module = addon.MainBars
                 })
             end
@@ -1133,48 +1930,82 @@ end
 
         -- Note: Gryphon frame levels will be set after all positioning is complete
 
-        -- Set up hooks for XP/Rep bars - RESTORED FUNCTIONALITY
-        -- Connect bars to editor system first
+        -- Set up XP/Rep bar system
         ConnectBarsToEditor()
 
-        -- Force reputation text configuration
-        ForceReputationTextConfiguration()
+        -- Force Blizzard bar updates so values/textures are properly initialized
+        if MainMenuExpBar_Update then MainMenuExpBar_Update() end
+        if ReputationWatchBar_Update then ReputationWatchBar_Update() end
 
-        -- Hook for maintaining editor connection
-        hooksecurefunc('MainMenuExpBar_Update', UpdateBarPositions)
-        hooksecurefunc('ReputationWatchBar_Update', UpdateBarPositions)
+        -- Hook MainMenuBarExpText:SetText to append XP percentage in RetailUI mode.
+        -- This intercepts ALL text updates (hover, XP gain, etc.) so percentage
+        -- is always present regardless of what Blizzard's TextStatusBar system does.
+        if MainMenuBarExpText then
+            local updatingXpText = false
+            hooksecurefunc(MainMenuBarExpText, "SetText", function(self, text)
+                if updatingXpText then return end
+                if GetXpBarStyle() ~= "retailui" then return end
+                local cfg = GetXpRepConfig() or {}
+                if cfg.show_xp_percent == false then return end
+                if not text or text == "" then return end
 
-        -- Add the essential ReputationWatchBar_Update hook for styling only
-        hooksecurefunc('ReputationWatchBar_Update', function()
-            local name = GetWatchedFactionInfo()
-            if name and ReputationWatchBar then
-                -- Update editor positioning only if using editor system
-                if addon.ActionBarFrames.repexpbar then
-                    UpdateBarPositions()
+                local currXP = UnitXP("player")
+                local maxXP = UnitXPMax("player")
+                if not maxXP or maxXP == 0 then return end
+
+                local pct = 100 * currXP / maxXP
+                local restedXP = GetXPExhaustion() or 0
+                local restedMax = maxXP * 1.5
+                local restedPct = (restedMax > 0) and (100 * restedXP / restedMax) or 0
+                local percentText = format(" (%.1f%%", pct)
+                if restedPct > 0 then
+                    percentText = percentText .. format(", %.1f%% Rested", restedPct)
                 end
+                percentText = percentText .. ")"
 
-                -- Configure reputation status bar for NEW style only
-                if ReputationWatchStatusBar then
-                    ReputationWatchStatusBar:SetHeight(10)
-                    ReputationWatchStatusBar:SetClearPoint('TOPLEFT', ReputationWatchBar, 0, 3)
+                updatingXpText = true
+                self:SetText(text .. percentText)
+                updatingXpText = false
+            end)
 
-                    -- Set size to match NEW style (537x10)
-                    ReputationWatchStatusBar:SetSize(537, 10)
-
-                    if ReputationWatchStatusBarBackground then
-                        ReputationWatchStatusBarBackground:SetAllPoints(ReputationWatchStatusBar)
-                    end
-
-                    -- Text positioning for NEW style with FIXED layering
-                    if ReputationWatchStatusBarText then
-                        -- NEW style text positioning (offset +1)
-                        ReputationWatchStatusBarText:SetClearPoint('CENTER', ReputationWatchStatusBar, 'CENTER', 0, 1)
-
-                        -- Reasonable layering - not excessively high
-                        ReputationWatchStatusBarText:SetDrawLayer("OVERLAY", 2)
-                    end
+            -- Prevent Blizzard's TextStatusBar OnLeave from hiding XP text
+            -- when "always show text" is enabled. Blizzard calls :Hide() on
+            -- the FontString directly, so we must intercept that.
+            hooksecurefunc(MainMenuBarExpText, "Hide", function(self)
+                if GetXpBarStyle() ~= "retailui" then return end
+                local cfg = GetXpRepConfig() or {}
+                if cfg.always_show_text then
+                    self:Show()
                 end
+            end)
+        end
+
+        -- Same fix for rep bar text: prevent Blizzard's OnLeave from hiding it
+        if ReputationWatchStatusBarText then
+            hooksecurefunc(ReputationWatchStatusBarText, "Hide", function(self)
+                if GetXpBarStyle() ~= "retailui" then return end
+                local cfg = GetXpRepConfig() or {}
+                if cfg.always_show_text then
+                    self:Show()
+                end
+            end)
+        end
+
+        -- Hook Blizzard bar updates to re-apply styling and keep positioning in sync
+        -- CRITICAL: MainMenuExpBar_Update resets textures — must re-apply our styling
+        hooksecurefunc('MainMenuExpBar_Update', function()
+            local style = GetXpBarStyle()
+            if style == "retailui" then
+                ApplyRetailUIExpRepBarStyling()
             end
+            UpdateBarPositions()
+        end)
+        hooksecurefunc('ReputationWatchBar_Update', function()
+            local style = GetXpBarStyle()
+            if style == "retailui" then
+                ApplyRetailUIExpRepBarStyling()
+            end
+            UpdateBarPositions()
         end)
 
         -- Position action bars immediately
@@ -1236,171 +2067,100 @@ end
     -- Initialize immediately since we're already enabled
     ApplyMainbarsSystem()
 
-    -- Set up event handlers - NEW style only system
-    local function ApplyDragonUIExpRepBarStyling()
-        -- Always use NEW style system only
-
-        -- Setup both exp and rep bars with NEW styling system
-        for _, bar in pairs({MainMenuExpBar, ReputationWatchStatusBar}) do
-            if bar then
-                -- ElvUI/RetailUI pattern: defensive check for GetStatusBarTexture
-                local barTexture = bar.GetStatusBarTexture and bar:GetStatusBarTexture()
-                if barTexture and barTexture.SetDrawLayer then
-                    barTexture:SetDrawLayer('BORDER')
-                end
-
-                -- Create status texture if it doesn't exist
-                if not bar.status then
-                    bar.status = bar:CreateTexture(nil, 'ARTWORK')
-                end
-
-                -- Always apply NEW style (537x10 size)
-                bar:SetSize(537, 10)
-                bar.status:SetPoint('CENTER', 0, -2)
-                bar.status:set_atlas('ui-hud-experiencebar-round', true)
-
-                -- Apply custom textures for reputation bar
-                if bar == ReputationWatchStatusBar then
-                    bar:SetStatusBarTexture(addon._dir .. 'statusbarfill.tga')
-                    if ReputationWatchStatusBarBackground then
-                        ReputationWatchStatusBarBackground:set_atlas('ui-hud-experiencebar-background', true)
-                    end
-                end
-            end
-        end
-
-        -- Apply background styling for NEW style for MainMenuExpBar
-        if MainMenuExpBar then
-            -- Ensure MainMenuExpBar is properly centered
-            MainMenuExpBar:ClearAllPoints()
-            if addon.ActionBarFrames.repexpbar then
-                MainMenuExpBar:SetPoint('CENTER', addon.ActionBarFrames.repexpbar, 'CENTER', 0, 0)
-            end
-
-            for _, obj in pairs({MainMenuExpBar:GetRegions()}) do
-                if obj:GetObjectType() == 'Texture' and obj:GetDrawLayer() == 'BACKGROUND' then
-                    obj:set_atlas('ui-hud-experiencebar-background', true)
-                end
-            end
-        end
-    end
-
-    local function ApplyModernExpBarVisual()
-        local exhaustionStateID = GetRestState()
-        local mainMenuExpBar = MainMenuExpBar
-
-        if not mainMenuExpBar then
-            return
-        end
-
-        -- Always apply NEW style custom texture system
-        mainMenuExpBar:SetStatusBarTexture(addon._dir .. "uiexperiencebar")
-        mainMenuExpBar:SetStatusBarColor(1, 1, 1, 1)
-
-        -- Configure ExhaustionLevelFillBar (rested XP overlay) - ElvUI/RetailUI pattern: only adjust height
-        if ExhaustionLevelFillBar then
-            ExhaustionLevelFillBar:SetHeight(mainMenuExpBar:GetHeight())
-            
-            -- Apply color using GetStatusBarTexture():SetVertexColor() (3.3.5a compatible)
-            -- Defensive check: GetStatusBarTexture may not exist or return nil in 3.3.5a
-            if ExhaustionLevelFillBar.GetStatusBarTexture then
-                local exhaustTexture = ExhaustionLevelFillBar:GetStatusBarTexture()
-                if exhaustTexture and exhaustTexture.SetVertexColor then
-                    if exhaustionStateID == 1 then
-                        -- Rested state - Blue
-                        exhaustTexture:SetVertexColor(0.0, 0.39, 0.88, 0.65)
-                    elseif exhaustionStateID == 2 then
-                        -- Tired state - Purple
-                        exhaustTexture:SetVertexColor(0.58, 0.0, 0.55, 0.65)
-                    end
-                end
-            end
-        end
-
-        -- Apply exhaustion-based TexCoords to main bar texture
-        -- Defensive check: GetStatusBarTexture may not exist or return nil
-        local mainTexture = mainMenuExpBar.GetStatusBarTexture and mainMenuExpBar:GetStatusBarTexture()
-        if mainTexture and mainTexture.SetTexCoord then
-            if exhaustionStateID == 1 then
-                -- Rested state
-                mainTexture:SetTexCoord(574 / 2048, 1137 / 2048, 34 / 64, 43 / 64)
-            elseif exhaustionStateID == 2 then
-                -- Tired state
-                mainTexture:SetTexCoord(1 / 2048, 570 / 2048, 42 / 64, 51 / 64)
+    -- ========== EVENT HANDLERS FOR XP/REP BARS ==========
+    local xpRepEventFrame = CreateFrame("Frame")
+    xpRepEventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    xpRepEventFrame:RegisterEvent("UPDATE_EXHAUSTION")
+    xpRepEventFrame:RegisterEvent("PLAYER_XP_UPDATE")
+    xpRepEventFrame:RegisterEvent("UPDATE_FACTION")
+    xpRepEventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+    xpRepEventFrame:RegisterEvent("PLAYER_LEVEL_UP")
+    xpRepEventFrame:SetScript("OnEvent", function(self, event)
+        if not IsModuleEnabled() then return end
+        local style = GetXpBarStyle()
+        if event == "PLAYER_ENTERING_WORLD" then
+            ConnectBarsToEditor()
+            if style == "dragonflightui" then
+                UpdateDragonflightUIXPBar()
+                UpdateDragonflightUIRepBar()
             else
-                -- Normal state
-                mainTexture:SetTexCoord(0, 1, 0, 1)
+                ApplyRetailUIExpRepBarStyling()
             end
+            UpdateBarPositions()
+            -- Recalculate dual-bar offset on login/reload
+            NotifyDualBarOffsetChanged()
+        elseif event == "PLAYER_LEVEL_UP" then
+            -- Player leveled up — may have reached max level
+            if style == "dragonflightui" then
+                UpdateDragonflightUIXPBar()
+                UpdateDragonflightUIRepBar()
+            else
+                ApplyRetailUIExpRepBarStyling()
+            end
+            UpdateBarPositions()
+            -- Bar visibility changed — recalculate dual-bar offset for all frames
+            NotifyDualBarOffsetChanged()
+        elseif event == "UPDATE_EXHAUSTION" or event == "PLAYER_XP_UPDATE" then
+            if style == "dragonflightui" then
+                UpdateDragonflightUIXPBar()
+            else
+                ApplyRetailUIExpRepBarStyling()
+            end
+            UpdateBarPositions()
+        elseif event == "UPDATE_FACTION" then
+            if style == "dragonflightui" then
+                UpdateDragonflightUIRepBar()
+            else
+                ApplyRetailUIExpRepBarStyling()
+            end
+            UpdateBarPositions()
+            -- Faction watch changed — rep bar visibility may have changed
+            NotifyDualBarOffsetChanged()
+        elseif event == "PLAYER_REGEN_ENABLED" then
+            -- Combat ended: reposition all bars (secure frames were skipped during combat)
+            UpdateBarPositions()
+            NotifyDualBarOffsetChanged()
         end
+    end)
 
-        -- Never show ExhaustionTick (as requested)
-        if ExhaustionTick then
-            ExhaustionTick:Hide()
-        end
-    end
     -- Single event handler for addon initialization
     local initFrame = CreateFrame("Frame")
     initFrame:RegisterEvent("ADDON_LOADED")
     initFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
     initFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-    initFrame:RegisterEvent("UPDATE_FACTION")
     initFrame:RegisterEvent("PET_BAR_UPDATE")
     initFrame:RegisterEvent("PET_BAR_UPDATE_COOLDOWN")
     initFrame:RegisterEvent("UNIT_PET")
     initFrame:RegisterEvent("UNIT_EXITED_VEHICLE")
     initFrame:RegisterEvent("UNIT_ENTERED_VEHICLE")
     initFrame:RegisterEvent("PLAYER_LOGIN")
-
-    local eventFrame = CreateFrame("Frame")
-    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    eventFrame:RegisterEvent("UPDATE_EXHAUSTION")
-    eventFrame:SetScript("OnEvent", function(self, event)
-        if event == "PLAYER_ENTERING_WORLD" then
-            -- Apply initial styling setup - Execute immediately
-            ApplyDragonUIExpRepBarStyling()
-            ApplyModernExpBarVisual()
-            ForceReputationTextConfiguration()
-        elseif event == "UPDATE_EXHAUSTION" then
-            -- Update exhaustion state immediately - no timer needed
-            ApplyModernExpBarVisual()
-            ForceReputationTextConfiguration()
-        end
-    end)
-
     initFrame:SetScript("OnEvent", function(self, event, addonName)
         if event == "ADDON_LOADED" and addonName == "DragonUI" then
-            -- Initialize basic components immediately
             if IsModuleEnabled() then
                 ApplyMainbarsSystem()
             end
 
         elseif event == "PLAYER_ENTERING_WORLD" then
-            -- Apply XP/Rep bar styling and connect to editor - Execute immediately
             if IsModuleEnabled() then
-                -- Remove interfering Blizzard textures FIRST
+                -- Remove interfering Blizzard textures
                 RemoveBlizzardFrames()
 
-                -- Connect bars to editor system
+                -- Set up XP/Rep bars for the selected style
                 ConnectBarsToEditor()
-
-                -- Apply DragonUI styling system (from OLD)
-                ApplyDragonUIExpRepBarStyling()
-
-                -- Apply modern exhaustion system
-                ApplyModernExpBarVisual()
-
-                -- Force reputation text configuration
-                ForceReputationTextConfiguration()
-
-                -- Update positions
+                local style = GetXpBarStyle()
+                if style == "dragonflightui" then
+                    UpdateDragonflightUIXPBar()
+                    UpdateDragonflightUIRepBar()
+                else
+                    ApplyRetailUIExpRepBarStyling()
+                end
                 UpdateBarPositions()
 
-                -- Hide text by default
-                if MainMenuBarExpText then
-                    MainMenuBarExpText:Hide()
-                end
-                if ReputationWatchBarText then
-                    ReputationWatchBarText:Hide()
+                -- Hide Blizzard text for DFUI (it manages its own).
+                -- For RetailUI, ApplyRetailUIExpRepBarStyling manages text visibility.
+                if style == "dragonflightui" then
+                    if MainMenuBarExpText then MainMenuBarExpText:Hide() end
+                    if ReputationWatchBarText then ReputationWatchBarText:Hide() end
                 end
                 
                 -- Ensure gryphons are on top after all setup is complete
@@ -1476,14 +2236,6 @@ end
             if IsModuleEnabled() then
                 ApplyActionBarPositions()
                 PositionActionBarsToContainers()
-            end
-
-        elseif event == "UPDATE_FACTION" then
-            -- Update reputation bar when watched faction changes - Execute immediately
-            if IsModuleEnabled() then
-                ApplyDragonUIExpRepBarStyling()
-                ForceReputationTextConfiguration()
-                UpdateBarPositions()
             end
 
         elseif event == "PET_BAR_UPDATE" or event == "PET_BAR_UPDATE_COOLDOWN" or event == "UNIT_PET" then
@@ -2153,6 +2905,11 @@ function addon.RefreshMainbarsSystem()
     -- Apply bar button counts (show/hide buttons)
     -- This also calls PositionActionBars() at the end for left/right bar orientation
     addon.ApplyAllBarButtonCounts()
+
+    -- Refresh XP/Rep bars (style, sizing, positioning)
+    if addon.RefreshXpRepBars then
+        addon.RefreshXpRepBars()
+    end
 end
 
 -- Alias for compatibility

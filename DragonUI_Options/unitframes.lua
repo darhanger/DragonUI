@@ -192,6 +192,26 @@ local unitframeOptions = {
                     end,
                     order = 10
                 },
+                player_header_glow = {
+                    type = 'header',
+                    name = "Glow Effects",
+                    order = 10.1
+                },
+                show_rest_glow = {
+                    type = 'toggle',
+                    name = "Show Rest Glow",
+                    desc = "Show a golden glow around the player frame when resting (in an inn or city). Works with all frame modes: normal, elite, fat health bar, and vehicle.",
+                    get = function()
+                        return addon.db.profile.unitframe.player.show_rest_glow ~= false
+                    end,
+                    set = function(info, value)
+                        addon.db.profile.unitframe.player.show_rest_glow = value
+                        if addon.PlayerFrame and addon.PlayerFrame.RefreshPlayerFrame then
+                            addon.PlayerFrame.RefreshPlayerFrame()
+                        end
+                    end,
+                    order = 10.2
+                },
                 alwaysShowAlternateManaText = {
                     type = 'toggle',
                     name = "Always Show Alternate Mana Text",

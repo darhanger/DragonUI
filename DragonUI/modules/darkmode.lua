@@ -288,6 +288,16 @@ local function DarkenMainBarArt(tint)
             end
         end
     end
+
+    -- DragonflightUI custom XP/Rep bars (if they exist)
+    local dfBarNames = { "DragonUI_XPBar", "DragonUI_RepBar" }
+    for _, name in ipairs(dfBarNames) do
+        local bar = _G[name]
+        if bar then
+            if bar.Border then DarkenTexture(bar.Border, tint) end
+            if bar.Background then DarkenTexture(bar.Background, tint) end
+        end
+    end
 end
 
 -- -----------------------------------------------------------------------

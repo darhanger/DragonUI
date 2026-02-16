@@ -144,6 +144,16 @@ local function BuildPlayerSection(scroll)
         callback = refreshPlayer,
     })
 
+    -- Glow Effects
+    C:AddHeading(s, "Glow Effects")
+
+    C:AddToggle(s, {
+        label = "Show Rest Glow",
+        desc = "Golden glow around the player frame when resting (inn or city). Works with all frame modes.",
+        dbPath = "unitframe.player.show_rest_glow",
+        callback = refreshPlayer,
+    })
+
     -- Alternate mana (druid)
     C:AddHeading(s, "Alternate Mana (Druid)")
 

@@ -101,6 +101,16 @@ local function stancebar_update()
     local base_y = 200                                  -- Base Y position from bottom
     local final_y = base_y + y_offset                   -- Final Y position
     
+    -- Apply dual-bar offset when both XP and Rep bars are visible
+    -- Only if stance bar is at its default position (not moved by user)
+    local defaultYOffset = -50  -- database default for additional.stance.y_offset
+    local defaultXPosition = -215  -- database default for additional.stance.x_position
+    if addon.GetDualBarVerticalOffset
+        and math.abs(x_position - defaultXPosition) <= 1
+        and math.abs(y_offset - defaultYOffset) <= 1 then
+        final_y = final_y + addon.GetDualBarVerticalOffset()
+    end
+    
     -- Simple static positioning - no dependencies, no complexity
     anchor:ClearAllPoints()
     anchor:SetPoint('BOTTOM', UIParent, 'BOTTOM', x_position, final_y)
@@ -115,6 +125,9 @@ local function UpdateStanceBar()
     if not IsModuleEnabled() then return end
     stancebar_update()
 end
+
+-- Export for external modules (mainbars.lua calls this when dual-bar offset changes)
+addon.UpdateStanceBarPosition = UpdateStanceBar
 
 -- ============================================================================
 -- POSITIONING FUNCTIONS
@@ -431,7 +444,11 @@ local function ApplyStanceSystem()
     local events = {
         'PLAYER_LOGIN',
         'UPDATE_SHAPESHIFT_FORMS',
-        'UPDATE_SHAPESHIFT_FORM'
+        'UPDATE_SHAPESHIFT_FORM',
+        'UPDATE_SHAPESHIFT_USABLE',   -- Druid: fires when entering/leaving water, flyable zones, etc.
+        'UPDATE_SHAPESHIFT_COOLDOWN', -- Cooldown changes
+        'SPELL_UPDATE_USABLE',        -- General spell usability changes (zone transitions)
+        'ACTIONBAR_UPDATE_USABLE',    -- Action bar usability updates
     }
     
     for _, eventName in ipairs(events) do

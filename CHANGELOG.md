@@ -2,6 +2,32 @@
 
 > **⚠️ Experimental Branch** - All changes below still need further in-game testing and may contain bugs or incomplete features. If you run into any problems, feel free to let me know [here](https://github.com/NeticSoul/DragonUI/issues/141) - any feedback helps!
 
+## 📅 2026-02-16
+
+### Added
+- **Dark Mode** - Darkens all UI borders and frame chrome (action bars, unit frames, minimap, bags, micro menu, castbar, stance/pet bars, XP/Rep bars). Three intensity presets (Light, Medium, Dark) plus a custom color picker for full control
+- **Item Quality Borders** - Colored glow borders around items based on their rarity. Works in bags, character panel, inspect, bank, merchant, and guild bank. Configurable minimum quality threshold (e.g., only show for Rare+)
+- **Enhanced Tooltips** - Class-colored tooltip borders, class-colored unit names, target-of-target line, styled health bar, and optional anchor-to-cursor mode. 
+- **Range Indicator** - Action buttons turn red when out of range, blue when not enough resources, and grey when unusable.
+- **Enhancements Tab** in the options panel grouping all new visual features (Dark Mode, Range Indicator, Item Quality Borders, Enhanced Tooltips) in one place
+- **XP & Reputation Bars** - DragonflightUI-style XP and reputation bars; plus a second RetailUI style to choose from. Configurable bar height, scale, rested XP background visibility, always-show text mode, and XP percentage display.  
+- **Show Rest Glow toggle** in Player Frame options to enable or disable the resting glow effect
+
+### Fixed
+- Buff frame now correctly shifts down when a GM ticket or GM chat panel is open, and returns to its original position when closed. Custom positions set via Editor Mode are always respected
+- GM Ticket frame no longer overlaps the minimap
+- Rest glow (golden pulsing glow when resting in an inn or city) was broken by previous modifications, now works correctly again
+- Stance bar buttons now update correctly in all situations (entering/leaving water as druid, zone transitions, cooldown changes)
+- Stance bar and other bottom-anchored frames automatically shift up when both XP and reputation bars are visible simultaneously, preventing overlap
+- Reputation bar now correctly repositions to the experience bar slot at max level
+- Compact raid frame compatibility polling no longer runs constantly out of combat, reducing CPU usage
+- Removed leftover debug messages that were cluttering the chat on login
+- XP and reputation bars are now managed as separate, independently movable frames in Editor Mode instead of sharing a single combined frame
+- Durability frame now dynamically repositions below the minimap when PvP capture bars (Eye of the Storm, etc.) appear, preventing overlap
+- All Spanish code comments translated to English across the codebase
+- Internal code cleanup: centralized timer system, shared module helpers, and removed redundant utility functions
+- And more...
+
 ## 📅 2026-02-14
 
 ### Added
