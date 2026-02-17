@@ -513,14 +513,17 @@ end
 --   2) Other code could call :Show() overriding event-based :Hide()
 --   3) InCombatLockdown() blocked event handler during combat vehicle entry
 
-local function SetupVehicleBarHiding()
+local function SetupVehicleBarHiding(hideMainBar)
     local mainBar = pUiMainBar or addon.pUiMainBar or _G.pUiMainBar
     if not mainBar then return end
 
-    -- 1) pUiMainBar: use built-in 'visibility' state driver.
-    --    SecureHandlerStateTemplate auto-manages Show/Hide for 'show'/'hide' values.
-    VehicleModule.stateDrivers.mainBarVehicle = {frame = mainBar, state = 'visibility'}
-    RegisterStateDriver(mainBar, 'visibility', '[vehicleui] hide; show')
+    -- 1) pUiMainBar: hide during vehicle ONLY if artstyle=true.
+    --    When artstyle=false, the main bar stays visible because it shows
+    --    vehicle abilities via BonusActionBar page switching (bonusbar:5 → page 11).
+    if hideMainBar then
+        VehicleModule.stateDrivers.mainBarVehicle = {frame = mainBar, state = 'visibility'}
+        RegisterStateDriver(mainBar, 'visibility', '[vehicleui] hide; show')
+    end
 
     -- 2) Secondary bars: use a helper SecureHandlerStateTemplate with frame refs.
     --    The restricted handler can call Hide()/Show() on any frame ref — combat-safe.
@@ -695,7 +698,33 @@ local function ApplyVehicleSystem()
 
         -- State drivers: show art when [vehicleui], hide main bar + all secondary bars
         SetupArtStyleStateDrivers()
-        SetupVehicleBarHiding()
+        SetupVehicleBarHiding(true)  -- true = hide mainbar (art overlay replaces it)
+
+        -- Handle mount-type vehicles (multi-seat mounts) where [vehicleui] doesn't fire.
+        -- For these, the art frame won't show (no vehicle UI), but we still need the
+        -- standalone exit button to appear so the player can leave the mount.
+        if not VehicleModule.hooks.exitButtonVehicleEvents then
+            local exitBtnEventFrame = CreateFrame('Frame')
+            exitBtnEventFrame:RegisterEvent('UNIT_ENTERED_VEHICLE')
+            exitBtnEventFrame:RegisterEvent('UNIT_EXITED_VEHICLE')
+            exitBtnEventFrame:SetScript('OnEvent', function(self, event, unit)
+                if unit ~= 'player' then return end
+                if InCombatLockdown() then return end
+                if not vehicleExitButton then return end
+                if event == 'UNIT_ENTERED_VEHICLE' then
+                    -- Mount-type vehicles: no [vehicleui] but CanExitVehicle() is true
+                    if not UnitHasVehicleUI('player') and CanExitVehicle() then
+                        vehicleExitButton:Show()
+                    end
+                elseif event == 'UNIT_EXITED_VEHICLE' then
+                    if not UnitHasVehicleUI('player') and not CanExitVehicle() then
+                        vehicleExitButton:Hide()
+                    end
+                end
+            end)
+            VehicleModule.frames.exitBtnEventFrame = exitBtnEventFrame
+            VehicleModule.hooks.exitButtonVehicleEvents = true
+        end
 
         -- If player is ALREADY in a vehicle (e.g. after /reload), immediately
         -- apply vehicle layout — UNIT_ENTERED_VEHICLE won't fire again.
@@ -716,11 +745,38 @@ local function ApplyVehicleSystem()
             -- SetupVehicleBarHiding (UnitHasVehicleUI check inside)
         end
     else
-        -- artstyle=false: no vehicle art overlay, but still hide all action bars
-        -- during vehicle (same as default WoW behaviour)
-        VehicleModule.stateDrivers.vehicleExitVisibility = {frame = vehicleExitButton, state = 'visibility'}
-        RegisterStateDriver(vehicleExitButton, 'visibility', '[vehicleui] show; hide')
-        SetupVehicleBarHiding()
+        -- artstyle=false: no vehicle art overlay.
+        -- Main bar stays VISIBLE (it shows vehicle abilities via page switching).
+        -- Only secondary bars get hidden.
+        SetupVehicleBarHiding(false)  -- false = don't hide mainbar
+
+        -- Exit button visibility via events (NOT state driver).
+        -- We can't use RegisterStateDriver with 'visibility' here because [vehicleui]
+        -- doesn't fire for mount-type vehicles (multi-seat mounts), and the state driver
+        -- would force hide, overriding any manual Show() from our event handler.
+        -- Using events covers BOTH real vehicles and mount-type vehicles.
+        if not VehicleModule.hooks.exitButtonVehicleEvents then
+            local exitBtnEventFrame = CreateFrame('Frame')
+            exitBtnEventFrame:RegisterEvent('UNIT_ENTERED_VEHICLE')
+            exitBtnEventFrame:RegisterEvent('UNIT_EXITED_VEHICLE')
+            exitBtnEventFrame:SetScript('OnEvent', function(self, event, unit)
+                if unit ~= 'player' then return end
+                if InCombatLockdown() then return end
+                if not vehicleExitButton then return end
+                if event == 'UNIT_ENTERED_VEHICLE' then
+                    -- Show exit button for any vehicle type (real or mount)
+                    if CanExitVehicle() then
+                        vehicleExitButton:Show()
+                    end
+                elseif event == 'UNIT_EXITED_VEHICLE' then
+                    if not CanExitVehicle() then
+                        vehicleExitButton:Hide()
+                    end
+                end
+            end)
+            VehicleModule.frames.exitBtnEventFrame = exitBtnEventFrame
+            VehicleModule.hooks.exitButtonVehicleEvents = true
+        end
     end
 
     VehicleModule.applied = true
@@ -762,6 +818,13 @@ local function RestoreVehicleSystem()
         VehicleModule.frames.vehicleHider:SetAttribute('_onstate-vehiclehide', nil)
         VehicleModule.frames.vehicleHider:Hide()
         VehicleModule.frames.vehicleHider = nil
+    end
+
+    -- Clean up mount-type vehicle exit button event frame
+    if VehicleModule.frames.exitBtnEventFrame then
+        VehicleModule.frames.exitBtnEventFrame:UnregisterAllEvents()
+        VehicleModule.frames.exitBtnEventFrame:SetScript('OnEvent', nil)
+        VehicleModule.frames.exitBtnEventFrame = nil
     end
 
     -- Restore secondary bars via Blizzard's MultiActionBar_Update

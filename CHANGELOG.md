@@ -2,6 +2,13 @@
 
 > **⚠️ Experimental Branch** - All changes below still need further in-game testing and may contain bugs or incomplete features. If you run into any problems, feel free to let me know [here](https://github.com/NeticSoul/DragonUI/issues/141) - any feedback helps!
 
+## 📅 2026-02-17
+
+### Fixed
+- Converted critical bar textures (XP, Rep, ToT, Party, Castbar, NameBackground) from BLP to TGA to prevent white texture corruption when changing texture resolution in Video Settings
+- Vehicle module: main action bar no longer hides when entering a vehicle with Blizzard Art Style disabled — vehicle abilities now remain visible via page switching
+- Vehicle exit button now appears for multi-seat mount passengers (previously only showed for vehicles with full UI)
+
 ## 📅 2026-02-16
 
 ### Added
