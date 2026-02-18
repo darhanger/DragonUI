@@ -6,11 +6,11 @@
 
 ### Added
 - **Latency Indicator** - Color-coded StatusBar overlay on the HelpMicroButton showing latency (green < 200 ms, yellow 200–300 ms, red > 300 ms). Tooltip displays ms. Toggleable in DragonUI Micro Menu options
+- Party frames: separate vertical/horizontal padding options
 
 ### Fixed
 - Buff frame: buff/debuff positioning, second row alignment, and GM ticket interaction no longer break debuff layout
 - Buff toggle button: state now persists through aura updates and reloads
-- Party frames: separate vertical/horizontal padding options
 - Vehicle: mechanical vehicle button offset corrected
 - Stance bar: combat taint error on protected frame
 
