@@ -711,14 +711,20 @@ end
         end
     end
 
-    -- Helper: check if player is at max level (no XP bar needed)
-    local function IsPlayerMaxLevel()
-        return UnitLevel("player") >= (GetMaxPlayerLevel and GetMaxPlayerLevel() or 80)
+    -- Helper: check if XP bar should be visible.
+    -- Instead of hardcoding level caps (which break on custom servers),
+    -- we check UnitXPMax: if 0, the player can't gain XP (max level or
+    -- XP disabled).  This works on any server regardless of configured cap.
+    -- We don't rely on MainMenuExpBar:IsShown() because noop kills the
+    -- Blizzard events that manage that state.
+    local function IsXpBarVisible()
+        local maxXP = UnitXPMax("player")
+        return maxXP ~= nil and maxXP > 0
     end
 
     -- Helper: check if both XP and Rep bars are visible simultaneously
     local function AreBothXpRepBarsVisible()
-        if IsPlayerMaxLevel() then return false end -- No XP bar at max level
+        if not IsXpBarVisible() then return false end
         local hasWatchedFaction = GetWatchedFactionInfo() ~= nil
         return hasWatchedFaction
     end
@@ -950,8 +956,9 @@ end
         local sizeY = GetXpBarHeight("dragonflightui")
         local markSizeX = 14
 
-        local showXP = UnitLevel("player") < (GetMaxPlayerLevel and GetMaxPlayerLevel() or 80)
-        if not showXP then
+        -- Hide the custom XP bar when there's no XP to gain (max level,
+        -- XP disabled, etc.).  Uses UnitXPMax — works on any server.
+        if not IsXpBarVisible() then
             dfXpBar:Hide()
             return
         end
@@ -1229,6 +1236,16 @@ end
                 MainMenuExpBar.status:Hide()
             end
 
+            -- Explicitly set XP bar values: noop kills Blizzard's MainMenuBar
+            -- events, so MainMenuExpBar_Update() never runs automatically.
+            -- Without this the StatusBar fill is empty (0/0).
+            local currXP = UnitXP("player")
+            local maxXP = UnitXPMax("player")
+            if maxXP and maxXP > 0 then
+                MainMenuExpBar:SetMinMaxValues(math.min(0, currXP), maxXP)
+                MainMenuExpBar:SetValue(currXP)
+            end
+
             MainMenuExpBar:Show()
         end
 
@@ -1286,6 +1303,14 @@ end
             -- Hide the status overlay if it was created before (cleanup from old code)
             if ReputationWatchStatusBar.status then
                 ReputationWatchStatusBar.status:Hide()
+            end
+
+            -- Explicitly set rep bar values: noop kills Blizzard's MainMenuBar
+            -- events, so ReputationWatchBar_Update() never runs automatically.
+            local fName, fStanding, fMin, fMax, fValue = GetWatchedFactionInfo()
+            if fName and fMax and fMax > fMin then
+                ReputationWatchStatusBar:SetMinMaxValues(fMin, fMax)
+                ReputationWatchStatusBar:SetValue(fValue)
             end
 
             -- Rep text: handle visibility (always show vs hover only)
@@ -1490,15 +1515,15 @@ end
             end
         end
 
-        -- ========== MAX LEVEL: HIDE XP BAR ==========
-        -- When player is max level, XP bar is not needed.
-        -- Rep bar positioning is handled by ApplyActionBarPositions() which
-        -- respects the user's saved position from editor mode.
-        if addon.ActionBarFrames.xpbar and addon.ActionBarFrames.repbar then
-            if IsPlayerMaxLevel() then
-                addon.ActionBarFrames.xpbar:Hide()
-            else
+        -- ========== XP BAR VISIBILITY ==========
+        -- Show/hide the editor container based on whether the player can
+        -- gain XP (UnitXPMax > 0).  This works on any server regardless
+        -- of the configured level cap.
+        if addon.ActionBarFrames.xpbar then
+            if IsXpBarVisible() then
                 addon.ActionBarFrames.xpbar:Show()
+            else
+                addon.ActionBarFrames.xpbar:Hide()
             end
         end
     end
@@ -1750,8 +1775,8 @@ end
             name = "repbar",
             frame = addon.ActionBarFrames.repbar,
             config = widgets.repbar,
-            -- At max level, default to XP bar's slot (Y=7) instead of above it (Y=23)
-            default = {"BOTTOM", 0, IsPlayerMaxLevel() and 7 or 23}
+            -- When XP bar is hidden (max level, etc.), default to XP bar's slot (Y=7)
+            default = {"BOTTOM", 0, IsXpBarVisible() and 23 or 7}
         }}
 
         -- Frames that should receive the dual-bar vertical offset
@@ -1772,23 +1797,23 @@ end
                     extraY = dualBarOffset
                 end
 
-                -- At max level the XP bar is hidden; if the rep bar hasn't been
-                -- moved by the editor, drop it down to the XP bar's Y slot (7)
-                -- so it doesn't float above the action bar.
-                local maxLevelRepOverrideY = nil
-                if barData.name == "repbar" and IsPlayerMaxLevel() and IsWidgetAtDefaultPosition("repbar") then
-                    maxLevelRepOverrideY = 7  -- XP bar's default Y position
+                -- When XP bar is hidden (max level on any server, etc.),
+                -- drop the rep bar to the XP bar's Y slot so it doesn't
+                -- float above the action bar.
+                local xpHiddenRepOverrideY = nil
+                if barData.name == "repbar" and not IsXpBarVisible() and IsWidgetAtDefaultPosition("repbar") then
+                    xpHiddenRepOverrideY = 7  -- XP bar's default Y position
                 end
 
                 if barData.frame and barData.config and barData.config.anchor then
                     local config = barData.config
-                    local finalY = maxLevelRepOverrideY or config.posY
+                    local finalY = xpHiddenRepOverrideY or config.posY
                     barData.frame:ClearAllPoints()
                     barData.frame:SetPoint(config.anchor, config.posX, finalY + extraY)
                 elseif barData.frame then
                     -- Apply default position
                     local default = barData.default
-                    local finalY = maxLevelRepOverrideY or default[3]
+                    local finalY = xpHiddenRepOverrideY or default[3]
                     barData.frame:ClearAllPoints()
                     barData.frame:SetPoint(default[1], UIParent, default[1], default[2], finalY + extraY)
                 end
