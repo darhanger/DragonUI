@@ -15,6 +15,7 @@
 - Buff toggle button: state now persists through aura updates and reloads
 - Vehicle: mechanical vehicle button offset corrected
 - Stance bar: combat taint error on protected frame
+- XP/Rep bar: reputation bar position persists at max level; hover text and "always show text" mode now display correctly in RetailUI style; robust max level detection for custom servers
 
 ## 📅 2026-02-17
 

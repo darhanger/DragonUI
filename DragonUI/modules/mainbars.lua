@@ -738,6 +738,8 @@ end
         bottombarleft   = { posX = 0,  posY = 64  },
         bottombarright  = { posX = 0,  posY = 105 },
         petbar          = { posX = 1,  posY = 148 },
+        xpbar           = { posX = 1,  posY = 7   },
+        repbar          = { posX = 1,  posY = 23  },
     }
 
     -- Check if a widget is still at its default BOTTOM position (not moved by editor)
@@ -1238,6 +1240,10 @@ end
             ReputationWatchBar:SetFrameLevel(1)
             ReputationWatchStatusBar:SetAllPoints(ReputationWatchBar)
             ReputationWatchStatusBar:SetSize(barW, barH)
+            -- Enable mouse on the StatusBar so HIGHLIGHT draw layer and OnEnter work.
+            -- The StatusBar covers the full area via SetAllPoints, so it receives
+            -- mouse events instead of the parent ReputationWatchBar.
+            ReputationWatchStatusBar:EnableMouse(true)
             -- DON'T change rep StatusBar fill texture — leave Blizzard default
 
             -- Background: use named background texture per reference pattern
@@ -1290,6 +1296,13 @@ end
                 local alwaysText = cfg.always_show_text
                 if alwaysText then
                     ReputationWatchStatusBarText:SetDrawLayer("OVERLAY", 3)
+                    -- Set the text explicitly with faction name for "always show" mode
+                    local name, standing, minRep, maxRep, value = GetWatchedFactionInfo()
+                    if name then
+                        local current = value - minRep
+                        local maximum = maxRep - minRep
+                        ReputationWatchStatusBarText:SetText(format("%s: %d / %d", name, current, maximum))
+                    end
                 else
                     ReputationWatchStatusBarText:SetDrawLayer("HIGHLIGHT")
                 end
@@ -1477,25 +1490,14 @@ end
             end
         end
 
-        -- ========== MAX LEVEL: REPOSITION REP BAR TO XP BAR SLOT ==========
-        -- When player is max level, XP bar is hidden. Move rep bar editor frame
-        -- to the XP bar's position so it fills the gap. Uses DB config directly
-        -- instead of GetPoint() to avoid timing/ordering issues.
+        -- ========== MAX LEVEL: HIDE XP BAR ==========
+        -- When player is max level, XP bar is not needed.
+        -- Rep bar positioning is handled by ApplyActionBarPositions() which
+        -- respects the user's saved position from editor mode.
         if addon.ActionBarFrames.xpbar and addon.ActionBarFrames.repbar then
             if IsPlayerMaxLevel() then
-                -- Read the XP bar's saved position from the database
-                local widgets = addon.db and addon.db.profile and addon.db.profile.widgets
-                local xpConfig = widgets and widgets.xpbar
-                local xpAnchor = xpConfig and xpConfig.anchor or "BOTTOM"
-                local xpPosX = xpConfig and xpConfig.posX or 1
-                local xpPosY = xpConfig and xpConfig.posY or 7
-                -- Move rep bar editor frame to where the XP bar would be
-                addon.ActionBarFrames.repbar:ClearAllPoints()
-                addon.ActionBarFrames.repbar:SetPoint(xpAnchor, UIParent, xpAnchor, xpPosX, xpPosY)
-                -- Hide XP bar editor frame (nothing to show)
                 addon.ActionBarFrames.xpbar:Hide()
             else
-                -- Not max level: ensure XP bar editor frame is visible
                 addon.ActionBarFrames.xpbar:Show()
             end
         end
@@ -1747,8 +1749,8 @@ end
         {
             name = "repbar",
             frame = addon.ActionBarFrames.repbar,
-            -- At max level, use XP bar's config so rep bar takes XP bar's position
-            config = IsPlayerMaxLevel() and widgets.xpbar or widgets.repbar,
+            config = widgets.repbar,
+            -- At max level, default to XP bar's slot (Y=7) instead of above it (Y=23)
             default = {"BOTTOM", 0, IsPlayerMaxLevel() and 7 or 23}
         }}
 
@@ -1770,15 +1772,25 @@ end
                     extraY = dualBarOffset
                 end
 
+                -- At max level the XP bar is hidden; if the rep bar hasn't been
+                -- moved by the editor, drop it down to the XP bar's Y slot (7)
+                -- so it doesn't float above the action bar.
+                local maxLevelRepOverrideY = nil
+                if barData.name == "repbar" and IsPlayerMaxLevel() and IsWidgetAtDefaultPosition("repbar") then
+                    maxLevelRepOverrideY = 7  -- XP bar's default Y position
+                end
+
                 if barData.frame and barData.config and barData.config.anchor then
                     local config = barData.config
+                    local finalY = maxLevelRepOverrideY or config.posY
                     barData.frame:ClearAllPoints()
-                    barData.frame:SetPoint(config.anchor, config.posX, config.posY + extraY)
+                    barData.frame:SetPoint(config.anchor, config.posX, finalY + extraY)
                 elseif barData.frame then
                     -- Apply default position
                     local default = barData.default
+                    local finalY = maxLevelRepOverrideY or default[3]
                     barData.frame:ClearAllPoints()
-                    barData.frame:SetPoint(default[1], UIParent, default[1], default[2], default[3] + extraY)
+                    barData.frame:SetPoint(default[1], UIParent, default[1], default[2], finalY + extraY)
                 end
             end
         end
@@ -1988,6 +2000,37 @@ end
                 if cfg.always_show_text then
                     self:Show()
                 end
+            end)
+        end
+
+        -- Fix RetailUI rep bar hover text: ensure reputation values are shown on hover.
+        -- Hook OnEnter on the StatusBar (not the parent ReputationWatchBar) because
+        -- the StatusBar covers the full area via SetAllPoints and receives mouse events.
+        --
+        -- Text format is always "Faction Name: current / max".
+        -- When "always show text" is ON, hover does nothing (text is already visible).
+        -- When OFF, hover temporarily shows the text via OVERLAY draw layer.
+        if ReputationWatchStatusBar then
+            ReputationWatchStatusBar:HookScript("OnEnter", function(self)
+                if GetXpBarStyle() ~= "retailui" then return end
+                if not ReputationWatchStatusBarText then return end
+                local cfg = GetXpRepConfig() or {}
+                if cfg.always_show_text then return end -- already visible, no change needed
+                local name, standing, minRep, maxRep, value = GetWatchedFactionInfo()
+                if name then
+                    local current = value - minRep
+                    local maximum = maxRep - minRep
+                    ReputationWatchStatusBarText:SetText(format("%s: %d / %d", name, current, maximum))
+                    ReputationWatchStatusBarText:SetDrawLayer("OVERLAY", 3)
+                    ReputationWatchStatusBarText:Show()
+                end
+            end)
+            ReputationWatchStatusBar:HookScript("OnLeave", function(self)
+                if GetXpBarStyle() ~= "retailui" then return end
+                if not ReputationWatchStatusBarText then return end
+                local cfg = GetXpRepConfig() or {}
+                if cfg.always_show_text then return end -- always visible, no change needed
+                ReputationWatchStatusBarText:SetDrawLayer("HIGHLIGHT")
             end)
         end
 
