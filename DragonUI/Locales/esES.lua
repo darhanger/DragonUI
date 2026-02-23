@@ -2,13 +2,6 @@
 ================================================================================
 DragonUI - Spanish Locale (esES)
 ================================================================================
-Guidelines:
-- Use `true` for strings you haven't translated yet (falls back to English)
-- Keep format specifiers like %s, %d, %.1f intact
-- Keep slash commands untranslated (/dragonui, /dui, /rl)
-- Keep "DragonUI" as addon name untranslated
-- Keep color codes |cff...|r outside of L[] strings
-================================================================================
 ]]
 
 local L = LibStub("AceLocale-3.0"):NewLocale("DragonUI", "esES")

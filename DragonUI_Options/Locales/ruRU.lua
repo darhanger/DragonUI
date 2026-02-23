@@ -1,6 +1,16 @@
--- DragonUI_Options - Русский - Community Locale
--- Contribute translations at: https://github.com/YourRepo/DragonUI
+--[[
+ DragonUI_Options - Russian Locale (ruRU)
+ Community translation — Edit this file to contribute!
+
+ Guidelines:
+ - Use `true` for strings you haven't translated yet (falls back to English)
+ - Keep format specifiers like %s, %d, %.1f intact
+ - Keep "DragonUI" as addon name untranslated
+ - Keep color codes |cff...|r outside of L[] strings
+]]
+
 local L = LibStub("AceLocale-3.0"):NewLocale("DragonUI_Options", "ruRU")
 if not L then return end
--- Add translations below:
--- L["String Key"] = "Русский перевод"
+
+-- Example:
+-- L["General"] = "Общие"
