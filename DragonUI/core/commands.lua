@@ -328,6 +328,7 @@ local function SlashCommandHandler(input)
                 print("Invalid element number. Use /dui shadowtest to list.")
             end
         end
+
     else
         -- Unknown command
         addon:Print("Unknown command: " .. cmd)

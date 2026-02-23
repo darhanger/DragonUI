@@ -120,6 +120,12 @@ local defaults = {
             y = -255,
             show_header = true
         },
+        -- Loot Roll
+        lootroll = {
+            anchor = "BOTTOM",
+            x = 0,
+            y = 200,
+        },
         -- ACTIONBAR SETTINGS
         mainbars = {
             -- Per-bar layout (nested sub-tables with rows/columns/buttons_shown)

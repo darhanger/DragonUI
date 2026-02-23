@@ -377,6 +377,16 @@ function EditorMode:ResetAllPositions()
         addon.db.profile.additional.totem = addon:CopyTable(addon.defaults.profile.additional.totem)
     end
     
+    -- Reset quest tracker position
+    if addon.defaults and addon.defaults.profile and addon.defaults.profile.questtracker then
+        addon.db.profile.questtracker = addon:CopyTable(addon.defaults.profile.questtracker)
+    end
+    
+    -- Reset loot roll position
+    if addon.defaults and addon.defaults.profile and addon.defaults.profile.lootroll then
+        addon.db.profile.lootroll = addon:CopyTable(addon.defaults.profile.lootroll)
+    end
+    
     -- Use ReloadUI to fully apply the changes
     ReloadUI()
 end

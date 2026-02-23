@@ -440,10 +440,22 @@ function UF.SmallFrame.Create(opts)
         frames.healthBar:SetFrameStrata("LOW")
         frames.healthBar:GetStatusBarTexture():SetDrawLayer("ARTWORK", 1)
         frames.healthBar:GetStatusBarTexture():SetTexture(UF.TEXTURES.smallStyle.BAR_PREFIX .. "Health")
-        -- Prevent Blizzard from changing our color
+        -- Prevent Blizzard from changing our color (class-color aware)
         hooksecurefunc(frames.healthBar, "SetStatusBarColor", function(self)
             local texture = self:GetStatusBarTexture()
-            if texture then texture:SetVertexColor(1, 1, 1, 1) end
+            if not texture then return end
+            local config = GetConfig()
+            if config.classcolor and UnitIsPlayer(opts.unitToken) then
+                local _, class = UnitClass(opts.unitToken)
+                local color = class and RAID_CLASS_COLORS[class]
+                if color then
+                    texture:SetVertexColor(color.r, color.g, color.b)
+                else
+                    texture:SetVertexColor(1, 1, 1, 1)
+                end
+            else
+                texture:SetVertexColor(1, 1, 1, 1)
+            end
         end)
         frames.healthBar:GetStatusBarTexture():SetVertexColor(1, 1, 1, 1)
         frames.healthBar:SetSize(70.5, 10)

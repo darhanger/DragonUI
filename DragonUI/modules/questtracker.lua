@@ -34,10 +34,10 @@ end
 -- =============================================================================
 local function GetQuestTrackerConfig()
     if not (addon.db and addon.db.profile and addon.db.profile.questtracker) then
-        return -100, -37, "TOPRIGHT", true -- defaults with show_header = true
+        return -210, -255, "TOPRIGHT", true -- defaults matching database.lua
     end
     local config = addon.db.profile.questtracker
-    return config.x or -100, config.y or -37, config.anchor or "TOPRIGHT", config.show_header ~= false
+    return config.x or -210, config.y or -255, config.anchor or "TOPRIGHT", config.show_header ~= false
 end
 
 -- =============================================================================
@@ -63,28 +63,31 @@ end
 -- =============================================================================
 -- REPLACE BLIZZARD FRAME (WITH DELAY FIX)
 -- =============================================================================
+local watchFrameAttached = false
+
 local function ReplaceBlizzardFrame(frame)
     local watchFrame = WatchFrame
     if not watchFrame then return end
 
-    -- Hide default frame immediately to prevent visual glitches
-    watchFrame:SetAlpha(0)
-    watchFrame:EnableMouse(false)
-    
-    -- SIMPLIFIED: Only reposition, DO NOT modify internal structure
-    watchFrame:SetMovable(true)
-    watchFrame:SetUserPlaced(true)
-    watchFrame:ClearAllPoints()
-    watchFrame:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
-    
-    -- Show again after a short delay (critical fix for quest display)
-    ScheduleTimer(0.1, function()
-        watchFrame:SetAlpha(1)
-        -- Do NOT re-enable mouse on WatchFrame itself: child frames (quest lines,
-        -- collapse button) handle their own click events independently.
-        -- Enabling mouse on the parent WatchFrame blocks clicks on the game world
-        -- across its entire bounding box.
-    end)
+    -- First time: do the full alpha-hide dance to avoid visual glitch
+    if not watchFrameAttached then
+        watchFrame:SetAlpha(0)
+        watchFrame:EnableMouse(false)
+        watchFrame:SetMovable(true)
+        watchFrame:SetUserPlaced(false)
+        watchFrame:ClearAllPoints()
+        watchFrame:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
+        
+        ScheduleTimer(0.1, function()
+            watchFrame:SetAlpha(1)
+        end)
+        watchFrameAttached = true
+    else
+        -- Already attached — just silently reposition without alpha flicker
+        watchFrame:SetUserPlaced(false)
+        watchFrame:ClearAllPoints()
+        watchFrame:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
+    end
 end
 
 -- =============================================================================
@@ -153,7 +156,6 @@ local updateInProgress = false
 local lastUpdateTime = 0
 
 local function ForceUpdateQuestTracker()
-    if InCombatLockdown() then return end
     if updateInProgress then return end
     
     local now = GetTime()
@@ -188,8 +190,6 @@ end
 -- POSITION UPDATE
 -- =============================================================================
 local function UpdateQuestTrackerPosition()
-    if InCombatLockdown() then return end
-
     if QuestTrackerModule.questTrackerFrame then
         local x, y, anchor = GetQuestTrackerConfig()
         QuestTrackerModule.questTrackerFrame:ClearAllPoints()
@@ -201,7 +201,6 @@ end
 -- DRAGONUI REFRESH FUNCTION
 -- =============================================================================
 function addon.RefreshQuestTracker()
-    if InCombatLockdown() then return end
     if not IsModuleEnabled() then return end
     
     UpdateQuestTrackerPosition()
@@ -289,7 +288,6 @@ end
 -- =============================================================================
 function QuestTrackerModule:ApplySystem()
     if self.applied then return end
-    if InCombatLockdown() then return end
     
     if not self.initialized then
         self:Initialize()
@@ -307,7 +305,6 @@ end
 
 function QuestTrackerModule:RestoreSystem()
     if not self.applied then return end
-    if InCombatLockdown() then return end
     
     -- Restore original WatchFrame position
     if WatchFrame and self.originalWatchFramePoint then
@@ -372,15 +369,27 @@ local function InstallQuestTrackerHooks()
         if name == "watchFrameWidth" then
             ScheduleTimer(0.2, function()
                 if not IsModuleEnabled() then return end
-                -- Update wrapper frame width to match new WatchFrame width
-                if WatchFrame and QuestTrackerModule.questTrackerFrame then
-                    local newWidth = WatchFrame:GetWidth() or 230
-                    QuestTrackerModule.questTrackerFrame:SetWidth(newWidth)
-                end
                 ForceUpdateQuestTracker()
+                -- Reattach WatchFrame to our anchor (Blizzard repositions it on width change)
+                if QuestTrackerModule.questTrackerFrame then
+                    UpdateQuestTrackerPosition()
+                    ReplaceBlizzardFrame(QuestTrackerModule.questTrackerFrame)
+                end
             end)
         end
     end)
+
+    -- Hook UIParent_ManageFramePositions to prevent Blizzard from overriding our position
+    -- WatchFrame is NOT a secure frame, so we can reposition it freely during combat
+    if UIParent_ManageFramePositions then
+        hooksecurefunc("UIParent_ManageFramePositions", function()
+            if not IsModuleEnabled() then return end
+            if not QuestTrackerModule.initialized then return end
+            if QuestTrackerModule.questTrackerFrame then
+                ReplaceBlizzardFrame(QuestTrackerModule.questTrackerFrame)
+            end
+        end)
+    end
 
     hooksInstalled = true
 end
@@ -499,6 +508,15 @@ end
 local function OnPlayerEnteringWorld()
     -- Check if module is enabled
     if not IsModuleEnabled() then return end
+    
+    -- Reapply position on every world entry (login, reload, zone change)
+    -- This counters Blizzard's UIParent_ManageFramePositions overriding us
+    ScheduleTimer(0.3, function()
+        if QuestTrackerModule.initialized and QuestTrackerModule.questTrackerFrame then
+            UpdateQuestTrackerPosition()
+            ReplaceBlizzardFrame(QuestTrackerModule.questTrackerFrame)
+        end
+    end)
     
     -- Set up hooks after world load completion with delay (critical fix)
     if not hooksInstalled then

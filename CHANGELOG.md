@@ -2,10 +2,19 @@
 
 > **⚠️ Experimental Branch** - All changes below still need further in-game testing and may contain bugs or incomplete features. If you run into any problems, feel free to let me know [here](https://github.com/NeticSoul/DragonUI/issues/141) - any feedback helps!
 
+## 📅 2026-02-23
+
+### Added
+- Loot roll frames now moveable via editor mode
+
+### Fixed
+- Quest tracker position now persists correctly after reload, even during combat
+- ToT/ToF health bar no longer flickers with class colors enabled
+
 ## 📅 2026-02-22
 
 ### Fixed
-- Buff frame: weapon enchant buffs (rogue poisons) no longer overlap the toggle button
+- Buff frame: weapon enchant buffs no longer overlap the toggle button
 - Latency indicator: no longer blocks HelpMicroButton clicks
 - Tooltip: health bar now renders inside the tooltip border
 - Quest tracker: "Wide" watch frame option now applies without reload
