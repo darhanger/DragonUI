@@ -106,7 +106,7 @@ local function stancebar_update()
     -- Apply dual-bar offset when both XP and Rep bars are visible
     -- Only if stance bar is at its default position (not moved by user)
     -- IMPORTANT: Keep in sync with database.lua → additional.stance
-    local defaultYOffset = -60   -- database default for additional.stance.y_offset
+    local defaultYOffset = -58   -- database default for additional.stance.y_offset
     local defaultXPosition = -211  -- database default for additional.stance.x_position
     if addon.GetDualBarVerticalOffset
         and math.abs(x_position - defaultXPosition) <= 1

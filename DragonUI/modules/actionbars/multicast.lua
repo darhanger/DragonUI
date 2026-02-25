@@ -63,21 +63,38 @@ local function GetDynamicAnchor()
     -- MultiBarBottomLeft = "Bottom Left Action Bar" in Blizzard UI options
     
     if MultiBarBottomRight and MultiBarBottomRight:IsShown() then
-        return MultiBarBottomRight, 'BOTTOMLEFT', 'TOPLEFT', 0, 0
+        return MultiBarBottomRight, 'BOTTOMLEFT', 'TOPLEFT', 0, 2
     elseif MultiBarBottomLeft and MultiBarBottomLeft:IsShown() then
-        return MultiBarBottomLeft, 'BOTTOMLEFT', 'TOPLEFT', 0, 0
+        return MultiBarBottomLeft, 'BOTTOMLEFT', 'TOPLEFT', 0, 2
     else
         -- Anchor above MainMenuBar - offset left to align with action buttons
         -- MainMenuBar has page arrows on the left, so we need negative X offset
-        return MainMenuBar, 'BOTTOM', 'TOP', -216, 18
+        return MainMenuBar, 'BOTTOM', 'TOP', -216, 20
     end
 end
 
 -- =============================================================================
 -- POSITIONING FUNCTION (with dynamic anchor support)
 -- =============================================================================
+local pendingPositionUpdate = false
 local function UpdateTotemBarPosition()
     if not anchor then return end
+    
+    -- CRITICAL: Never modify frame points during combat (causes taint)
+    if InCombatLockdown() then
+        if not pendingPositionUpdate then
+            pendingPositionUpdate = true
+            local deferFrame = CreateFrame("Frame")
+            deferFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+            deferFrame:SetScript("OnEvent", function(self)
+                self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+                self:SetScript("OnEvent", nil)
+                pendingPositionUpdate = false
+                UpdateTotemBarPosition()
+            end)
+        end
+        return
+    end
     
     -- READ VALUES FROM DATABASE
     local totemConfig = GetTotemConfig()
@@ -106,6 +123,7 @@ end
 -- Scale the PARENT frame for size, then reposition buttons for custom spacing
 PositionTotemButtons = function()
     if not anchor or not totembar then return end
+    if InCombatLockdown() then return end
     if GetPlayerClass() ~= 'SHAMAN' then return end
     if not MultiCastActionBarFrame then return end
     
@@ -371,6 +389,8 @@ local function SetupShamanMulticast()
         
         -- When MultiBarBottomRight or MultiBarBottomLeft visibility changes, update anchor
         local function OnActionBarVisibilityChange()
+            -- CRITICAL: Skip during combat to avoid taint from secure state driver chain
+            if InCombatLockdown() then return end
             local totemConfig = GetTotemConfig()
             if not totemConfig.manual_position then
                 -- Only update if in auto-anchor mode

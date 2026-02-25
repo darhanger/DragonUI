@@ -37,10 +37,12 @@ end
 -- Bar sizing constants (used by CalculateFrameSize, ArrangeActionBarButtons, and grid layout)
 local ACTION_BUTTON_SIZE = 36  -- Default WoW 3.3.5a action button size
 local ACTION_BUTTON_SPACING = 7  -- Spacing between buttons (matches actionbutton_setup)
--- Symmetric padding: half on each side of the button grid.
--- The NineSlice BorderArt resizes with the frame (anchored TOPLEFT/BOTTOMRIGHT),
--- so buttons just need small equal margins.  4 = 2px left + 2px right.
+-- Horizontal padding: 2px each side, matching pretty_actionbar's (2,2) offset.
 local DEFAULT_PADDING = 4
+-- Vertical padding: 2px bottom + 4px top.  The extra top pixels compensate for
+-- the NineSlice BorderArt asymmetry (TOPLEFT y=4 vs BOTTOMRIGHT y=-7) so the
+-- button highlight/glow doesn't touch the upper border edge.
+local DEFAULT_HEIGHT_PADDING = 6
 
 -- ============================================================================
 -- GRID LAYOUT SYSTEM (ported from old contributor)
@@ -49,7 +51,7 @@ local DEFAULT_PADDING = 4
 -- Calculate frame size needed for a given row/column layout
 local function CalculateFrameSize(rows, columns, widthPadding, heightPadding)
     widthPadding = widthPadding or DEFAULT_PADDING
-    heightPadding = heightPadding or DEFAULT_PADDING
+    heightPadding = heightPadding or DEFAULT_HEIGHT_PADDING
     local width = (ACTION_BUTTON_SIZE * columns) + (ACTION_BUTTON_SPACING * (columns - 1)) + widthPadding
     local height = (ACTION_BUTTON_SIZE * rows) + (ACTION_BUTTON_SPACING * (rows - 1)) + heightPadding
     return width, height
@@ -70,11 +72,12 @@ function addon.ArrangeActionBarButtons(buttonPrefix, parentFrame, anchorFrame, r
     rows = math.max(1, rows or 1)
     columns = math.max(1, columns or 12)
     widthPadding = widthPadding or DEFAULT_PADDING
-    heightPadding = heightPadding or DEFAULT_PADDING
+    heightPadding = heightPadding or DEFAULT_HEIGHT_PADDING
 
-    -- Symmetric: half padding on each side
+    -- Horizontal: symmetric (2px each side)
+    -- Vertical: asymmetric — 2px bottom, rest on top (compensates NineSlice border overshoot)
     local leftPad = math.floor(widthPadding / 2)
-    local bottomPad = math.floor(heightPadding / 2)
+    local bottomPad = 2
 
     for index = 1, NUM_ACTIONBAR_BUTTONS do
         local button = _G[buttonPrefix .. index]
@@ -755,7 +758,7 @@ end
         mainbar         = { posX = 0,    posY = 22  },
         bottombarleft   = { posX = 0,    posY = 64  },
         bottombarright  = { posX = 0,    posY = 102 },
-        petbar          = { posX = 1,    posY = 141 },
+        petbar          = { posX = 1,    posY = 143 },
         vehicleExit     = { posX = -251, posY = 145 },
         xpbar           = { posX = 1,    posY = 7   },
         repbar          = { posX = 1,    posY = 23  },

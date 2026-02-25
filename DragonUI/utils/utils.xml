@@ -39,7 +39,7 @@
 				</Attributes>
 				<Anchors>
 					<Anchor point="TOPLEFT" relativePoint="TOPLEFT" x="-4" y="4"/>
-					<Anchor point="BOTTOMRIGHT" relativePoint="BOTTOMRIGHT" x="7" y="-7"/>
+				<Anchor point="BOTTOMRIGHT" relativePoint="BOTTOMRIGHT" x="8" y="-7"/>
 				</Anchors>
 			</Frame>
 			<Frame parentKey="Background" inherits="NineSlicePanelUiTemplate" frameLevel="1" setAllPoints="true">

@@ -57,7 +57,9 @@ local ADDON_ORBIT_RADIUS = 15
 local WHITE_LIST = {'MiniMapBattlefieldFrame', 'MiniMapTrackingButton', 'MiniMapMailFrame', 'HelpOpenTicketButton',
                     'GatherMatePin', 'HandyNotesPin', 'TimeManagerClockButton', 'Archy', 'GatherNote', 'MinimMap',
                     'Spy_MapNoteList_mini', 'ZGVMarker', 'poiWorldMapPOIFrame', 'WorldMapPOIFrame', 'QuestMapPOI',
-                    'GameTimeFrame'}
+                    'GameTimeFrame',
+                    -- Questie minimap POI icons (quest markers inside the minimap)
+                    'QuestieFrame', 'Questie_MiniMapNote'}
 
 local function IsFrameWhitelisted(frameName)
     if not frameName then
@@ -376,6 +378,59 @@ local function ReplaceBlizzardFrame(frame)
     local blipTexture = useNewBlipStyle and "Interface\\AddOns\\DragonUI\\assets\\objecticons" or
                             'Interface\\Minimap\\ObjectIcons'
     minimapFrame:SetBlipTexture(blipTexture)
+
+    -- =====================================================================
+    -- BLIP TEXTURE PROTECTION: Override SetBlipTexture with a filter wrapper.
+    -- Uses method override (pre-hook) instead of hooksecurefunc (post-hook)
+    -- to intercept BEFORE the texture changes, eliminating any flicker from
+    -- addons like Carbonite that call SetBlipTexture on a repeating timer.
+    -- =====================================================================
+    if not MinimapModule.hooks.SetBlipTexture then
+        -- Public function: re-applies all DragonUI minimap textures
+        -- Called by compatibility module after conflicting addons load
+        MinimapModule.ReapplyMinimapTextures = function()
+            local useNew = addon.db and addon.db.profile and addon.db.profile.minimap and
+                               addon.db.profile.minimap.blip_skin
+            if useNew == nil then useNew = true end
+
+            local tex = useNew and "Interface\\AddOns\\DragonUI\\assets\\objecticons" or
+                            'Interface\\Minimap\\ObjectIcons'
+
+            MinimapModule._settingBlipTexture = true
+            Minimap:SetBlipTexture(tex)
+            MinimapModule._settingBlipTexture = false
+
+            -- Re-apply POI textures and mask (Carbonite resets mask on init)
+            Minimap:SetStaticPOIArrowTexture("Interface\\AddOns\\DragonUI\\assets\\poi-static")
+            Minimap:SetCorpsePOIArrowTexture("Interface\\AddOns\\DragonUI\\assets\\poi-corpse")
+            Minimap:SetPOIArrowTexture("Interface\\AddOns\\DragonUI\\assets\\poi-guard")
+            Minimap:SetPlayerTexture("Interface\\AddOns\\DragonUI\\assets\\poi-player")
+            Minimap:SetMaskTexture("Interface\\AddOns\\DragonUI\\assets\\uiminimapmask.tga")
+        end
+
+        -- Override SetBlipTexture: blocks external calls when our custom blip skin is active,
+        -- passes through when using classic style or module is disabled
+        local origSetBlipTexture = Minimap.SetBlipTexture
+        Minimap.SetBlipTexture = function(self, texture)
+            -- DragonUI's own calls always pass through
+            if MinimapModule._settingBlipTexture then
+                return origSetBlipTexture(self, texture)
+            end
+            -- If module is active with custom blip skin, block external changes
+            if IsModuleEnabled() and MinimapModule.applied then
+                local useNew = addon.db and addon.db.profile and addon.db.profile.minimap
+                                   and addon.db.profile.minimap.blip_skin
+                if useNew then
+                    return -- Block: keep our custom texture
+                end
+            end
+            -- Module disabled or classic blip style: let it through
+            return origSetBlipTexture(self, texture)
+        end
+        MinimapModule.hooks.SetBlipTexture = true
+        MinimapModule._origSetBlipTexture = origSetBlipTexture
+    end
+
     local MINIMAP_POINTS = {}
     for i = 1, Minimap:GetNumPoints() do
         MINIMAP_POINTS[i] = {Minimap:GetPoint(i)}
@@ -805,19 +860,63 @@ end
 
 --  BORDER REMOVAL: Apply skin to icons (SIMPLE like oldminimapcore.lua)
 
+-- Collect all minimap-related buttons from multiple parent frames
+-- Some addons (e.g. Carbonite) parent buttons to MinimapBackdrop instead of Minimap
+-- NOTE: Do NOT scan MinimapCluster — it contains Blizzard UI buttons (zone text,
+-- zoom buttons, clock, etc.) that should never be skinned as addon icons.
+local BLIZZARD_MINIMAP_BUTTONS = {
+    ['MinimapZoneTextButton'] = true,
+    ['MinimapZoomIn'] = true,
+    ['MinimapZoomOut'] = true,
+    ['MiniMapWorldMapButton'] = true,
+    ['MinimapBackdrop'] = true,
+    ['MiniMapBattlefieldFrame'] = true,
+    ['MiniMapTrackingButton'] = true,
+    ['MiniMapMailFrame'] = true,
+    ['GameTimeFrame'] = true,
+    ['TimeManagerClockButton'] = true,
+    ['MiniMapInstanceDifficulty'] = true,
+}
+
+local function GetAllMinimapButtons()
+    local buttons = {}
+    local seen = {}
+    
+    -- Helper to scan children of a frame for buttons
+    local function ScanFrame(parentFrame)
+        if not parentFrame then return end
+        for i = 1, parentFrame:GetNumChildren() do
+            local child = select(i, parentFrame:GetChildren())
+            if child and child:GetObjectType() == "Button" and not seen[child] then
+                -- Skip known Blizzard minimap buttons to avoid stray borders
+                local childName = child:GetName()
+                if not (childName and BLIZZARD_MINIMAP_BUTTONS[childName]) then
+                    seen[child] = true
+                    table.insert(buttons, child)
+                end
+            end
+        end
+    end
+    
+    -- Scan Minimap and MinimapBackdrop only
+    -- MinimapCluster is excluded: it contains Blizzard frames (zone text, zoom, etc.)
+    ScanFrame(Minimap)
+    ScanFrame(MinimapBackdrop)
+    
+    return buttons
+end
+
 -- Function to apply skins to all minimap buttons (exposed for re-application on addon load)
 local function ApplySkinsToAllMinimapButtons()
     local skinEnabled = addon.db and addon.db.profile and addon.db.profile.minimap and
                             addon.db.profile.minimap.addon_button_skin
     if not skinEnabled then return end
 
-    for i = 1, Minimap:GetNumChildren() do
-        local child = select(i, Minimap:GetChildren())
-        if child and child:GetObjectType() == "Button" then
-            -- Apply to unskinned buttons OR re-activate previously unskinned ones
-            if not child.DragonUI_Skinned or not child.DragonUI_SkinActive then
-                ApplyAddonIconSkin(child)
-            end
+    local buttons = GetAllMinimapButtons()
+    for _, child in ipairs(buttons) do
+        -- Apply to unskinned buttons OR re-activate previously unskinned ones
+        if not child.DragonUI_Skinned or not child.DragonUI_SkinActive then
+            ApplyAddonIconSkin(child)
         end
     end
 end
@@ -825,9 +924,9 @@ end
 -- Update fade alpha on all addon buttons (works with or without skin)
 local function UpdateAddonButtonFade()
     local fadeEnabled = IsFadeEnabled()
-    for i = 1, Minimap:GetNumChildren() do
-        local child = select(i, Minimap:GetChildren())
-        if child and child:GetObjectType() == "Button" and not IsFrameWhitelisted(child:GetName()) then
+    local buttons = GetAllMinimapButtons()
+    for _, child in ipairs(buttons) do
+        if not IsFrameWhitelisted(child:GetName()) then
             -- Hook fade scripts once if not already hooked
             if not child.DragonUI_FadeHooked then
                 child.DragonUI_FadeHooked = true
@@ -844,9 +943,9 @@ MinimapModule.ApplySkinsToAllMinimapButtons = ApplySkinsToAllMinimapButtons
 
 -- Unskin all addon buttons (toggle back to original Blizzard appearance)
 local function UnskinAllMinimapButtons()
-    for i = 1, Minimap:GetNumChildren() do
-        local child = select(i, Minimap:GetChildren())
-        if child and child.DragonUI_Skinned then
+    local buttons = GetAllMinimapButtons()
+    for _, child in ipairs(buttons) do
+        if child.DragonUI_Skinned then
             UnskinAddonButton(child)
         end
     end
@@ -871,10 +970,41 @@ local function RemoveAllMinimapIconBorders()
     ApplySkinsToAllMinimapButtons()
 end
 
--- Create frame to re-apply skins when new addons load
+-- Create frame to re-apply skins when new addons load or after reload
 local minimapButtonSkinFrame = CreateFrame("Frame")
 minimapButtonSkinFrame:RegisterEvent("ADDON_LOADED")
+minimapButtonSkinFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 minimapButtonSkinFrame:SetScript("OnEvent", function(self, event, addonName)
+    if event == "PLAYER_ENTERING_WORLD" then
+        -- Watch for new minimap children for a few seconds after login/reload.
+        -- Instead of fixed delays, we detect when the child count changes (cheap C call)
+        -- and re-scan immediately — skins buttons within 0.3s of creation.
+        if addon.db and addon.db.profile and addon.db.profile.minimap and addon.db.profile.minimap.addon_button_skin then
+            local elapsed = 0
+            local checkInterval = 0
+            local lastChildCount = 0
+            self:SetScript("OnUpdate", function(self, dt)
+                elapsed = elapsed + dt
+                if elapsed > 6.0 then
+                    self:SetScript("OnUpdate", nil)
+                    return
+                end
+                checkInterval = checkInterval + dt
+                if checkInterval >= 0.3 then
+                    checkInterval = 0
+                    local count = Minimap:GetNumChildren()
+                        + (MinimapBackdrop and MinimapBackdrop:GetNumChildren() or 0)
+                    if count ~= lastChildCount then
+                        lastChildCount = count
+                        ApplySkinsToAllMinimapButtons()
+                    end
+                end
+            end)
+        end
+        return
+    end
+
+    -- ADDON_LOADED handling
     -- Skip DragonUI's own loading to avoid double-processing
     if addonName == "DragonUI" then return end
     
@@ -1291,6 +1421,13 @@ function MinimapModule:RestoreMinimapSystem()
         Minimap:SetMaskTexture(self.originalMask)
     end
 
+    -- Restore original Blizzard blip texture
+    if Minimap then
+        MinimapModule._settingBlipTexture = true
+        Minimap:SetBlipTexture('Interface\\Minimap\\ObjectIcons')
+        MinimapModule._settingBlipTexture = false
+    end
+
     -- Cleanup hooks (tracked for debugging)
     CleanupSecureHooks()
 
@@ -1424,7 +1561,10 @@ function MinimapModule:UpdateSettings()
 
         local blipTexture = useNewBlipStyle and "Interface\\AddOns\\DragonUI\\assets\\objecticons" or
                                 'Interface\\Minimap\\ObjectIcons'
+        -- Use re-entrancy guard to avoid triggering our own SetBlipTexture hook
+        MinimapModule._settingBlipTexture = true
         Minimap:SetBlipTexture(blipTexture)
+        MinimapModule._settingBlipTexture = false
 
         local playerArrowSize = addon.db.profile.minimap.player_arrow_size
         if playerArrowSize then
@@ -1651,9 +1791,9 @@ end
 
 --  NEW FUNCTION: Clean skinning from all buttons
 local function CleanAllMinimapButtons()
-    for i = 1, Minimap:GetNumChildren() do
-        local child = select(i, Minimap:GetChildren())
-        if child and child:GetObjectType() == "Button" and child.circle then
+    local buttons = GetAllMinimapButtons()
+    for _, child in ipairs(buttons) do
+        if child.circle then
             -- Clean the border from oldminimapcore.lua style
             child.circle:Hide()
             child.circle = nil
@@ -1663,15 +1803,11 @@ end
 
 --  FUNCTION FOR DEBUGGING
 function addon:DebugMinimapButtons()
-
-    for i = 1, Minimap:GetNumChildren() do
-        local child = select(i, Minimap:GetChildren())
-        if child and child:GetObjectType() == "Button" then
-            local name = child:GetName() or "Unnamed"
-            local hasBorder = child.circle and "YES" or "NO"
-            local width, height = child:GetSize()
-
-        end
+    local buttons = GetAllMinimapButtons()
+    for _, child in ipairs(buttons) do
+        local name = child:GetName() or "Unnamed"
+        local hasBorder = child.circle and "YES" or "NO"
+        local width, height = child:GetSize()
     end
 end
 

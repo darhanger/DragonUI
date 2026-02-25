@@ -44,7 +44,7 @@ local defaults = {
             petbar = {
                 anchor = "BOTTOM",
                 posX = 1,
-                posY = 141
+                posY = 143
             },
             playerCastbar = {
                 anchor = "BOTTOM",
@@ -293,7 +293,7 @@ local defaults = {
             spacing = 6,
             stance = {
                 x_position = -211,
-                y_offset = -60, -- Additional Y offset for fine-tuning position
+                y_offset = -58, -- Additional Y offset for fine-tuning position
                 button_size = 31, -- Size of stance buttons (native Blizzard size)
                 button_spacing = 6 -- Spacing between stance buttons
             },
@@ -308,7 +308,7 @@ local defaults = {
             },
             totem = {
                 x_position = 0,
-                y_offset = 0, -- Additional Y offset for fine-tuning position
+                y_offset = 2, -- Additional Y offset for fine-tuning position
                 button_size = 34, -- Size of totem buttons (native Blizzard size)
                 button_spacing = 4, -- Spacing between totem buttons
                 manual_position = false -- When true, uses x_position/y_offset; when false, auto-anchors to action bars

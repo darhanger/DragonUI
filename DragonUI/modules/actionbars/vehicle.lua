@@ -204,7 +204,15 @@ local function CreateVehicleExitButton()
                 showTest = function()
                     editorOverlay:SetSize(btnsize + 10, btnsize + 10)
                     editorOverlay:ClearAllPoints()
-                    editorOverlay:SetPoint('CENTER', vehicleExitButton, 'CENTER', 0, 0)
+                    -- Copy vehicleExitButton's UIParent-relative position so that
+                    -- SaveUIFramePosition records correct coordinates instead of
+                    -- (0,0) relative to the button itself (which caused center drift).
+                    local point, _, relPoint, x, y = vehicleExitButton:GetPoint(1)
+                    if point then
+                        editorOverlay:SetPoint(point, UIParent, relPoint or point, x or 0, y or 0)
+                    else
+                        editorOverlay:SetPoint('CENTER', vehicleExitButton, 'CENTER', 0, 0)
+                    end
                     editorOverlay:Show()
                     if addon.ShowNineslice then
                         addon.SetNinesliceState(editorOverlay, false)

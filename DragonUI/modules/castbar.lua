@@ -239,14 +239,30 @@ local function ShowBlizzardCastbar(unitType)
     end
     
     frame:SetAlpha(1)
-    -- Phase 3A: Restore visibility — frame was hidden by HideBlizzardCastbar
-    frame:Show()
     
     if unitType == "target" then
         -- Phase 3A: Restore original size (was collapsed to 1x1 in HideBlizzardCastbar)
         frame:SetSize(150, 10)
         frame:ClearAllPoints()
         frame:SetPoint("TOPLEFT", TargetFrame, "BOTTOMLEFT", 25, -5)
+    end
+    
+    -- Phase 3A: Only show frame if there's an active cast/channel
+    -- Do NOT call frame:Show() unconditionally — that causes a ghost castbar
+    -- when the module is disabled and no cast is in progress.
+    -- Blizzard's own event system will show the frame when a cast begins.
+    if unitType == "player" then
+        if UnitCastingInfo("player") or UnitChannelInfo("player") then
+            frame:Show()
+        end
+    elseif unitType == "target" then
+        if UnitCastingInfo("target") or UnitChannelInfo("target") then
+            frame:Show()
+        end
+    elseif unitType == "focus" then
+        if UnitCastingInfo("focus") or UnitChannelInfo("focus") then
+            frame:Show()
+        end
     end
 end
 
@@ -1634,6 +1650,7 @@ local function InitializeCastbarForEditor()
         frame = CastbarModule.anchor,
         configPath = {"widgets", "playerCastbar"},
         hasTarget = ShouldPlayerCastbarBeVisible,
+        editorVisible = ShouldPlayerCastbarBeVisible,
         showTest = ShowPlayerCastbarTest,
         hideTest = HidePlayerCastbarTest,
         onHide = function()

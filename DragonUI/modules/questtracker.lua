@@ -65,6 +65,12 @@ end
 -- =============================================================================
 local watchFrameAttached = false
 
+-- Height for quest display — must be set explicitly because SetUserPlaced(true)
+-- prevents Blizzard's UIParent_ManageFramePositions from managing WatchFrame size.
+-- Without this, WatchFrame_Update calculates maxHeight from tiny/stale bounds
+-- and only shows 1-2 quests.
+local QUESTTRACKER_MAX_HEIGHT = 700
+
 local function ReplaceBlizzardFrame(frame)
     local watchFrame = WatchFrame
     if not watchFrame then return end
@@ -74,19 +80,27 @@ local function ReplaceBlizzardFrame(frame)
         watchFrame:SetAlpha(0)
         watchFrame:EnableMouse(false)
         watchFrame:SetMovable(true)
-        watchFrame:SetUserPlaced(false)
+        watchFrame:SetUserPlaced(true)
         watchFrame:ClearAllPoints()
         watchFrame:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
-        
+        watchFrame:SetHeight(QUESTTRACKER_MAX_HEIGHT)
+
+        -- Reposition WatchFrameLines below header (RetailUI pattern)
+        -- This ensures quest lines render below the header background
+        if WatchFrameLines and WatchFrameHeader then
+            WatchFrameLines:SetPoint("TOPLEFT", WatchFrameHeader, 'BOTTOMLEFT', 0, -15)
+        end
+
         ScheduleTimer(0.1, function()
             watchFrame:SetAlpha(1)
         end)
         watchFrameAttached = true
     else
         -- Already attached — just silently reposition without alpha flicker
-        watchFrame:SetUserPlaced(false)
+        watchFrame:SetUserPlaced(true)
         watchFrame:ClearAllPoints()
         watchFrame:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
+        watchFrame:SetHeight(QUESTTRACKER_MAX_HEIGHT)
     end
 end
 
@@ -164,24 +178,23 @@ local function ForceUpdateQuestTracker()
     updateInProgress = true
     lastUpdateTime = now
     
-    -- Restore collapse/expand state before updating
-    if WatchFrame and WatchFrame.userCollapsed then
-        if WatchFrame_Collapse then
-            WatchFrame_Collapse(WatchFrame)
-        end
-    elseif WatchFrame then
-        if WatchFrame_Expand then
-            WatchFrame_Expand(WatchFrame)
-        end
+    -- Ensure WatchFrame has sufficient height BEFORE Blizzard's update runs.
+    -- This is critical: WatchFrame_Update calculates maxHeight from GetTop()-GetBottom(),
+    -- and without explicit height, the frame shrinks to content → circular limitation.
+    if WatchFrame then
+        WatchFrame:SetHeight(QUESTTRACKER_MAX_HEIGHT)
     end
     
-    -- Force Blizzard tracker update
+    -- Trigger Blizzard's native quest tracker update
+    -- Our WatchFrame_Update hook handles re-assertion and styling
     if WatchFrame_Update then
-        pcall(WatchFrame_Update)
+        pcall(WatchFrame_Update, WatchFrame)
     end
     
-    -- Then apply our styling
-    pcall(ApplyQuestTrackerStyling)
+    -- Fallback styling if hooks not yet installed
+    if not hooksInstalled then
+        pcall(ApplyQuestTrackerStyling)
+    end
     
     updateInProgress = false
 end
@@ -314,6 +327,7 @@ function QuestTrackerModule:RestoreSystem()
         WatchFrame:SetPoint(p[1], p[2] or UIParent, p[3], p[4], p[5])
         WatchFrame:SetAlpha(1)
         WatchFrame:EnableMouse(true)
+        WatchFrame:SetUserPlaced(false)
     end
     
     -- Hide our frame's background
@@ -333,12 +347,64 @@ local function InstallQuestTrackerHooks()
     -- Check that WatchFrame exists and is fully initialized
     if not WatchFrame or hooksInstalled then return end
 
-    -- Hook WatchFrame_Collapse for width adjustment
+    -- Hook WatchFrame_Collapse for width adjustment (prevents actual collapse)
     if WatchFrame_Collapse then
         hooksecurefunc('WatchFrame_Collapse', function(self)
             if self then
                 self:SetWidth(WATCHFRAME_EXPANDEDWIDTH or 204)
             end
+        end)
+    end
+
+    -- Hook WatchFrame_Update to fix quest display height and apply styling.
+    -- When Blizzard calls WatchFrame_Update internally (from events), it may use
+    -- a stale/small maxHeight. This post-hook:
+    -- 1) Re-asserts WatchFrame height to prevent shrinking
+    -- 2) Re-asserts WatchFrameLines position below header
+    -- 3) Re-runs OBJECTIVEHANDLERS with our explicit maxHeight so all quests show
+    -- 4) Applies DragonUI header styling
+    local watchFrameHookActive = false
+    if WatchFrame_Update then
+        hooksecurefunc('WatchFrame_Update', function()
+            if watchFrameHookActive then return end  -- Prevent re-entrancy
+            if not IsModuleEnabled() then return end
+            if not QuestTrackerModule.initialized then return end
+
+            local watchFrame = WatchFrame
+            if not watchFrame then return end
+
+            local lineFrame = WatchFrameLines
+            if not lineFrame then return end
+
+            -- Re-assert explicit height (Blizzard may have shrunk it to content)
+            watchFrame:SetHeight(QUESTTRACKER_MAX_HEIGHT)
+
+            -- Re-assert WatchFrameLines position (Blizzard may reset it)
+            if WatchFrameHeader then
+                WatchFrameLines:SetPoint("TOPLEFT", WatchFrameHeader, 'BOTTOMLEFT', 0, -15)
+            end
+
+            watchFrameHookActive = true
+
+            -- Use our explicit height, NOT GetTop()-GetBottom() which can be stale
+            local maxHeight = QUESTTRACKER_MAX_HEIGHT
+            local totalOffset = WATCHFRAME_INITIAL_OFFSET or 0
+            local maxFrameWidth = WATCHFRAME_MAXLINEWIDTH or 192
+            local totalObjectives = 0
+
+            if WATCHFRAME_OBJECTIVEHANDLERS then
+                for i = 1, #WATCHFRAME_OBJECTIVEHANDLERS do
+                    local pixelsUsed, maxLineWidth, numObjectives = WATCHFRAME_OBJECTIVEHANDLERS[i](lineFrame, totalOffset, maxHeight, maxFrameWidth)
+                    if numObjectives then
+                        totalObjectives = totalObjectives + numObjectives
+                    end
+                end
+            end
+
+            -- Apply background styling after handler re-run
+            pcall(ApplyQuestTrackerStyling)
+
+            watchFrameHookActive = false
         end)
     end
 
@@ -388,6 +454,10 @@ local function InstallQuestTrackerHooks()
             if not QuestTrackerModule.initialized then return end
             if QuestTrackerModule.questTrackerFrame then
                 ReplaceBlizzardFrame(QuestTrackerModule.questTrackerFrame)
+            end
+            -- Re-assert height in case Blizzard touched it
+            if WatchFrame then
+                WatchFrame:SetHeight(QUESTTRACKER_MAX_HEIGHT)
             end
         end)
     end

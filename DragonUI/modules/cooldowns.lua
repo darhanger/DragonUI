@@ -65,6 +65,15 @@ function addon.cooldownMixin:set_cooldown(start, duration)
         return
     end
 
+    -- Skip redundant calls with identical cooldown values.
+    -- This prevents unnecessary text updates (and visual flicker) when
+    -- e.g. TargetFrame_UpdateAuras re-fires SetTimer with the same values.
+    if self._dui_cdStart == start and self._dui_cdDur == duration then
+        return
+    end
+    self._dui_cdStart = start
+    self._dui_cdDur   = duration
+
     local moduleDb = addon.db.profile.modules.cooldowns
     local db = addon.db.profile.buttons.cooldown
     if not db then
@@ -177,21 +186,61 @@ function addon.InitializeCooldowns()
 
     end
 
-    -- Hook CooldownFrame_SetTimer to prevent redundant calls that reset
-    -- the sweep animation.  When targeting self, TargetFrame_UpdateAuras
-    -- re-calls SetTimer with identical start/duration for every buff,
-    -- causing the sweep to visually "flash" back to 0.  Caching the
-    -- previous values and skipping identical calls eliminates this.
-    if _G.CooldownFrame_SetTimer then
-        local original = _G.CooldownFrame_SetTimer
-        _G.CooldownFrame_SetTimer = function(self, start, duration, enable, ...)
+    -- =========================================================================
+    -- BUFF/DEBUFF SWEEP ANIMATION PROTECTION (taint-safe)
+    -- =========================================================================
+    -- When TargetFrame_UpdateAuras runs (e.g. on target change, UNIT_AURA),
+    -- it calls CooldownFrame_SetTimer → :SetCooldown() for EVERY buff/debuff,
+    -- even when start/duration haven't changed.  Each :SetCooldown() resets
+    -- the sweep animation to 12-o'clock, causing a visible flash.
+    --
+    -- We CANNOT replace the global CooldownFrame_SetTimer (causes taint on
+    -- secure action button code paths).  Instead we replace :SetCooldown()
+    -- on individual buff/debuff cooldown frame INSTANCES.  These frames are
+    -- NOT secure, so the replacement doesn't propagate taint to action bars.
+    -- =========================================================================
+    local MAX_TARGET_BUFFS  = 32
+    local MAX_TARGET_DEBUFFS = 16
+
+    local function ProtectCooldownSweep(cd)
+        if not cd or cd._dui_sweepProtected then return end
+        local origSetCooldown = cd.SetCooldown
+        if not origSetCooldown then return end
+
+        cd.SetCooldown = function(self, start, duration, ...)
             if self._dui_cdStart == start and self._dui_cdDur == duration then
-                return -- skip redundant call → no sweep reset
+                return  -- identical values → skip → sweep continues smoothly
             end
             self._dui_cdStart = start
             self._dui_cdDur   = duration
-            return original(self, start, duration, enable, ...)
+            return origSetCooldown(self, start, duration, ...)
+        end
+        cd._dui_sweepProtected = true
+    end
+
+    -- Scan and protect all existing aura cooldown frames for a given parent
+    local function ProtectAuraCooldownsForFrame(frameName)
+        for i = 1, MAX_TARGET_BUFFS do
+            ProtectCooldownSweep(_G[frameName .. "Buff" .. i .. "Cooldown"])
+        end
+        for i = 1, MAX_TARGET_DEBUFFS do
+            ProtectCooldownSweep(_G[frameName .. "Debuff" .. i .. "Cooldown"])
         end
     end
+
+    -- Hook TargetFrame_UpdateAuras: Blizzard may create buff frames lazily,
+    -- so we re-scan after each call to catch any new cooldown frames.
+    if _G.TargetFrame_UpdateAuras then
+        hooksecurefunc("TargetFrame_UpdateAuras", function(self)
+            local name = self and self.GetName and self:GetName()
+            if name then
+                ProtectAuraCooldownsForFrame(name)
+            end
+        end)
+    end
+
+    -- Also scan immediately for any frames that already exist at init time
+    ProtectAuraCooldownsForFrame("TargetFrame")
+    ProtectAuraCooldownsForFrame("FocusFrame")
 end
 

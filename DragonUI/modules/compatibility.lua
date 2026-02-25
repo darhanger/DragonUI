@@ -239,6 +239,27 @@ end
 -- ADDON REGISTRY
 -- ============================================================================
 
+-- Behavior: Carbonite minimap texture re-application
+-- Carbonite resets minimap mask via SetMaskTexture during its ADDON_LOADED init,
+-- and starts a repeating timer that calls SetBlipTexture every ~0.2s (node glow).
+-- The SetBlipTexture override in minimap.lua blocks the timer calls, but we still
+-- need to re-apply mask and POI textures after Carbonite's one-time init.
+behaviors.CarboniteMinimapFix = function(addonName, addonInfo)
+    -- Re-apply minimap textures after Carbonite finishes its init
+    local elapsed = 0
+    local reapplyFrame = CreateFrame("Frame")
+    reapplyFrame:SetScript("OnUpdate", function(self, dt)
+        elapsed = elapsed + dt
+        if elapsed > 1.5 then
+            if addon.MinimapModule and addon.MinimapModule.applied
+                and addon:IsModuleEnabled("minimap") then
+                addon.MinimapModule.ReapplyMinimapTextures()
+            end
+            self:SetScript("OnUpdate", nil)
+        end
+    end)
+end
+
 local ADDON_REGISTRY = {
     ["unitframelayers"] = {
         name = "UnitFrameLayers",
@@ -252,6 +273,12 @@ local ADDON_REGISTRY = {
         behavior = behaviors.CompactRaidFrameFix,
         checkOnce = true,
         listenToRaidEvents = true -- Enable raid event monitoring
+    },
+    ["carbonite"] = {
+        name = "Carbonite",
+        reason = "Resets minimap mask and blip textures. DragonUI re-applies its custom textures automatically.",
+        behavior = behaviors.CarboniteMinimapFix,
+        checkOnce = true
     },
 }
 

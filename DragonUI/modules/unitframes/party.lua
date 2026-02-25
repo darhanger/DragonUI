@@ -460,6 +460,13 @@ local function SetupHealthBarClipping(frame)
             return
         end
 
+        -- If disconnected, show full bar in gray (Blizzard native behavior)
+        if frame.DragonUI_Disconnected then
+            texture:SetTexCoord(0, 1, 0, 1)
+            self:SetStatusBarColor(0.5, 0.5, 0.5, 1)
+            return
+        end
+
         -- Apply class color first (safe if unit doesn't exist — checks internally)
         UpdatePartyHealthBarColor(frameIndex)
 
@@ -498,6 +505,11 @@ local function SetupManaBarClipping(frame)
 
         local texture = self:GetStatusBarTexture()
         if not texture then
+            return
+        end
+
+        -- If disconnected, mana bar is hidden (alpha=0), skip all processing
+        if frame.DragonUI_Disconnected then
             return
         end
 
@@ -588,6 +600,14 @@ UpdateHealthText = function(statusBar, forceShow)
     local partyUnit = "party" .. frameIndex
     if not UnitExists(partyUnit) then return end
     
+    -- Don't show health numbers when player is disconnected
+    if not UnitIsConnected(partyUnit) then
+        if frame.DragonUI_HealthText then frame.DragonUI_HealthText:Hide() end
+        if frame.DragonUI_HealthTextLeft then frame.DragonUI_HealthTextLeft:Hide() end
+        if frame.DragonUI_HealthTextRight then frame.DragonUI_HealthTextRight:Hide() end
+        return
+    end
+    
     -- Ensure our custom text exists
     CreateCustomTexts(frame)
     
@@ -669,8 +689,16 @@ UpdateManaText = function(statusBar, forceShow)
     local partyUnit = "party" .. frameIndex
     if not UnitExists(partyUnit) then return end
     
-    -- Create custom text if it doesn't exist - look in the frame, not statusbar!
+    -- Don't show mana numbers when player is disconnected
     local frame = statusBar:GetParent()
+    if not UnitIsConnected(partyUnit) then
+        if frame.DragonUI_ManaText then frame.DragonUI_ManaText:Hide() end
+        if frame.DragonUI_ManaTextLeft then frame.DragonUI_ManaTextLeft:Hide() end
+        if frame.DragonUI_ManaTextRight then frame.DragonUI_ManaTextRight:Hide() end
+        return
+    end
+    
+    -- Create custom text if it doesn't exist - look in the frame, not statusbar!
     CreateCustomTexts(frame)
     local customText = frame.DragonUI_ManaText
     
@@ -757,10 +785,13 @@ local function CreateHoverFrames(frame, frameIndex)
             hoverStates[frameIndex].health = true
             HideBlizzardTexts(frame)
             UpdateHealthText(healthBar, true) -- Only show health text
-            -- DON'T show mana text during health hover
-            if frame.DragonUI_ManaText then frame.DragonUI_ManaText:Hide() end
-            if frame.DragonUI_ManaTextLeft then frame.DragonUI_ManaTextLeft:Hide() end
-            if frame.DragonUI_ManaTextRight then frame.DragonUI_ManaTextRight:Hide() end
+            -- Only hide mana text if it's NOT set to always show
+            local settings = GetSettings()
+            if not (settings and settings.showManaTextAlways) then
+                if frame.DragonUI_ManaText then frame.DragonUI_ManaText:Hide() end
+                if frame.DragonUI_ManaTextLeft then frame.DragonUI_ManaTextLeft:Hide() end
+                if frame.DragonUI_ManaTextRight then frame.DragonUI_ManaTextRight:Hide() end
+            end
         end)
         frame.DragonUI_HealthHover:SetScript("OnLeave", function()
             hoverStates[frameIndex].health = false
@@ -781,10 +812,13 @@ local function CreateHoverFrames(frame, frameIndex)
             hoverStates[frameIndex].mana = true
             HideBlizzardTexts(frame)
             UpdateManaText(manaBar, true) -- Only show mana text
-            -- DON'T show health text during mana hover
-            if frame.DragonUI_HealthText then frame.DragonUI_HealthText:Hide() end
-            if frame.DragonUI_HealthTextLeft then frame.DragonUI_HealthTextLeft:Hide() end
-            if frame.DragonUI_HealthTextRight then frame.DragonUI_HealthTextRight:Hide() end
+            -- Only hide health text if it's NOT set to always show
+            local settings = GetSettings()
+            if not (settings and settings.showHealthTextAlways) then
+                if frame.DragonUI_HealthText then frame.DragonUI_HealthText:Hide() end
+                if frame.DragonUI_HealthTextLeft then frame.DragonUI_HealthTextLeft:Hide() end
+                if frame.DragonUI_HealthTextRight then frame.DragonUI_HealthTextRight:Hide() end
+            end
         end)
         frame.DragonUI_ManaHover:SetScript("OnLeave", function()
             hoverStates[frameIndex].mana = false
@@ -1178,25 +1212,27 @@ local function UpdateDisconnectedState(frame)
     local name = _G[frame:GetName() .. 'Name']
 
     if not isConnected then
-        -- Disconnected member - apply gray effects
+        -- Mark frame as disconnected (used by clipping hooks to force gray)
+        frame.DragonUI_Disconnected = true
+
+        -- Disconnected member - gray bars at full, no text (Blizzard native behavior)
         if healthbar then
             healthbar:SetAlpha(0.3)
             healthbar:SetStatusBarColor(0.5, 0.5, 0.5, 1)
-            
-            -- Show "Offline" text on health bar
-            if not frame.DragonUI_OfflineText then
-                frame.DragonUI_OfflineText = healthbar:CreateFontString(nil, "OVERLAY")
-                frame.DragonUI_OfflineText:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
-                frame.DragonUI_OfflineText:SetPoint("CENTER", healthbar, "CENTER", 0, 0)
-                frame.DragonUI_OfflineText:SetTextColor(0.7, 0.7, 0.7, 1)
-            end
-            frame.DragonUI_OfflineText:SetText("Offline")
-            frame.DragonUI_OfflineText:Show()
         end
 
+        -- Hide all custom health text elements (numbers should not show when offline)
+        if frame.DragonUI_HealthText then frame.DragonUI_HealthText:Hide() end
+        if frame.DragonUI_HealthTextLeft then frame.DragonUI_HealthTextLeft:Hide() end
+        if frame.DragonUI_HealthTextRight then frame.DragonUI_HealthTextRight:Hide() end
+
+        -- Hide all custom mana text elements
+        if frame.DragonUI_ManaText then frame.DragonUI_ManaText:Hide() end
+        if frame.DragonUI_ManaTextLeft then frame.DragonUI_ManaTextLeft:Hide() end
+        if frame.DragonUI_ManaTextRight then frame.DragonUI_ManaTextRight:Hide() end
+
         if manabar then
-            manabar:SetAlpha(0.3)
-            manabar:SetStatusBarColor(0.5, 0.5, 0.5, 1)
+            manabar:SetAlpha(0)  -- Completely hide mana bar when offline (works in combat)
         end
 
         if portrait then
@@ -1224,6 +1260,7 @@ local function UpdateDisconnectedState(frame)
 
     else
         -- Connected member - undo exactly what was done when disconnecting
+        frame.DragonUI_Disconnected = false
 
         -- Restore transparencies (without taint)
         if healthbar then
@@ -1232,15 +1269,14 @@ local function UpdateDisconnectedState(frame)
             local frameIndex = frame:GetID()
             UpdatePartyHealthBarColor(frameIndex) -- Only updates color, does not recreate frame
         end
-        
-        -- Hide offline text if it exists
-        if frame.DragonUI_OfflineText then
-            frame.DragonUI_OfflineText:Hide()
-        end
 
         if manabar then
-            manabar:SetAlpha(1.0) -- Normal opacity
+            manabar:SetAlpha(1.0) -- Restore visibility
             manabar:SetStatusBarColor(1, 1, 1, 1) -- White as it should be
+            local manaTexture = manabar:GetStatusBarTexture()
+            if manaTexture then
+                manaTexture:SetVertexColor(1, 1, 1, 1)
+            end
         end
 
         if portrait then
@@ -1508,6 +1544,10 @@ function PartyFrames:UpdateSettings()
             
             if healthbar then UpdateHealthText(healthbar, false) end
             if manabar then UpdateManaText(manabar, false) end
+            
+            -- Re-apply disconnected state AFTER styling (gray name, hidden texts, etc.)
+            -- StylePartyFrames resets name color to yellow, so this must come last
+            UpdateDisconnectedState(frame)
         end
     end
 end
@@ -1591,8 +1631,20 @@ connectionFrame:RegisterEvent("PARTY_MEMBER_ENABLE")
 connectionFrame:SetScript("OnEvent", function(self, event)
     for i = 1, MAX_PARTY_MEMBERS do
         local frame = _G['PartyMemberFrame' .. i]
-        if frame then
+        if frame and UnitExists("party" .. i) then
+            -- Set the flag FIRST so hooks respect it
             UpdateDisconnectedState(frame)
+            -- Force bars to re-run their SetValue hooks with the new flag
+            local healthbar = _G[frame:GetName() .. 'HealthBar']
+            local manabar = _G[frame:GetName() .. 'ManaBar']
+            if healthbar then
+                local val = healthbar:GetValue()
+                healthbar:SetValue(val)
+            end
+            if manabar then
+                local val = manabar:GetValue()
+                manabar:SetValue(val)
+            end
         end
     end
 end)
@@ -1610,6 +1662,28 @@ recoveryFrame:RegisterEvent("PLAYER_ALIVE")             -- Player resurrects (ac
 recoveryFrame:RegisterEvent("PLAYER_UNGHOST")           -- Player returns from ghost form
 recoveryFrame:RegisterEvent("UNIT_HEALTH")              -- Any unit health change (catches party member rez too)
 recoveryFrame:SetScript("OnEvent", function(self, event, unit)
+    -- For PARTY_MEMBERS_CHANGED, hide frames for members that no longer exist
+    -- Uses CombatQueue to defer if in combat (Hide on secure frames causes taint)
+    if event == "PARTY_MEMBERS_CHANGED" then
+        local function HideEmptyPartyFrames()
+            for i = 1, MAX_PARTY_MEMBERS do
+                local frame = _G['PartyMemberFrame' .. i]
+                if frame and not UnitExists("party" .. i) then
+                    frame:Hide()
+                end
+            end
+        end
+        
+        if InCombatLockdown() then
+            -- Queue for after combat ends
+            if addon.CombatQueue then
+                addon.CombatQueue:Add("party_hide_empty", HideEmptyPartyFrames)
+            end
+        else
+            HideEmptyPartyFrames()
+        end
+    end
+
     -- For UNIT_HEALTH, only process party units
     if event == "UNIT_HEALTH" then
         if not unit or not unit:match("^party%d$") then return end
@@ -1617,6 +1691,8 @@ recoveryFrame:SetScript("OnEvent", function(self, event, unit)
         if frameIndex then
             local frame = _G['PartyMemberFrame' .. frameIndex]
             if frame and UnitExists(unit) then
+                -- Skip disconnected frames — their visual state is managed by UpdateDisconnectedState
+                if frame.DragonUI_Disconnected then return end
                 local healthbar = _G[frame:GetName() .. 'HealthBar']
                 local manabar = _G[frame:GetName() .. 'ManaBar']
                 if healthbar then
@@ -1654,6 +1730,8 @@ recoveryFrame:SetScript("OnEvent", function(self, event, unit)
         local frame = _G['PartyMemberFrame' .. i]
         local unit = "party" .. i
         if frame and UnitExists(unit) then
+            -- Skip disconnected frames — their visual state is managed by UpdateDisconnectedState
+            if not frame.DragonUI_Disconnected then
             local healthbar = _G[frame:GetName() .. 'HealthBar']
             local manabar = _G[frame:GetName() .. 'ManaBar']
             if healthbar then
@@ -1680,6 +1758,7 @@ recoveryFrame:SetScript("OnEvent", function(self, event, unit)
                 end
                 UpdateManaText(manabar, false)
             end
+            end -- if not DragonUI_Disconnected
         end
     end
 end)

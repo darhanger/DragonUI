@@ -2,6 +2,18 @@
 
 > **⚠️ Experimental Branch** - All changes below still need further in-game testing and may contain bugs or incomplete features. If you run into any problems, feel free to let me know [here](https://github.com/NeticSoul/DragonUI/issues/141) - any feedback helps!
 
+## 📅 2026-02-25
+
+### Fixed
+- Buff/debuff cooldown sweep no longer flickers on target change
+- Castbar: no ghost green bar when module is disabled; hidden from editor when off
+- Vehicle exit button no longer drifts to center in editor mode
+- Main bar buttons properly centered within border frame
+- Minimap: improved compatibility with Carbonite and Questie
+- Quest tracker now shows all tracked quests
+- Party frames: disconnected members now display correctly
+- Party frames: hover text no longer hides "always show" text
+
 ## 📅 2026-02-23
 
 ### Added
