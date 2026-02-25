@@ -1504,6 +1504,40 @@ local function SetupPartyHooks()
             if manabar then UpdateManaText(manabar, false) end -- forceShow = false
         end
     end)
+    
+    -- ===============================================================
+    -- DISCONNECT VISUAL FIX (mod-playerbots compatibility)
+    -- ===============================================================
+    -- Hook PartyMemberFrame_UpdateOnlineStatus directly.
+    -- This runs AFTER Blizzard has already called UnitFrameHealthBar_Update
+    -- (which triggers our SetValue hook that may override gray with class/white
+    -- color because DragonUI_Disconnected flag isn't set yet at that point).
+    -- By hooking this function, we re-apply disconnect visuals as the LAST step.
+    hooksecurefunc("PartyMemberFrame_UpdateOnlineStatus", function(frame)
+        if not frame or not frame:GetName() then return end
+        if not frame:GetName():match("^PartyMemberFrame%d+$") then return end
+        
+        local frameIndex = frame:GetID()
+        local unit = "party" .. frameIndex
+        if not UnitExists(unit) then return end
+        
+        -- Re-apply disconnect state — this runs after Blizzard AND after our
+        -- SetValue/UnitFrameHealthBar_Update hooks have already executed,
+        -- ensuring the gray visuals stick.
+        UpdateDisconnectedState(frame)
+        
+        -- Force bars to re-run their SetValue hooks with the flag now set
+        local healthbar = _G[frame:GetName() .. 'HealthBar']
+        local manabar = _G[frame:GetName() .. 'ManaBar']
+        if healthbar then
+            local val = healthbar:GetValue()
+            healthbar:SetValue(val)
+        end
+        if manabar then
+            local val = manabar:GetValue()
+            manabar:SetValue(val)
+        end
+    end)
 end
 
 -- ===============================================================
