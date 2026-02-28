@@ -19,9 +19,9 @@ if not L then return end
 -- ============================================================================
 
 -- 전투 중 잠금 메시지 (Combat lockdown messages)
-L["Cannot toggle editor mode during combat!"] = "전투 중에는 편집 모드를 전환할 수 없습니다!"
+L["Cannot toggle editor mode during combat!"] = "전투 중에는 편집 모드를 열수 없습니다!"
 L["Cannot reset positions during combat!"] = "전투 중에는 위치를 초기화할 수 없습니다!"
-L["Cannot toggle keybind mode during combat!"] = "전투 중에는 단축키 설정 모드를 전환할 수 없습니다!"
+L["Cannot toggle keybind mode during combat!"] = "전투 중에는 단축키 설정 모드를 열수 없습니다!"
 L["Cannot move frames during combat!"] = "전투 중에는 프레임을 이동할 수 없습니다!"
 L["Cannot open options in combat."] = "전투 중에는 옵션을 열 수 없습니다."
 
