@@ -124,6 +124,7 @@ L["petbar"] = "Begleiterleiste"
 L["TotemBarOverlay"] = "Totemleiste"
 L["PlayerCastbar"] = "Zauberleiste"
 L["Auras"] = "Auren"
+L["WeaponEnchants"] = "Waffenverzauberungen"
 L["Loot Roll"] = "Beute würfeln"
 L["Quest Tracker"] = "Questverfolgung"
 
@@ -134,6 +135,21 @@ L["Right-click to reset"] = "Rechtsklick zum Zurücksetzen"
 -- Editor mode system messages
 L["All editable frames shown for editing"] = "Alle bearbeitbaren Frames zum Bearbeiten angezeigt"
 L["All editable frames hidden, positions saved"] = "Alle bearbeitbaren Frames ausgeblendet, Positionen gespeichert"
+
+-- ============================================================================
+-- COMPATIBILITY MODULE
+-- ============================================================================
+
+L["DragonUI Conflict Warning"] = "DragonUI-Konfliktwarnung"
+L["The addon |cFFFFFF00%s|r conflicts with DragonUI."] = "Das Addon |cFFFFFF00%s|r kollidiert mit DragonUI."
+L["Reason:"] = "Grund:"
+L["Disable the conflicting addon now?"] = "Das konfliktverursachende Addon jetzt deaktivieren?"
+L["Disable"] = "Deaktivieren"
+L["Keep Both"] = "Beide behalten"
+
+L["Conflicts with DragonUI's custom unit frame textures and power bar system."] = "Kollidiert mit DragonUIs benutzerdefinierten Einheiten-Rahmen-Texturen und dem Machtleistensystem."
+L["Known taint issues when manipulating party frames during combat. DragonUI provides automatic fixes."] = "Bekannte Kontaminationsprobleme beim Manipulieren von Gruppenrahmen im Kampf. DragonUI bietet automatische Korrekturen."
+L["Resets minimap mask and blip textures. DragonUI re-applies its custom textures automatically."] = "Setzt Minimap-Maske und Markierungs-Texturen zurück. DragonUI wendet seine benutzerdefinierten Texturen automatisch erneut an."
 
 -- ============================================================================
 -- STATIC POPUPS

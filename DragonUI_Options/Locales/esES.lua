@@ -113,6 +113,22 @@ L["Enable DragonUI minimap enhancements including custom styling, positioning, t
 L["Minimap styling, tracking icons, and calendar."] = "Estilo del minimapa, iconos de rastreo y calendario."
 L["Enable DragonUI buff frame with custom styling, positioning, and toggle button functionality. When disabled, uses default Blizzard buff frame appearance and positioning."] = "Activar marco de beneficios de DragonUI con estilo personalizado, posicionamiento y funcionalidad de botón. Al desactivar, usa la apariencia y posición predeterminada de Blizzard."
 L["Buff frame styling and toggle button."] = "Estilo del marco de beneficios y botón de alternancia."
+L["Separate Weapon Enchants"] = "Separar Encantamientos de Arma"
+L["Detach weapon enchant icons (poisons, sharpening stones, etc.) from the buff bar into their own independently moveable frame. Position it freely using Editor Mode."] = "Separar los iconos de encantamientos de arma (venenos, piedras de afilar, etc.) de la barra de beneficios en un marco independiente y movible. Posiciónalo libremente usando el Modo Editor."
+
+-- Auras tab
+L["Auras"] = "Auras"
+L["Show Toggle Button"] = "Mostrar Botón de Alternancia"
+L["Show a collapse/expand button next to the buff icons."] = "Mostrar un botón para colapsar/expandir junto a los iconos de beneficios."
+L["Weapon Enchants"] = "Encantamientos de Arma"
+L["Weapon enchant icons include rogue poisons, sharpening stones, wizard oils, and similar temporary weapon enhancements."] = "Los iconos de encantamientos de arma incluyen venenos de pícaro, piedras de afilar, aceites de mago y mejoras temporales similares."
+L["When enabled, a 'Weapon Enchants' mover appears in Editor Mode that you can drag to any position on screen."] = "Al activar, aparece un marco 'Encantamientos de Arma' en el Modo Editor que puedes arrastrar a cualquier posición de la pantalla."
+L["Positions"] = "Posiciones"
+L["Reset Buff Frame Position"] = "Reiniciar Posición de Beneficios"
+L["Reset Weapon Enchant Position"] = "Reiniciar Posición de Encantamientos"
+L["Buff frame position reset."] = "Posición del marco de beneficios reiniciada."
+L["Weapon enchant position reset."] = "Posición de encantamientos de arma reiniciada."
+
 L["DragonUI quest tracker positioning and styling."] = "Posicionamiento y estilo del rastreador de misiones de DragonUI."
 L["LibKeyBound integration for intuitive hover + key press binding."] = "Integración con LibKeyBound para asignación intuitiva: pasar el cursor + pulsar tecla."
 

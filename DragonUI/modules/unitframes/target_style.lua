@@ -603,7 +603,7 @@ function UF.TargetStyle.Create(opts)
             numeric.text = numeric:CreateFontString(
                 nil, "OVERLAY", "GameFontNormalSmall")
             numeric.text:SetPoint("CENTER", 0, 1)
-            numeric.text:SetFont("Fonts\\FRIZQT__.TTF", 10)
+            numeric.text:SetFont(UF.DEFAULT_FONT, 10)
             numeric.text:SetShadowOffset(1, -1)
 
             frameElements.threatNumeric = numeric

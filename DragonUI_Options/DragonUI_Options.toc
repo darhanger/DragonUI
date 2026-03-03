@@ -60,4 +60,5 @@ panel\tab_minimap.lua
 panel\tab_micromenu.lua
 panel\tab_questtracker.lua
 panel\tab_enhancements.lua
+panel\tab_auras.lua
 panel\tab_profiles.lua

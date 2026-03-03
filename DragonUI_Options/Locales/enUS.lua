@@ -121,6 +121,22 @@ L["Enable DragonUI minimap enhancements including custom styling, positioning, t
 L["Minimap styling, tracking icons, and calendar."] = true
 L["Enable DragonUI buff frame with custom styling, positioning, and toggle button functionality. When disabled, uses default Blizzard buff frame appearance and positioning."] = true
 L["Buff frame styling and toggle button."] = true
+L["Separate Weapon Enchants"] = true
+L["Detach weapon enchant icons (poisons, sharpening stones, etc.) from the buff bar into their own independently moveable frame. Position it freely using Editor Mode."] = true
+
+-- Auras tab
+L["Auras"] = true
+L["Show Toggle Button"] = true
+L["Show a collapse/expand button next to the buff icons."] = true
+L["Weapon Enchants"] = true
+L["Weapon enchant icons include rogue poisons, sharpening stones, wizard oils, and similar temporary weapon enhancements."] = true
+L["When enabled, a 'Weapon Enchants' mover appears in Editor Mode that you can drag to any position on screen."] = true
+L["Positions"] = true
+L["Reset Buff Frame Position"] = true
+L["Reset Weapon Enchant Position"] = true
+L["Buff frame position reset."] = true
+L["Weapon enchant position reset."] = true
+
 L["DragonUI quest tracker positioning and styling."] = true
 L["LibKeyBound integration for intuitive hover + key press binding."] = true
 

@@ -2,6 +2,17 @@
 
 > **⚠️ Experimental Branch** - All changes below still need further in-game testing and may contain bugs or incomplete features. If you run into any problems, feel free to let me know [here](https://github.com/NeticSoul/DragonUI/issues/141) - any feedback helps!
 
+## 📅 2026-03-03
+
+### Added
+- **Weapon Enchants frame** — New option ("Separate Weapon Enchants") to detach poison/sharpening stone/oil icons from the buff bar into their own independent frame. Fully moveable via Editor Mode with its own reset button. New "Auras" tab in the options panel
+- **DragonUI game menu button** — Styled shortcut button in the ESC menu to open DragonUI settings directly. Custom blue texture with smooth hover animation
+
+### Fixed
+- **Action bar CVar** — Multibar buttons now correctly respect the "Always Show Action Bars" setting. Main bar empty slots always visible; multibars defer completely to Blizzard's show/hide logic. Replaced polling/timer approach with `hooksecurefunc("SetCVar")`
+- **Korean/CJK/Cyrillic font** — All unit frame text now uses `UF.DEFAULT_FONT` (locale-aware selector). Fixes garbled "???" text on koKR, zhCN, zhTW, and ruRU clients
+- **Leader/Assist icon layering** — Leader and master loot icons now render above the portrait overlay and border frames by reparenting to `EliteIconContainer`
+
 ## 📅 2026-02-25
 
 ### Fixed

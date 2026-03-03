@@ -6,20 +6,29 @@ addon.L = LibStub("AceLocale-3.0"):GetLocale("DragonUI")
 
 addon._dir = [[Interface\AddOns\DragonUI\assets\]];
 
+-- Locale-aware font for action bar text (expressway.ttf lacks CJK/Cyrillic glyphs)
+local _locale = GetLocale()
+local _needsCJKFont = (_locale == "koKR" or _locale == "zhCN" or _locale == "zhTW")
+local _actionbarFont = _needsCJKFont and (({
+	koKR = "Fonts\\2002.TTF",
+	zhCN = "Fonts\\ZYKai_T.TTF",
+	zhTW = "Fonts\\bLEI00D.TTF",
+})[_locale]) or addon._dir..'expressway.ttf'
+
 -- Static assets that don't need variables
 local static_assets = {
-	font = addon._dir..'expressway.ttf',
+	font = _actionbarFont,
 	normal = addon._dir..'uiactionbariconframe.tga',
 	highlight = addon._dir..'uiactionbariconframehighlight.tga',
 };
 
 -- Static fonts in buttons section
 local static_fonts = {
-	count_font = {addon._dir..'expressway.ttf', 14, 'OUTLINE'},
-	hotkey_font = {addon._dir..'expressway.ttf', 14, ''},
-	macros_font = {addon._dir..'expressway.ttf', 14, ''},
-	pages_font = {addon._dir..'expressway.ttf', 14, ''},
-	cooldown_font = {addon._dir..'expressway.ttf', 14, 'OUTLINE'},
+	count_font = {_actionbarFont, 14, 'OUTLINE'},
+	hotkey_font = {_actionbarFont, 14, ''},
+	macros_font = {_actionbarFont, 14, ''},
+	pages_font = {_actionbarFont, 14, ''},
+	cooldown_font = {_actionbarFont, 14, 'OUTLINE'},
 };
 
 -- Config wrapper with metatable

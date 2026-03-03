@@ -138,6 +138,8 @@ local function BuildModulesTab(scroll)
         end,
     })
 
+
+
     ModuleToggle(uiSection, {
         label = LO["Cooldown Timers"],
         desc = LO["Show cooldown timers on action buttons."],

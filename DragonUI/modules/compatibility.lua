@@ -1,6 +1,7 @@
 local addon = select(2, ...)
 local compatibility = {}
 addon.compatibility = compatibility
+local L = addon.L
 
 --[[
 * DragonUI Compatibility Manager
@@ -47,15 +48,12 @@ behaviors.ConflictWarning = function(addonName, addonInfo)
     local popupName = "DRAGONUI_CONFLICT_" .. string.upper(addonName)
     
     StaticPopupDialogs[popupName] = {
-        text = string.format(
-            "|cFFFF0000DragonUI Conflict Warning|r\n\n" ..
-            "The addon |cFFFFFF00%s|r conflicts with DragonUI.\n\n" ..
-            "|cFFFF9999Reason:|r %s\n\n" ..
-            "Disable the conflicting addon now?",
-            addonInfo.name, addonInfo.reason
-        ),
-        button1 = "Disable ",
-        button2 = "Keep Both",
+        text = "|cFFFF0000" .. L["DragonUI Conflict Warning"] .. "|r\n\n" ..
+            string.format(L["The addon |cFFFFFF00%s|r conflicts with DragonUI."], addonInfo.name) .. "\n\n" ..
+            "|cFFFF9999" .. L["Reason:"] .. "|r " .. addonInfo.reason .. "\n\n" ..
+            L["Disable the conflicting addon now?"],
+        button1 = L["Disable"],
+        button2 = L["Keep Both"],
         OnAccept = function()
             DisableAddOn(addonName)
             ReloadUI()
@@ -263,20 +261,20 @@ end
 local ADDON_REGISTRY = {
     ["unitframelayers"] = {
         name = "UnitFrameLayers",
-        reason = "Conflicts with DragonUI's custom unit frame textures and power bar system.",
+        reason = L["Conflicts with DragonUI's custom unit frame textures and power bar system."],
         behavior = behaviors.ConflictWarning,
         checkOnce = true
     },
     ["compactraidframe"] = {
         name = "CompactRaidFrame",
-        reason = "Known taint issues when manipulating party frames during combat. DragonUI provides automatic fixes.",
+        reason = L["Known taint issues when manipulating party frames during combat. DragonUI provides automatic fixes."],
         behavior = behaviors.CompactRaidFrameFix,
         checkOnce = true,
         listenToRaidEvents = true -- Enable raid event monitoring
     },
     ["carbonite"] = {
         name = "Carbonite",
-        reason = "Resets minimap mask and blip textures. DragonUI re-applies its custom textures automatically.",
+        reason = L["Resets minimap mask and blip textures. DragonUI re-applies its custom textures automatically."],
         behavior = behaviors.CarboniteMinimapFix,
         checkOnce = true
     },

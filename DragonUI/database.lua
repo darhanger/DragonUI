@@ -36,6 +36,12 @@ local defaults = {
                 posY = -15,
                 custom_position = false
             },
+            weapon_enchants = {
+                anchor = "TOPRIGHT",
+                posX = -100,
+                posY = -15,
+                custom_position = false
+            },
             pet = {
                 anchor = "TOPLEFT",
                 posX = 63,
@@ -337,7 +343,8 @@ local defaults = {
         buffs = {
             enabled = true,
             show_toggle_button = true,
-            buffs_hidden = false
+            buffs_hidden = false,
+            separate_weapon_enchants = false
         },
 
         -- CASTBAR SETTINGS

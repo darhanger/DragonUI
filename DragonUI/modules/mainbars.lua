@@ -79,6 +79,11 @@ function addon.ArrangeActionBarButtons(buttonPrefix, parentFrame, anchorFrame, r
     local leftPad = math.floor(widthPadding / 2)
     local bottomPad = 2
 
+    -- Is this the MAIN bar?  Main bar buttons always show (Dragonflight look).
+    -- Multibar buttons must NOT be forced visible — Blizzard’s
+    -- ActionButton_Update decides their visibility based on showgrid / CVar.
+    local isMainBar = (buttonPrefix == "ActionButton")
+
     for index = 1, NUM_ACTIONBAR_BUTTONS do
         local button = _G[buttonPrefix .. index]
         if button then
@@ -93,7 +98,10 @@ function addon.ArrangeActionBarButtons(buttonPrefix, parentFrame, anchorFrame, r
 
                 button:ClearAllPoints()
                 button:SetPoint('BOTTOMLEFT', anchorFrame, 'BOTTOMLEFT', x, y)
-                button:Show()
+                if isMainBar then
+                    button:Show()  -- Main bar: always visible
+                end
+                -- Multibar buttons: do NOT call Show() — let ActionButton_Update handle visibility
             else
                 -- Move off-screen and hide (like DragonflightUI)
                 button:ClearAllPoints()
@@ -543,6 +551,9 @@ end
         columns = math.max(1, math.min(12, columns or 1))
 
         -- Position visible buttons in a TOPLEFT grid
+        -- Side bars are always multibars — do NOT call :Show() on their
+        -- buttons.  Blizzard’s ActionButton_Update handles visibility via
+        -- the showgrid attribute and the "Always Show Action Bars" CVar.
         for index = 1, NUM_ACTIONBAR_BUTTONS do
             local button = _G[barPrefix .. index]
             if button then
@@ -554,7 +565,7 @@ end
                     local y = -(row * (ACTION_BUTTON_SIZE + ACTION_BUTTON_SPACING))
                     button:ClearAllPoints()
                     button:SetPoint('TOPLEFT', barFrame, 'TOPLEFT', x, y)
-                    button:Show()
+                    -- NOT calling button:Show() — let ActionButton_Update decide
                 else
                     button:ClearAllPoints()
                     button:SetPoint("CENTER", UIParent, "BOTTOM", 0, -666)

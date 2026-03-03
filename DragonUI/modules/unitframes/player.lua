@@ -860,10 +860,23 @@ local function UpdateLeaderIconPosition()
     PlayerLeaderIcon:ClearAllPoints()
 
     if isEliteMode then
-        -- In elite mode: position higher to avoid the dragon
+        -- In elite mode: reparent to EliteIconContainer so the icon renders
+        -- above the dragon decoration textures (strata HIGH, level 1000).
+        -- Same pattern used by UpdateMasterIconPosition.
+        local dragonFrame = _G["DragonUIUnitframeFrame"]
+        if dragonFrame and dragonFrame.EliteIconContainer then
+            PlayerLeaderIcon:SetParent(dragonFrame.EliteIconContainer)
+        end
         PlayerLeaderIcon:SetPoint('BOTTOM', PlayerFrame, "TOP", -1, -33)
     else
-        -- Modo normal
+        -- Non-elite mode: STILL use EliteIconContainer so the icon renders
+        -- above the portrait overlay (level +2) and border overlay (level +3).
+        -- If we parented to PlayerFrame directly, the icon (a texture) would
+        -- draw below all child overlay frames and be hidden behind the border.
+        local dragonFrame = _G["DragonUIUnitframeFrame"]
+        if dragonFrame and dragonFrame.EliteIconContainer then
+            PlayerLeaderIcon:SetParent(dragonFrame.EliteIconContainer)
+        end
         PlayerLeaderIcon:SetPoint('BOTTOM', PlayerFrame, "TOP", -70, -25)
     end
 end
@@ -886,7 +899,11 @@ local function UpdateMasterIconPosition()
         PlayerMasterIcon:ClearAllPoints()
         PlayerMasterIcon:SetPoint("TOPRIGHT", PlayerFrame, "TOPRIGHT", -135, -55)
     else
-        -- Normal mode
+        -- Non-elite mode: still use EliteIconContainer for correct layering
+        local dragonFrame = _G["DragonUIUnitframeFrame"]
+        if dragonFrame and dragonFrame.EliteIconContainer then
+            PlayerMasterIcon:SetParent(dragonFrame.EliteIconContainer)
+        end
         PlayerMasterIcon:SetPoint('BOTTOM', PlayerFrame, "TOP", -71, -75)
     end
 end
@@ -1831,7 +1848,7 @@ local function CreatePlayerFrameTextures()
         text:SetPoint("CENTER", groupIndicator, "CENTER", 0, 0)
         text:SetJustifyH("CENTER")
         text:SetTextColor(1, 1, 1, 1)
-        text:SetFont("Fonts\\FRIZQT__.TTF", 9)
+        text:SetFont(UF.DEFAULT_FONT, 9)
         text:SetShadowOffset(1, -1)
         text:SetShadowColor(0, 0, 0, 1)
 
@@ -2005,13 +2022,26 @@ local function ChangePlayerframe()
     -- Position name and level (shifted right in vehicle due to larger portrait)
     -- Ensure name/level are on OVERLAY draw layer so they render above vehicle textures
     PlayerName:SetDrawLayer('OVERLAY', 7)
-    PlayerName:SetJustifyH("LEFT")
-    PlayerName:SetWidth(90)
     PlayerName:ClearAllPoints()
     if hasVehicleUI then
+        PlayerName:SetJustifyH("LEFT")
+        PlayerName:SetWidth(90)
         PlayerName:SetPoint('CENTER', PlayerFrame, 'CENTER', 50, 20)
     else
-        PlayerName:SetPoint('BOTTOMLEFT', PlayerFrameHealthBar, 'TOPLEFT', 12, 2)
+        local pConfig = GetPlayerConfig()
+        local decorationType = pConfig.dragon_decoration or "none"
+        local isPlayerEliteMode = decorationType == "elite" or decorationType == "rareelite"
+        if isPlayerEliteMode then
+            -- Dragon decoration mode: center the name above the health bar
+            PlayerName:SetJustifyH("CENTER")
+            PlayerName:SetWidth(110)
+            PlayerName:SetPoint('BOTTOM', PlayerFrameHealthBar, 'TOP', 0, 2)
+        else
+            -- Normal mode: left-aligned above health bar
+            PlayerName:SetJustifyH("LEFT")
+            PlayerName:SetWidth(90)
+            PlayerName:SetPoint('BOTTOMLEFT', PlayerFrameHealthBar, 'TOPLEFT', 12, 2)
+        end
     end
     -- Force name visible — Blizzard vehicle transition can hide it
     PlayerName:SetAlpha(1)

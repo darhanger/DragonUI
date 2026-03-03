@@ -69,7 +69,7 @@ local function PositionDragonUIButton()
     
     -- Position ONLY the DragonUI button immediately after the reference button
     dragonUIButton:ClearAllPoints()
-    dragonUIButton:SetPoint("TOP", afterButton, "BOTTOM", 0, -1)
+    dragonUIButton:SetPoint("TOP", afterButton, "BOTTOM", 0, -2)
     
     -- MINIMALLY adjust the GameMenuFrame height ONLY once
     local buttonHeight = dragonUIButton:GetHeight() or 16
@@ -105,87 +105,136 @@ end
 
 -- Main function to create the DragonUI button
 local function CreateDragonUIButton()
-    -- Check that it hasn't been created already
-    if dragonUIButton or buttonAdded then 
-        return true 
-    end
-    
-    -- Check that GameMenuFrame is available
-    if not GameMenuFrame then 
-        return false 
-    end
-    
-    -- Create the button with appropriate template for WoW 3.3.5a
-    dragonUIButton = CreateFrame("Button", "DragonUIGameMenuButton", GameMenuFrame, "GameMenuButtonTemplate")
-    
-    -- Set the button text
-    dragonUIButton:SetText(L["DragonUI"])
-    
-    -- Set the width to match other buttons
-    dragonUIButton:SetWidth(144) -- Standard width for game menu buttons in 3.3.5a
-    
-    -- Apply Dragonflight-style blue colors
-    local fontString = dragonUIButton:GetFontString()
-    if fontString then
-        -- Dragonflight blue text color: RGB(100, 180, 255) 
-        fontString:SetTextColor(0.39, 0.71, 1.0, 1.0)
-        
-        -- Soft blue shadow effect
-        fontString:SetShadowColor(0.2, 0.4, 0.8, 0.8)
-        fontString:SetShadowOffset(1, -1)
-        
-        -- Smaller font
-        fontString:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
-    end
-    
-    -- Set hover/pressed colors with smaller font
-    if dragonUIButton.SetNormalFontObject then
-        dragonUIButton:SetNormalFontObject("GameFontNormal")
-        dragonUIButton:SetHighlightFontObject("GameFontHighlight") 
-    end
-    
-    -- Try to color the button background (3.3.5a compatible)
-    local normalTexture = dragonUIButton:GetNormalTexture()
-    if normalTexture then
-        -- Soft blue tint for the background: RGB(50, 100, 200) with alpha 0.8
-        normalTexture:SetVertexColor(0.2, 0.4, 0.8, 0.8)
-    end
-    
-    local highlightTexture = dragonUIButton:GetHighlightTexture()
-    if highlightTexture then
-        -- Brighter blue tint on hover: RGB(80, 140, 255) with alpha 0.9
-        highlightTexture:SetVertexColor(0.31, 0.55, 1.0, 0.9)
-    end
-    
-    -- Set up additional visual effects for hover
-    dragonUIButton:SetScript("OnEnter", function(self)
-        local fontString = self:GetFontString()
-        if fontString then
-            -- Brighter color on hover: RGB(150, 200, 255)
-            fontString:SetTextColor(0.59, 0.78, 1.0, 1.0)
-        end
-    end)
-    
-    dragonUIButton:SetScript("OnLeave", function(self)
-        local fontString = self:GetFontString()
-        if fontString then
-            -- Revert to normal color: RGB(100, 180, 255)
-            fontString:SetTextColor(0.39, 0.71, 1.0, 1.0)
-        end
-    end)
-    
-    -- Set the click handler
-    dragonUIButton:SetScript("OnClick", function(self, button)
-        if button == "LeftButton" then
-            OpenDragonUIConfig()
-        end
-    end)
-    
-    -- Position only the DragonUI button
-    PositionDragonUIButton()
-    
-    buttonAdded = true
+    if dragonUIButton or buttonAdded then return true end
+    if not GameMenuFrame then return false end
 
+    -- ============================================================
+    -- CUSTOM BUTTON TEXTURES
+    -- Drop the files in DragonUI/assets/ and set the paths below.
+    -- The texture should be ~128x32 px (same proportions as the
+    -- standard game-menu button). One file per state is supported.
+    -- Set TEX_CUSTOM_NORMAL = nil to fall back to the red template.
+    -- ============================================================
+    local TEX_CUSTOM_NORMAL  = addon._dir .. "gamemenu_btn.blp"
+    local TEX_CUSTOM_HOVER   = nil  -- misma textura, se aclara con vertex color en hover
+    local TEX_CUSTOM_PUSHED  = nil  -- misma textura, se oscurece al pulsar
+
+    local FONT      = (addon.UF and addon.UF.DEFAULT_FONT) or "Fonts\\FRIZQT__.TTF"
+    local FONT_SIZE = 12
+
+    -- ── Button (template keeps correct hit-rect and sizing) ──────────────────
+    dragonUIButton = CreateFrame("Button", "DragonUIGameMenuButton", GameMenuFrame, "GameMenuButtonTemplate")
+    dragonUIButton:SetWidth(144)
+
+    local useCustom = TEX_CUSTOM_NORMAL ~= nil
+
+    -- ── Ocultar texturas del template para que no interfieran ────────────────
+    local function hideTemplateTexture(tex)
+        if tex then tex:SetAlpha(0) end
+    end
+    hideTemplateTexture(dragonUIButton:GetNormalTexture())
+    hideTemplateTexture(dragonUIButton:GetHighlightTexture())
+    hideTemplateTexture(dragonUIButton:GetPushedTexture())
+
+    -- ── Capa de fondo: textura custom, 3px más alta que el frame ───────────
+    local bgTex = dragonUIButton:CreateTexture(nil, "BACKGROUND")
+    bgTex:SetPoint("TOPLEFT",     dragonUIButton, "TOPLEFT",     0,  1.5)
+    bgTex:SetPoint("BOTTOMRIGHT", dragonUIButton, "BOTTOMRIGHT", 0, -1.5)
+
+    if useCustom then
+        bgTex:SetTexture(TEX_CUSTOM_NORMAL)
+        bgTex:SetTexCoord(0, 1, 0, 1)
+        bgTex:SetVertexColor(0.40, 0.65, 1.00)
+    else
+        local WHITE = "Interface\\Buttons\\WHITE8X8"
+        bgTex:SetTexture(WHITE)
+        bgTex:SetBlendMode("ADD")
+        bgTex:SetVertexColor(0.05, 0.22, 0.60, 1.0)
+    end
+    dragonUIButton._bgTex = bgTex
+
+    -- ── Capa de hover: overlay aditivo (mismo tamaño, empieza invisible) ─────
+    local hovTex = dragonUIButton:CreateTexture(nil, "ARTWORK")
+    hovTex:SetPoint("TOPLEFT",     dragonUIButton, "TOPLEFT",     0,  1.5)
+    hovTex:SetPoint("BOTTOMRIGHT", dragonUIButton, "BOTTOMRIGHT", 0, -1.5)
+    if useCustom then
+        hovTex:SetTexture(TEX_CUSTOM_NORMAL)
+        hovTex:SetTexCoord(0, 1, 0, 1)
+        hovTex:SetBlendMode("ADD")
+    else
+        hovTex:SetTexture("Interface\\Buttons\\WHITE8X8")
+        hovTex:SetBlendMode("ADD")
+    end
+    hovTex:SetVertexColor(0.30, 0.50, 1.00, 0.0)   -- empieza transparente
+    dragonUIButton._hovTex = hovTex
+
+    -- ── Label ────────────────────────────────────────────────────────────────
+    local label = dragonUIButton:GetFontString()
+    if label then
+        label:SetFont(FONT, FONT_SIZE, "OUTLINE")
+        label:SetTextColor(1.0, 1.0, 1.0, 1.0)
+        label:SetShadowColor(0.0, 0.10, 0.45, 1.0)
+        label:SetShadowOffset(1, -1)
+        label:ClearAllPoints()
+        label:SetPoint("CENTER", dragonUIButton, "CENTER", 0, 1)
+        label:SetText(L["DragonUI"])
+    end
+
+    -- ── Smooth hover animation ────────────────────────────────────────────────
+    local NRM   = {0.40, 0.65, 1.00}   -- bgTex normal  (custom mode)
+    local HOV   = {0.70, 0.90, 1.00}   -- bgTex hover   (custom mode)
+    local OVR   = {0.05, 0.22, 0.60}   -- bgTex normal  (fallback mode)
+    local OVR_H = {0.12, 0.40, 0.95}   -- bgTex hover   (fallback mode)
+    local TXT   = {1.00, 1.00, 1.00}
+    local TXT_H = {1.00, 1.00, 1.00}
+
+    local hoverProgress = 0
+    local hoverTarget   = 0
+    local ANIM_SPEED    = 5
+
+    dragonUIButton:SetScript("OnUpdate", function(self, elapsed)
+        if hoverProgress == hoverTarget then return end
+        local step = ANIM_SPEED * elapsed
+        if hoverTarget > hoverProgress then
+            hoverProgress = math.min(hoverProgress + step, 1)
+        else
+            hoverProgress = math.max(hoverProgress - step, 0)
+        end
+        local p = hoverProgress
+        -- Animar textura de fondo
+        if useCustom then
+            self._bgTex:SetVertexColor(
+                NRM[1] + (HOV[1] - NRM[1]) * p,
+                NRM[2] + (HOV[2] - NRM[2]) * p,
+                NRM[3] + (HOV[3] - NRM[3]) * p)
+        else
+            self._bgTex:SetVertexColor(
+                OVR[1] + (OVR_H[1] - OVR[1]) * p,
+                OVR[2] + (OVR_H[2] - OVR[2]) * p,
+                OVR[3] + (OVR_H[3] - OVR[3]) * p,
+                1.0)
+        end
+        -- Animar overlay de brillo hover
+        self._hovTex:SetVertexColor(0.30, 0.50, 1.00, 0.25 * p)
+        -- Animar texto
+        if label then
+            label:SetTextColor(
+                TXT[1] + (TXT_H[1] - TXT[1]) * p,
+                TXT[2] + (TXT_H[2] - TXT[2]) * p,
+                TXT[3] + (TXT_H[3] - TXT[3]) * p,
+                1.0)
+        end
+    end)
+
+    dragonUIButton:SetScript("OnEnter", function(self) hoverTarget = 1 end)
+    dragonUIButton:SetScript("OnLeave", function(self) hoverTarget = 0 end)
+
+    dragonUIButton:SetScript("OnClick", function(self, button)
+        if button == "LeftButton" then OpenDragonUIConfig() end
+    end)
+
+    PositionDragonUIButton()
+    buttonAdded = true
     return true
 end
 

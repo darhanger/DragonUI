@@ -134,6 +134,7 @@ L["petbar"] = "Pet Bar"
 L["TotemBarOverlay"] = "Totem Bar"
 L["PlayerCastbar"] = "Castbar"
 L["Auras"] = true
+L["WeaponEnchants"] = "Weapon Enchants"
 L["Loot Roll"] = true
 L["Quest Tracker"] = true
 
@@ -144,6 +145,23 @@ L["Right-click to reset"] = true
 -- Editor mode system messages
 L["All editable frames shown for editing"] = true
 L["All editable frames hidden, positions saved"] = true
+
+-- ============================================================================
+-- COMPATIBILITY MODULE
+-- ============================================================================
+
+-- Conflict warning popup
+L["DragonUI Conflict Warning"] = true
+L["The addon |cFFFFFF00%s|r conflicts with DragonUI."] = true
+L["Reason:"] = true
+L["Disable the conflicting addon now?"] = true
+L["Disable"] = true
+L["Keep Both"] = true
+
+-- Conflict reasons
+L["Conflicts with DragonUI's custom unit frame textures and power bar system."] = true
+L["Known taint issues when manipulating party frames during combat. DragonUI provides automatic fixes."] = true
+L["Resets minimap mask and blip textures. DragonUI re-applies its custom textures automatically."] = true
 
 -- ============================================================================
 -- STATIC POPUPS (shared between modules)

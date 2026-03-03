@@ -79,42 +79,31 @@ end
 -- UTILITY FUNCTIONS
 -- ============================================================================
 
--- helper function to handle action button grid logic
-local function handleActionButton(button, wowAlwaysShow)
-    if not IsModuleEnabled() then return end
-    
-    -- CRITICAL: Avoid taint during combat by not modifying protected frames
-    if InCombatLockdown() then return end
-    
-    if wowAlwaysShow then
-        button:SetAttribute('showgrid', 1)
-        ActionButton_ShowGrid(button)
-    else
-        if HasAction(button.action) then
-            ActionButton_ShowGrid(button)
-        else
-            ActionButton_HideGrid(button)
-        end
-    end
-end
+-- ============================================================================
+-- ACTION BUTTON GRID MANAGEMENT
+--
+-- APPROACH (matches pretty_actionbar):
+--   • MAIN BAR (ActionButton1-12): We own it.  Always showgrid=1 so empty
+--     slots are visible (Dragonflight look).
+--   • ADDITIONAL BARS (MultiBar*): Blizzard owns them entirely.  We do NOT
+--     touch showgrid, Show() or Hide() on any multibar button.  The
+--     Interface Options checkbox’s setFunc directly calls
+--     MultiActionBar_ShowAllGrids / MultiActionBar_HideAllGrids, which
+--     works independently of MainMenuBar events.
+-- ============================================================================
 
 function addon.actionbuttons_grid()
     if not IsModuleEnabled() then return end
-    
-    -- CRITICAL: Don't modify action buttons during combat to avoid taint
-    if InCombatLockdown() then 
+    if InCombatLockdown() then
         ButtonsModule.pendingRefresh = true
-        return 
+        return
     end
-    
-    local wowAlwaysShow = GetCVar("alwaysShowActionBars") == "1"
-    local db = GetButtonsConfig()
-    local hideMainBg = db and db.hide_main_bar_background
     
     for index = 1, NUM_ACTIONBAR_BUTTONS do
         local button = _G[format('ActionButton%d', index)]
         if button then
-            handleActionButton(button, wowAlwaysShow)
+            button:SetAttribute('showgrid', 1)
+            ActionButton_ShowGrid(button)
         end
     end
 end
@@ -669,44 +658,42 @@ local function SetupHooks()
     -- cache border color to avoid repeated config access
     local cachedBorderColor = nil
 
+    -- ShowGrid hook: apply our custom border color to NormalTexture.
+    -- This is the ONLY thing we do in this hook — no show/hide logic.
+    -- Matches pretty_actionbar's approach exactly.
     hooksecurefunc('ActionButton_ShowGrid', function(button)
         if not IsModuleEnabled() then return end
+        if not button then return end
         
-        -- CRITICAL: Don't interfere with LibKeyBound during keybind mode
+        -- Don't interfere with LibKeyBound during keybind mode
         if addon.KeyBindingModule and addon.KeyBindingModule.enabled and LibStub and LibStub("LibKeyBound-1.0") then
             local LibKeyBound = LibStub("LibKeyBound-1.0")
-            if LibKeyBound:IsShown() then
-                return -- Skip updates during keybinding mode
-            end
+            if LibKeyBound:IsShown() then return end
         end
-        
-        if not button then return end
         
         local buttonName = button:GetName()
         if not buttonName then return end
         
-        local db = GetButtonsConfig()
-        
-        -- cache border color on first access
         if not cachedBorderColor then
             cachedBorderColor = config.buttons.border_color
         end
         
         local normalTexture = _G[buttonName..'NormalTexture']
-        if not normalTexture then return end
-        
-        if db and db.hide_main_bar_background then
-            local wowAlwaysShow = GetCVar("alwaysShowActionBars") == "1"
-            
-            if buttonName:match("^ActionButton%d+$") then
-                if wowAlwaysShow or HasAction(button.action) then
-                    normalTexture:SetVertexColor(cachedBorderColor[1], cachedBorderColor[2], cachedBorderColor[3], cachedBorderColor[4])
-                end
-            else
-                normalTexture:SetVertexColor(cachedBorderColor[1], cachedBorderColor[2], cachedBorderColor[3], cachedBorderColor[4])
-            end
-        else
+        if normalTexture then
             normalTexture:SetVertexColor(cachedBorderColor[1], cachedBorderColor[2], cachedBorderColor[3], cachedBorderColor[4])
+        end
+    end)
+    
+    -- HideGrid hook: protect ONLY main bar from ever being hidden.
+    -- Additional bars are fully managed by Blizzard — we don't touch them.
+    hooksecurefunc('ActionButton_HideGrid', function(button)
+        if not IsModuleEnabled() then return end
+        if InCombatLockdown() then return end
+        if not button then return end
+        local name = button:GetName()
+        if name and name:match("^ActionButton%d+$") then
+            button:SetAttribute('showgrid', 1)
+            button:Show()
         end
     end)
     
@@ -756,10 +743,10 @@ end
 -- Register initialization events
 addon.package:RegisterEvents(function()
     if IsModuleEnabled() then
-        addon.actionbuttons_grid(); 
-        addon.RefreshButtons();
+        addon.actionbuttons_grid()
+        addon.RefreshButtons()
     end
-    collectgarbage();
+    collectgarbage()
 end,
     'PLAYER_LOGIN'
 );
@@ -767,12 +754,18 @@ end,
 -- Auto-initialize when addon loads and handle post-combat refresh
 local initFrame = CreateFrame("Frame")
 initFrame:RegisterEvent("ADDON_LOADED")
+initFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 initFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
 initFrame:RegisterEvent("UPDATE_BINDINGS")  -- CLAVE: Actualizar hotkeys cuando cambien los bindings
 initFrame:SetScript("OnEvent", function(self, event, addonName)
     if event == "ADDON_LOADED" and addonName == "DragonUI" then
         Initialize()
         self:UnregisterEvent("ADDON_LOADED")
+    elseif event == "PLAYER_ENTERING_WORLD" then
+        -- Re-enforce main bar grid on every zone / instance / reload.
+        if IsModuleEnabled() then
+            addon.actionbuttons_grid()
+        end
     elseif event == "PLAYER_REGEN_ENABLED" then
         -- Execute pending refreshes after combat ends
         if IsModuleEnabled() and ButtonsModule.pendingRefresh then
@@ -937,18 +930,13 @@ end)
 -- Export for options
 addon.UpdateRangeIndicatorState = UpdateRangeIndicatorState
 
--- Monitor alwaysShowActionBars CVar changes with proper event (no more constant timer)
-local cvarFrame = CreateFrame("Frame")
-cvarFrame:RegisterEvent("CVAR_UPDATE")
-cvarFrame:SetScript("OnEvent", function(self, event, cvarName)
-    if not IsModuleEnabled() then return end
-    
-    -- Only react to the specific CVar we care about
-    if event == "CVAR_UPDATE" and cvarName == "alwaysShowActionBars" then
-        -- Execute immediately - no timer needed
-        addon.actionbuttons_grid()
-        
-        -- Refresh main bar background
+-- Monitor alwaysShowActionBars CVar changes.
+-- Only refresh our custom main bar art background.  Multibar grid management
+-- is handled by Blizzard’s InterfaceOptions setFunc which directly calls
+-- MultiActionBar_ShowAllGrids / MultiActionBar_HideAllGrids.
+hooksecurefunc("SetCVar", function(name, value)
+    if name == "alwaysShowActionBars" then
+        if not IsModuleEnabled() then return end
         if MainMenuBarMixin and MainMenuBarMixin.update_main_bar_background then
             MainMenuBarMixin:update_main_bar_background()
         end

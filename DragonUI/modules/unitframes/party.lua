@@ -861,7 +861,7 @@ CreateCustomTexts = function(frame)
         -- Center text for simple formats (numeric, percentage, formatted)
         if not frame.DragonUI_HealthText then
             frame.DragonUI_HealthText = frame.DragonUI_TextFrame:CreateFontString(nil, "OVERLAY")
-            frame.DragonUI_HealthText:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
+            frame.DragonUI_HealthText:SetFont(UF.DEFAULT_FONT, 10, "OUTLINE")
             frame.DragonUI_HealthText:SetTextColor(1, 1, 1, 1)
             frame.DragonUI_HealthText:SetPoint("CENTER", healthBar, "CENTER", 0, 0)
             frame.DragonUI_HealthText:SetJustifyH("CENTER")
@@ -870,7 +870,7 @@ CreateCustomTexts = function(frame)
         -- Left text for "both" format (percentage)
         if not frame.DragonUI_HealthTextLeft then
             frame.DragonUI_HealthTextLeft = frame.DragonUI_TextFrame:CreateFontString(nil, "OVERLAY")
-            frame.DragonUI_HealthTextLeft:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
+            frame.DragonUI_HealthTextLeft:SetFont(UF.DEFAULT_FONT, 10, "OUTLINE")
             frame.DragonUI_HealthTextLeft:SetTextColor(1, 1, 1, 1)
             frame.DragonUI_HealthTextLeft:SetPoint("RIGHT", healthBar, "RIGHT", -39, 0)
             frame.DragonUI_HealthTextLeft:SetJustifyH("LEFT")
@@ -879,7 +879,7 @@ CreateCustomTexts = function(frame)
         -- Right text for "both" format (numbers)
         if not frame.DragonUI_HealthTextRight then
             frame.DragonUI_HealthTextRight = frame.DragonUI_TextFrame:CreateFontString(nil, "OVERLAY")
-            frame.DragonUI_HealthTextRight:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
+            frame.DragonUI_HealthTextRight:SetFont(UF.DEFAULT_FONT, 10, "OUTLINE")
             frame.DragonUI_HealthTextRight:SetTextColor(1, 1, 1, 1)
             frame.DragonUI_HealthTextRight:SetPoint("RIGHT", healthBar, "RIGHT", -3, 0)
             frame.DragonUI_HealthTextRight:SetJustifyH("RIGHT")
@@ -893,7 +893,7 @@ CreateCustomTexts = function(frame)
         -- Center text for simple formats
         if not frame.DragonUI_ManaText then
             frame.DragonUI_ManaText = frame.DragonUI_TextFrame:CreateFontString(nil, "OVERLAY")
-            frame.DragonUI_ManaText:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
+            frame.DragonUI_ManaText:SetFont(UF.DEFAULT_FONT, 10, "OUTLINE")
             frame.DragonUI_ManaText:SetTextColor(1, 1, 1, 1)
             frame.DragonUI_ManaText:SetPoint("CENTER", manaBar, "CENTER", 1.5, 0)
             frame.DragonUI_ManaText:SetJustifyH("CENTER")
@@ -902,7 +902,7 @@ CreateCustomTexts = function(frame)
         -- Left text for "both" format (percentage)
         if not frame.DragonUI_ManaTextLeft then
             frame.DragonUI_ManaTextLeft = frame.DragonUI_TextFrame:CreateFontString(nil, "OVERLAY")
-            frame.DragonUI_ManaTextLeft:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
+            frame.DragonUI_ManaTextLeft:SetFont(UF.DEFAULT_FONT, 10, "OUTLINE")
             frame.DragonUI_ManaTextLeft:SetTextColor(1, 1, 1, 1)
             frame.DragonUI_ManaTextLeft:SetPoint("RIGHT", manaBar, "RIGHT", -39, 0)
             frame.DragonUI_ManaTextLeft:SetJustifyH("LEFT")
@@ -911,7 +911,7 @@ CreateCustomTexts = function(frame)
         -- Right text for "both" format (numbers)
         if not frame.DragonUI_ManaTextRight then
             frame.DragonUI_ManaTextRight = frame.DragonUI_TextFrame:CreateFontString(nil, "OVERLAY")
-            frame.DragonUI_ManaTextRight:SetFont("Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
+            frame.DragonUI_ManaTextRight:SetFont(UF.DEFAULT_FONT, 10, "OUTLINE")
             frame.DragonUI_ManaTextRight:SetTextColor(1, 1, 1, 1)
             frame.DragonUI_ManaTextRight:SetPoint("RIGHT", manaBar, "RIGHT", -3, 0)
             frame.DragonUI_ManaTextRight:SetJustifyH("RIGHT")
@@ -1052,7 +1052,7 @@ local function StylePartyFrames()
             -- Name styling
            local name = _G[frame:GetName() .. 'Name']
             if name then
-                name:SetFont("Fonts\\FRIZQT__.TTF", 10)
+                name:SetFont(UF.DEFAULT_FONT, 10)
                 name:SetShadowOffset(1, -1)
                 name:SetTextColor(1, 0.82, 0, 1) -- Yellow like the rest
 

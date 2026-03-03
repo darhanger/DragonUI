@@ -51,5 +51,6 @@
     <Script file="panel\tab_micromenu.lua"/>
     <Script file="panel\tab_questtracker.lua"/>
     <Script file="panel\tab_enhancements.lua"/>
+    <Script file="panel\tab_auras.lua"/>
     <Script file="panel\tab_profiles.lua"/>
 </Ui>
