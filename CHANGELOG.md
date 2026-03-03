@@ -11,7 +11,7 @@
 
 ### Fixed
 - **Action bar CVar** - Multibar buttons now correctly respect the "Always Show Action Bars" CVar
-- **Korean font** - Unit frame text now renders correctly on koKR clients
+- **Korean font** - UI text no longer renders as "???" on koKR clients (2002.ttf now used as default font for Korean locale)
 - **Compatibility module** - Fixed missing localized popup text
 - **Leader icon** - Fixed overlapping with portrait and border frames
 - **Quest tracker** - Frame anchor no longer causes position drift after reload
