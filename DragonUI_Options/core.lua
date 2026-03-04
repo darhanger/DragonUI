@@ -51,6 +51,14 @@ function addon:RegisterOptionsGroup(name, optionsTable, order)
     if order then
         addon.Options.args[name].order = order
     end
+
+    -- Process any options groups that were queued before Options loaded
+    if addon._pendingOptionsGroups then
+        for _, pending in ipairs(addon._pendingOptionsGroups) do
+            addon.Options.args[pending.name] = pending.table
+        end
+        addon._pendingOptionsGroups = nil
+    end
 end
 
 -- ============================================================================

@@ -105,6 +105,8 @@ end
 -- Helper: position vehicle exit button using widgets.vehicleExit config
 local function PositionVehicleExitButton()
     if not vehicleExitButton then return end
+    -- Vehicle exit button is a secure frame — cannot reposition during combat
+    if InCombatLockdown() then return end
     local cfg = GetVehicleExitWidgetConfig()
     if not cfg or not cfg.anchor then return end
 

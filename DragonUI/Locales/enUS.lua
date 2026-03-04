@@ -163,6 +163,33 @@ L["Keep Both"] = true
 L["Conflicts with DragonUI's custom unit frame textures and power bar system."] = true
 L["Known taint issues when manipulating party frames during combat. DragonUI provides automatic fixes."] = true
 L["Resets minimap mask and blip textures. DragonUI re-applies its custom textures automatically."] = true
+L["SexyMap modifies the minimap borders, shape, and zone text which conflicts with DragonUI's minimap module."] = true
+
+-- SexyMap compatibility popup
+L["DragonUI - SexyMap Detected"] = true
+L["Which minimap do you want to use?"] = true
+L["SexyMap"] = true
+L["DragonUI"] = true
+L["Hybrid"] = true
+L["Recommended"] = true
+
+-- SexyMap options panel
+L["SexyMap Compatibility"] = true
+L["Minimap Mode"] = true
+L["Choose how DragonUI and SexyMap share the minimap."] = true
+L["Requires UI reload to apply."] = true
+L["Uses SexyMap for the minimap."] = true
+L["Uses DragonUI for the minimap."] = true
+L["SexyMap visuals with DragonUI editor and positioning."] = "SexyMap look, moveable and configurable from DragonUI."
+L["Minimap mode changed. Reload UI to apply?"] = true
+
+-- SexyMap slash commands
+L["SexyMap compatibility mode has been reset. Reload UI to choose again."] = true
+L["Current SexyMap mode: |cFFFFFF00%s|r"] = true
+L["No SexyMap mode selected (SexyMap not detected or not yet chosen)."] = true
+L["Show current SexyMap compatibility mode"] = true
+L["Reset SexyMap mode choice (re-prompts on reload)"] = true
+L["Loaded addons:"] = true
 
 -- ============================================================================
 -- STATIC POPUPS (shared between modules)

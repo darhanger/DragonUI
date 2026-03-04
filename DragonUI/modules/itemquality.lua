@@ -2,9 +2,11 @@ local addon = select(2, ...)
 
 -- ============================================================================
 -- ITEM QUALITY BORDERS MODULE FOR DRAGONUI
--- Adds quality-colored border overlays to inventory-related frames:
+-- Adds quality-colored glow borders to item slots across all inventory frames:
 --   Character Panel, Inspect Frame, Bags, Bank, Merchant, Guild Bank
--- Inspired by DragonflightUI ItemColor module.
+--
+-- Special thanks to haste (https://github.com/haste) for oGlow, whose clean
+-- implementation served as reference for the bank and guild bank systems.
 -- ============================================================================
 
 -- Module state tracking
@@ -185,30 +187,35 @@ end
 -- BAGS (container frames)
 -- ============================================================================
 
-local function GetBagItemQuality(bag, slot)
-    local link = GetContainerItemLink(bag, slot)
+-- Map known item link color hex codes → quality index (shared lookup table)
+local COLOR_TO_QUALITY = {
+    ["ff9d9d9d"] = 0, -- Poor
+    ["ffffffff"] = 1, -- Common
+    ["ff1eff00"] = 2, -- Uncommon
+    ["ff0070dd"] = 3, -- Rare
+    ["ffa335ee"] = 4, -- Epic
+    ["ffff8000"] = 5, -- Legendary
+    ["ffe6cc80"] = 6, -- Artifact
+    ["ff00ccff"] = 7, -- Heirloom
+}
+
+-- Extract quality from an item link.
+-- Tries GetItemInfo first; falls back to parsing the embedded color hex so
+-- uncached items (first open of bank, etc.) still get colored correctly.
+local function GetQualityFromLink(link)
     if not link then return nil end
     local _, _, quality = GetItemInfo(link)
-    -- GetItemInfo can return nil on first call for uncached items (e.g. after
-    -- a form change flushes some caches).  Fall back to parsing the link color.
-    if not quality and link then
+    if not quality then
         local _, _, colorHex = string.find(link, "|c(%x+)|")
         if colorHex then
-            -- Map known quality color hex codes
-            local COLOR_TO_QUALITY = {
-                ["ff9d9d9d"] = 0, -- Poor
-                ["ffffffff"] = 1, -- Common
-                ["ff1eff00"] = 2, -- Uncommon
-                ["ff0070dd"] = 3, -- Rare
-                ["ffa335ee"] = 4, -- Epic
-                ["ffff8000"] = 5, -- Legendary
-                ["ffe6cc80"] = 6, -- Artifact
-                ["ff00ccff"] = 7, -- Heirloom
-            }
             quality = COLOR_TO_QUALITY[colorHex:lower()]
         end
     end
     return quality
+end
+
+local function GetBagItemQuality(bag, slot)
+    return GetQualityFromLink(GetContainerItemLink(bag, slot))
 end
 
 local function UpdateBagSlot(frame, bag, slot)
@@ -242,54 +249,77 @@ local function UpdateAllBags()
 end
 
 -- ============================================================================
--- BANK (bank frame slots)
+-- BANK (personal bank slots + bank bag containers)
 -- ============================================================================
 
 local NUM_BANKGENERIC_SLOTS = 28 -- Standard bank slots in 3.3.5a
 
 local function UpdateBankSlots()
     if not IsModuleEnabled() then return end
+    if not BankFrame or not BankFrame:IsShown() then return end
 
-    -- Main bank slots: BankFrameItem1 through BankFrameItem28
+    -- Bank slots use sequential IDs 1..28 matching BankFrameItem1..28
     for i = 1, NUM_BANKGENERIC_SLOTS do
         local button = _G["BankFrameItem" .. i]
         if button then
-            local slotID = button:GetID()
-            -- Bank uses BANK_CONTAINER = -1 for main slots
-            local link = GetContainerItemLink(BANK_CONTAINER, slotID)
-            if link then
-                local _, _, quality = GetItemInfo(link)
-                SetOverlayQuality(button, quality)
-            else
-                SetOverlayQuality(button, nil)
-            end
+            local link = GetContainerItemLink(-1, i)
+            SetOverlayQuality(button, GetQualityFromLink(link))
         end
     end
 
-    -- Bank bag slots (bags 5-11)
-    for bag = 5, 11 do
-        local numSlots = GetContainerNumSlots(bag)
-        for slot = 1, numSlots do
-            -- Bank bag container frames share ContainerFrame naming
-            local numContainerFrames = NUM_CONTAINER_FRAMES or 13
-            for i = 1, numContainerFrames do
-                local containerFrame = _G["ContainerFrame" .. i]
-                if containerFrame and containerFrame:IsShown() and containerFrame:GetID() == bag then
-                    local itemButton = _G["ContainerFrame" .. i .. "Item" .. slot]
+    -- Bank bag containers (bag IDs 5-11) are displayed as standard ContainerFrames.
+    -- Items inside are displayed in reverse order, so use button:GetID() for the real slot.
+    local numContainerFrames = NUM_CONTAINER_FRAMES or 13
+    for i = 1, numContainerFrames do
+        local containerFrame = _G["ContainerFrame" .. i]
+        if containerFrame and containerFrame:IsShown() then
+            local bag = containerFrame:GetID()
+            if bag >= 5 and bag <= 11 then
+                local numSlots = GetContainerNumSlots(bag)
+                local frameName = containerFrame:GetName()
+                for btnIdx = 1, numSlots do
+                    local itemButton = _G[frameName .. "Item" .. btnIdx]
                     if itemButton then
-                        local link = GetContainerItemLink(bag, slot)
-                        if link then
-                            local _, _, quality = GetItemInfo(link)
-                            SetOverlayQuality(itemButton, quality)
-                        else
-                            SetOverlayQuality(itemButton, nil)
-                        end
+                        local realSlot = itemButton:GetID()
+                        local link = GetContainerItemLink(bag, realSlot)
+                        SetOverlayQuality(itemButton, GetQualityFromLink(link))
                     end
                 end
             end
         end
     end
 end
+
+-- Debug: dump bank quality state to chat
+local function DebugBankSlots()
+    addon:Print("=== BANK QUALITY DEBUG ===")
+    addon:Print("Module enabled:", IsModuleEnabled())
+    addon:Print("BankFrame exists:", BankFrame ~= nil)
+    addon:Print("BankFrame shown:", BankFrame and BankFrame:IsShown() or false)
+    local found = 0
+    for i = 1, NUM_BANKGENERIC_SLOTS do
+        local button = _G["BankFrameItem" .. i]
+        if button then
+            local link = GetContainerItemLink(-1, i)
+            local quality = GetQualityFromLink(link)
+            if link then
+                found = found + 1
+                local overlay = button.__DragonUI_QualityOverlay
+                addon:Print(string.format("Slot %d: link=%s quality=%s overlay=%s shown=%s",
+                    i,
+                    link and "YES" or "NO",
+                    tostring(quality),
+                    overlay and "YES" or "NO",
+                    overlay and tostring(overlay:IsShown()) or "N/A"
+                ))
+            end
+        end
+    end
+    addon:Print(string.format("Total slots with items: %d", found))
+end
+
+-- Expose for slash command
+addon.DebugBankSlots = DebugBankSlots
 
 -- ============================================================================
 -- MERCHANT FRAME
@@ -333,23 +363,22 @@ end
 
 local function UpdateGuildBankSlots()
     if not IsModuleEnabled() then return end
+    -- Blizzard_GuildBankUI is a load-on-demand addon; bail if not loaded yet
+    if not IsAddOnLoaded("Blizzard_GuildBankUI") then return end
     if not GuildBankFrame or not GuildBankFrame:IsShown() then return end
 
-    local tab = GetCurrentGuildBankTab and GetCurrentGuildBankTab() or 1
-    -- Guild bank: 7 columns, 14 slots each = 98 slots per tab
-    for col = 1, 7 do
-        for slot = 1, 14 do
-            local buttonIndex = (col - 1) * 14 + slot
-            local button = _G["GuildBankColumn" .. col .. "Button" .. slot]
-            if button then
-                local link = GetGuildBankItemLink and GetGuildBankItemLink(tab, buttonIndex)
-                if link then
-                    local _, _, quality = GetItemInfo(link)
-                    SetOverlayQuality(button, quality)
-                else
-                    SetOverlayQuality(button, nil)
-                end
-            end
+    local tab = GetCurrentGuildBankTab()
+    -- Each tab has 98 slots arranged in 7 columns of 14 rows
+    for i = 1, MAX_GUILDBANK_SLOTS_PER_TAB or 98 do
+        -- Derive row (1-14) and column (1-7) from the linear slot index
+        local index = math.fmod(i, 14)
+        if index == 0 then index = 14 end
+        local column = math.ceil((i - 0.5) / 14)
+
+        local button = _G["GuildBankColumn" .. column .. "Button" .. index]
+        if button then
+            local link = GetGuildBankItemLink(tab, i)
+            SetOverlayQuality(button, GetQualityFromLink(link))
         end
     end
 end
@@ -459,14 +488,22 @@ local function ApplyItemQualitySystem()
         ItemQualityModule.hooks["MerchantBuyback"] = true
     end
 
-    -- Guild Bank
-    if not ItemQualityModule.hooks["GuildBank"] and GuildBankFrame_Update then
-        hooksecurefunc("GuildBankFrame_Update", function()
+    -- Bank: hook BankFrameItemButton_Update for per-slot real-time updates.
+    -- BankFrameItemButton_Update is defined in Blizzard's BankFrame.lua which
+    -- loads at startup, so it exists by the time this function runs.
+    if not ItemQualityModule.hooks["BankFrame"] and BankFrameItemButton_Update then
+        hooksecurefunc("BankFrameItemButton_Update", function(button)
             if not IsModuleEnabled() then return end
-            UpdateGuildBankSlots()
+            if not BankFrame or not BankFrame:IsShown() then return end
+            local slotID = button:GetID()
+            local link = GetContainerItemLink(-1, slotID)
+            SetOverlayQuality(button, GetQualityFromLink(link))
         end)
-        ItemQualityModule.hooks["GuildBank"] = true
+        ItemQualityModule.hooks["BankFrame"] = true
     end
+
+    -- Guild Bank: hook is installed dynamically on GUILDBANKFRAME_OPENED
+    -- because Blizzard_GuildBankUI is load-on-demand (not available at startup)
 
     -- Initial update
     addon:After(0.5, UpdateAllQualityBorders)
@@ -511,8 +548,11 @@ eventFrame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 eventFrame:RegisterEvent("BAG_UPDATE")
 eventFrame:RegisterEvent("BANKFRAME_OPENED")
 eventFrame:RegisterEvent("PLAYERBANKSLOTS_CHANGED")
+eventFrame:RegisterEvent("PLAYERBANKBAGSLOTS_CHANGED")
 eventFrame:RegisterEvent("MERCHANT_SHOW")
 eventFrame:RegisterEvent("MERCHANT_UPDATE")
+eventFrame:RegisterEvent("GUILDBANKFRAME_OPENED")
+eventFrame:RegisterEvent("GUILDBANKBAGSLOTS_CHANGED")
 
 eventFrame:SetScript("OnEvent", function(self, event, arg1)
     if event == "ADDON_LOADED" and arg1 == "DragonUI" then
@@ -552,13 +592,29 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
         if not IsModuleEnabled() then return end
         addon:After(0.2, UpdateAllBags)
 
-    elseif event == "BANKFRAME_OPENED" or event == "PLAYERBANKSLOTS_CHANGED" then
+    elseif event == "BANKFRAME_OPENED" or event == "PLAYERBANKSLOTS_CHANGED" or event == "PLAYERBANKBAGSLOTS_CHANGED" then
         if not IsModuleEnabled() then return end
-        addon:After(0.2, UpdateBankSlots)
+        -- Call immediately AND schedule retries to handle servers that send
+        -- bank slot data asynchronously after BANKFRAME_OPENED fires.
+        UpdateBankSlots()
+        addon:After(0.5, UpdateBankSlots)
+        addon:After(1.5, UpdateBankSlots)
 
     elseif event == "MERCHANT_SHOW" or event == "MERCHANT_UPDATE" then
         if not IsModuleEnabled() then return end
         addon:After(0.2, UpdateMerchantItems)
+
+    elseif event == "GUILDBANKFRAME_OPENED" or event == "GUILDBANKBAGSLOTS_CHANGED" then
+        if not IsModuleEnabled() then return end
+        -- Install GuildBankFrame_Update hook on first open (load-on-demand addon)
+        if not ItemQualityModule.hooks["GuildBank"] and GuildBankFrame_Update then
+            hooksecurefunc("GuildBankFrame_Update", function()
+                if not IsModuleEnabled() then return end
+                UpdateGuildBankSlots()
+            end)
+            ItemQualityModule.hooks["GuildBank"] = true
+        end
+        UpdateGuildBankSlots()
     end
 end)
 

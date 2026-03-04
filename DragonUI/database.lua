@@ -45,7 +45,7 @@ local defaults = {
             pet = {
                 anchor = "TOPLEFT",
                 posX = 63,
-                posY = -85
+                posY = -105
             },
             petbar = {
                 anchor = "BOTTOM",

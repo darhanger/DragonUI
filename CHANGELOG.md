@@ -2,6 +2,16 @@
 
 > **⚠️ Experimental Branch** - All changes below still need further in-game testing and may contain bugs or incomplete features. If you run into any problems, feel free to let me know [here](https://github.com/NeticSoul/DragonUI/issues/141) - any feedback helps!
 
+## 📅 2026-03-04
+
+### Added
+- **SexyMap compatibility system** — Detects SexyMap and offers three modes: SexyMap, DragonUI, or Hybrid. A new section at the bottom of the Minimap options tab (visible only when SexyMap is installed) lets you switch between modes. Use `/duicomp` to check or reset
+
+### Fixed
+- **Item quality borders** — Now correctly applied to guild bank slots
+- **Party frames Master Looter icon** — Fixed incorrect positioning
+- **Pet unitframe default position** — Adjusted to avoid overlapping with Death Knight runes
+
 ## 📅 2026-03-03
 
 ### Added

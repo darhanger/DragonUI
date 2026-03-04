@@ -258,6 +258,310 @@ behaviors.CarboniteMinimapFix = function(addonName, addonInfo)
     end)
 end
 
+-- ============================================================================
+-- SEXYMAP COMPATIBILITY SYSTEM
+-- ============================================================================
+
+-- Behavior: SexyMap compatibility with 3-option popup
+-- Detects SexyMap and offers:  Use SexyMap only / Use DragonUI only / Hybrid mode
+behaviors.SexyMapCompatibility = function(addonName, addonInfo)
+    -- Check if user has already made a choice (stored in DB)
+    local minimapConfig = addon.db and addon.db.profile and addon.db.profile.modules
+        and addon.db.profile.modules.minimap
+    if not minimapConfig then return end
+
+    local savedMode = minimapConfig.sexymap_mode
+
+    -- If a mode was already chosen, apply it silently
+    if savedMode then
+        -- Delay application to ensure both addons have finished loading
+        DelayedCall(function()
+            behaviors._ApplySexyMapMode(savedMode)
+        end, 1.0)
+        return
+    end
+
+    -- Show the 3-option popup after a short delay (let both addons finish loading)
+    DelayedCall(function()
+        behaviors._ShowSexyMapPopup()
+    end, 1.5)
+end
+
+-- Internal: Show the SexyMap compatibility popup with 3 options
+behaviors._ShowSexyMapPopup = function()
+    local popupName = "DRAGONUI_SEXYMAP_COMPAT"
+
+    StaticPopupDialogs[popupName] = {
+        text = "|cFF00CCFF" .. L["DragonUI - SexyMap Detected"] .. "|r\n\n" ..
+            L["Which minimap do you want to use?"] .. "\n\n" ..
+            "|cFFFFFF00" .. L["Hybrid"] .. " (" .. L["Recommended"] .. "):|r " .. L["SexyMap visuals with DragonUI editor and positioning."],
+        button1 = L["SexyMap"],
+        button2 = L["DragonUI"],
+        button3 = L["Hybrid"],
+        OnAccept = function()
+            -- Button1: Use SexyMap Only
+            behaviors._SaveSexyMapMode("sexymap")
+            -- Pre-disable button skins so they don't conflict with SexyMap
+            if addon.db and addon.db.profile and addon.db.profile.minimap then
+                addon.db.profile.minimap.addon_button_skin = false
+            end
+            ReloadUI()
+        end,
+        OnCancel = function()
+            -- Button2: Use DragonUI Only
+            behaviors._SaveSexyMapMode("dragonui")
+            DisableAddOn("SexyMap")
+            ReloadUI()
+        end,
+        OnAlt = function()
+            -- Button3: Hybrid Mode
+            behaviors._SaveSexyMapMode("hybrid")
+            -- Pre-disable button skins so they don't flash on reload
+            if addon.db and addon.db.profile and addon.db.profile.minimap then
+                addon.db.profile.minimap.addon_button_skin = false
+            end
+            ReloadUI()
+        end,
+        timeout = 0,
+        whileDead = true,
+        hideOnEscape = false,
+        preferredIndex = 3,
+        showAlert = true
+    }
+
+    StaticPopup_Show(popupName)
+end
+
+-- Internal: Save the user's SexyMap mode choice to DB
+behaviors._SaveSexyMapMode = function(mode)
+    if addon.db and addon.db.profile and addon.db.profile.modules
+        and addon.db.profile.modules.minimap then
+        addon.db.profile.modules.minimap.sexymap_mode = mode
+    end
+end
+
+-- Internal: Exempt MiniMapLFGFrame (Dungeon Eye) from SexyMap's hover-fade.
+-- DragonUI's micromenu reparents MiniMapLFGFrame out of MinimapCluster into
+-- its own moveable wrapper.  SexyMap's Buttons module registers it as a hover
+-- button (fades to alpha 0 when mouse is not over the minimap), but since the
+-- frame is no longer a child of MinimapCluster the mouse-over detection never
+-- fires → the Dungeon Eye becomes permanently invisible.
+-- Fix: Unregister it from SexyMap's hover system and hook SetAlpha as safety net.
+behaviors._ExemptLFGFromSexyMapFade = function()
+    if not MiniMapLFGFrame then return end
+    -- Already applied?
+    if MiniMapLFGFrame._DragonUI_SexyMapFadeExempt then return end
+    MiniMapLFGFrame._DragonUI_SexyMapFadeExempt = true
+
+    local sexyMapObj = _G["SexyMap"]
+    -- Unregister from SexyMap's hover system
+    if sexyMapObj and sexyMapObj.UnregisterHoverButton then
+        sexyMapObj:UnregisterHoverButton(MiniMapLFGFrame)
+    end
+    -- Force full alpha
+    MiniMapLFGFrame:SetAlpha(1)
+
+    -- Safety net: hook SetAlpha to prevent SexyMap from fading it
+    local origLFGSetAlpha = MiniMapLFGFrame.SetAlpha
+    MiniMapLFGFrame.SetAlpha = function(self, alpha)
+        -- If DragonUI has reparented the LFG frame out of the minimap
+        -- hierarchy, block external fade attempts
+        local parent = self:GetParent()
+        if parent and parent ~= Minimap and parent ~= MinimapCluster
+           and parent ~= MinimapBackdrop then
+            origLFGSetAlpha(self, 1)
+            return
+        end
+        origLFGSetAlpha(self, alpha)
+    end
+end
+
+-- Internal: Apply the chosen SexyMap compatibility mode (called on login with saved choice)
+behaviors._ApplySexyMapMode = function(mode)
+    if mode == "sexymap" then
+        -- ================================================================
+        -- USE SEXYMAP ONLY: DragonUI minimap module skips initialization
+        -- when sexymap_mode == "sexymap" is in DB (checked in Initialize/Apply).
+        -- Also disable addon button skin to avoid conflicts.
+        -- Ensure SexyMap is enabled at addon level (may have been disabled
+        -- by a previous "dragonui" mode switch).
+        -- ================================================================
+        EnableAddOn("SexyMap")
+        if addon.db and addon.db.profile and addon.db.profile.minimap then
+            addon.db.profile.minimap.addon_button_skin = false
+        end
+        -- Exempt LFG icon from SexyMap fade (DragonUI micromenu reparents it)
+        DelayedCall(behaviors._ExemptLFGFromSexyMapFade, 2.0)
+
+    elseif mode == "dragonui" then
+        -- ================================================================
+        -- USE DRAGONUI ONLY: Disable SexyMap addon so it won't load
+        -- on next reload. Also disable if currently loaded.
+        -- ================================================================
+        DisableAddOn("SexyMap")
+
+    elseif mode == "hybrid" then
+        -- ================================================================
+        -- HYBRID MODE: Mark module for hybrid behavior
+        -- The minimap module reads sexymap_mode from DB during init
+        -- and adjusts its ReplaceBlizzardFrame/RemoveBlizzardFrames logic.
+        -- Ensure SexyMap is enabled at addon level (may have been disabled
+        -- by a previous "dragonui" mode switch).
+        -- ================================================================
+        EnableAddOn("SexyMap")
+        if addon.MinimapModule then
+            addon.MinimapModule.sexyMapHybridMode = true
+        end
+        -- Apply runtime adjustments after minimap is initialized
+        behaviors._WaitAndAdjustHybrid()
+    end
+end
+
+-- Internal: Wait for minimap module to initialize then apply hybrid adjustments
+behaviors._WaitAndAdjustHybrid = function()
+    if addon.MinimapModule and addon.MinimapModule.applied then
+        behaviors._AdjustForHybridMode()
+    else
+        local waitFrame = CreateFrame("Frame")
+        local waitElapsed = 0
+        waitFrame:SetScript("OnUpdate", function(self, dt)
+            waitElapsed = waitElapsed + dt
+            if waitElapsed > 3.0 then
+                if addon.MinimapModule and addon.MinimapModule.applied then
+                    behaviors._AdjustForHybridMode()
+                end
+                self:SetScript("OnUpdate", nil)
+            end
+        end)
+    end
+end
+
+-- Internal: Adjust DragonUI minimap for hybrid coexistence with SexyMap
+-- In hybrid mode:
+--   SexyMap controls: borders, shapes/mask, fading, button orbit/visibility
+--   DragonUI controls: positioning (editor mode), tracking icons, calendar,
+--                      instance difficulty, POI textures, blip textures
+behaviors._AdjustForHybridMode = function()
+    -- 1. Hide DragonUI's custom border top (SexyMap hides the default and uses its own)
+    if MinimapBorderTop then
+        MinimapBorderTop:Hide()
+    end
+
+    -- 2. Allow SexyMap to control the minimap mask (shape)
+    if addon.MinimapModule then
+        addon.MinimapModule._allowExternalMask = true
+    end
+
+    -- 3. Allow SexyMap to control MinimapBorder visibility
+    if addon.MinimapModule then
+        addon.MinimapModule._allowExternalBorderControl = true
+    end
+
+    -- 4. Hide DragonUI's custom border frame and circle texture (conflicts with SexyMap borders)
+    if addon.MinimapModule and addon.MinimapModule.borderFrame then
+        addon.MinimapModule.borderFrame:Hide()
+        addon.MinimapModule._borderHiddenForHybrid = true
+    end
+    if Minimap and Minimap.Circle then
+        Minimap.Circle:Hide()
+    end
+
+    -- 5. Fix zone text: Let SexyMap's ZoneText module handle styling/position
+    --    but preserve DragonUI's click-to-open-map functionality
+    if MinimapZoneTextButton then
+        local sexyMapObj = _G["SexyMap"]
+        local sexyMapZoneText = sexyMapObj and sexyMapObj.GetModule and sexyMapObj:GetModule("ZoneText", true)
+        if sexyMapZoneText then
+            -- Re-apply click handler after SexyMap modifies the button
+            MinimapZoneTextButton:EnableMouse(true)
+            MinimapZoneTextButton:SetScript("OnMouseUp", function(self, button)
+                if button == "LeftButton" then
+                    if WorldMapFrame:IsShown() then
+                        HideUIPanel(WorldMapFrame)
+                    else
+                        ShowUIPanel(WorldMapFrame)
+                    end
+                end
+            end)
+        end
+    end
+
+    -- 6. Lock SexyMap's built-in drag so DragonUI editor handles positioning
+    local sexyMapObj = _G["SexyMap"]
+    if sexyMapObj then
+        local sexyMapGeneral = sexyMapObj.GetModule and sexyMapObj:GetModule("General", true)
+        if sexyMapGeneral then
+            if sexyMapGeneral.db and sexyMapGeneral.db.profile then
+                sexyMapGeneral.db.profile.lock = true
+            end
+            -- Also call SetLock directly to clear any drag scripts already set up
+            if sexyMapGeneral.SetLock then
+                sexyMapGeneral:SetLock(true)
+            end
+        end
+    end
+
+    -- 7. Let SexyMap's Borders, Fader, and Buttons modules work freely
+    --    (no interference needed — they operate on Minimap children)
+
+    -- 8. Restore SexyMap's mask if it was overridden by DragonUI
+    if sexyMapObj then
+        local sexyMapShapes = sexyMapObj.GetModule and sexyMapObj:GetModule("Shapes", true)
+        if sexyMapShapes and sexyMapShapes.Apply then
+            -- Let SexyMap re-apply its shape
+            sexyMapShapes:Apply()
+        end
+    end
+
+    -- 9. Disable DragonUI's addon button skin (conflicts with SexyMap button management)
+    if addon.db and addon.db.profile and addon.db.profile.minimap then
+        addon.db.profile.minimap.addon_button_skin = false
+    end
+
+    -- Also unskin any buttons already skinned this session so no second reload is needed
+    if addon.MinimapModule and addon.MinimapModule.UnskinAllMinimapButtons then
+        addon.MinimapModule.UnskinAllMinimapButtons()
+    end
+
+    -- 10. Re-trigger SexyMap's button hover/hide system so buttons hide properly after unskinning
+    if sexyMapObj then
+        local sexyMapButtons = sexyMapObj.GetModule and sexyMapObj:GetModule("Buttons", true)
+        if sexyMapButtons and sexyMapButtons.Update then
+            sexyMapButtons:Update()
+        end
+    end
+
+    -- 11. Exempt LFG icon from SexyMap fade (shared with sexymap-only mode)
+    behaviors._ExemptLFGFromSexyMapFade()
+
+end
+
+-- Public API: Check if hybrid mode is active
+function compatibility:IsSexyMapHybridMode()
+    if not addon.db or not addon.db.profile or not addon.db.profile.modules
+        or not addon.db.profile.modules.minimap then
+        return false
+    end
+    return addon.db.profile.modules.minimap.sexymap_mode == "hybrid"
+end
+
+-- Public API: Get current SexyMap mode
+function compatibility:GetSexyMapMode()
+    if not addon.db or not addon.db.profile or not addon.db.profile.modules
+        or not addon.db.profile.modules.minimap then
+        return nil
+    end
+    return addon.db.profile.modules.minimap.sexymap_mode
+end
+
+-- Public API: Reset SexyMap mode choice (will re-prompt on next login)
+function compatibility:ResetSexyMapMode()
+    if addon.db and addon.db.profile and addon.db.profile.modules
+        and addon.db.profile.modules.minimap then
+        addon.db.profile.modules.minimap.sexymap_mode = nil
+    end
+end
+
 local ADDON_REGISTRY = {
     ["unitframelayers"] = {
         name = "UnitFrameLayers",
@@ -276,6 +580,12 @@ local ADDON_REGISTRY = {
         name = "Carbonite",
         reason = L["Resets minimap mask and blip textures. DragonUI re-applies its custom textures automatically."],
         behavior = behaviors.CarboniteMinimapFix,
+        checkOnce = true
+    },
+    ["sexymap"] = {
+        name = "SexyMap",
+        reason = L["SexyMap modifies the minimap borders, shape, and zone text which conflicts with DragonUI's minimap module."],
+        behavior = behaviors.SexyMapCompatibility,
         checkOnce = true
     },
 }
@@ -389,6 +699,30 @@ local function InitializeEvents()
             end
 
             if loadedAddonName == "DragonUI" then
+                -- Auto-reset SexyMap mode ONLY if SexyMap is completely uninstalled
+                -- (not in the addon list at all). If it's just disabled, the user's
+                -- chosen mode should persist so it applies when they re-enable it.
+                local minimapCfg = addon.db and addon.db.profile and addon.db.profile.modules
+                    and addon.db.profile.modules.minimap
+                if minimapCfg and minimapCfg.sexymap_mode then
+                    local sexyMapExists = false
+                    for i = 1, GetNumAddOns() do
+                        local name = GetAddOnInfo(i)
+                        if name and name:lower() == "sexymap" then
+                            sexyMapExists = true
+                            break
+                        end
+                    end
+                    if not sexyMapExists then
+                        local oldMode = minimapCfg.sexymap_mode
+                        minimapCfg.sexymap_mode = nil
+                        -- Restore addon_button_skin if sexymap/hybrid mode had disabled it
+                        if (oldMode == "hybrid" or oldMode == "sexymap") and addon.db.profile.minimap then
+                            addon.db.profile.minimap.addon_button_skin = true
+                        end
+                    end
+                end
+
                 DelayedCall(function()
                     local foundAddons = ScanForRegisteredAddons()
                     for addonName, addonInfo in pairs(foundAddons) do
@@ -416,7 +750,30 @@ local function InitializeCommands()
     SLASH_DRAGONUI_COMPAT1 = "/duicomp"
     
     SlashCmdList["DRAGONUI_COMPAT"] = function(msg)
+        local cmd = msg and msg:lower():trim() or ""
         
+        if cmd == "sexymap reset" then
+            -- Reset SexyMap mode choice — will re-prompt on next login
+            compatibility:ResetSexyMapMode()
+            print("|cFF00CCFFDragonUI:|r " .. L["SexyMap compatibility mode has been reset. Reload UI to choose again."])
+            return
+        elseif cmd == "sexymap" then
+            -- Show current SexyMap mode
+            local mode = compatibility:GetSexyMapMode()
+            if mode then
+                print("|cFF00CCFFDragonUI:|r " .. string.format(L["Current SexyMap mode: |cFFFFFF00%s|r"], mode))
+            else
+                print("|cFF00CCFFDragonUI:|r " .. L["No SexyMap mode selected (SexyMap not detected or not yet chosen)."])
+            end
+            return
+        end
+        
+        -- Default: list loaded addons
+        print("|cFF00CCFFDragonUI Compatibility:|r")
+        print("  /duicomp sexymap - " .. L["Show current SexyMap compatibility mode"])
+        print("  /duicomp sexymap reset - " .. L["Reset SexyMap mode choice (re-prompts on reload)"])
+        print("")
+        print(L["Loaded addons:"])
         for i = 1, GetNumAddOns() do
             local name = select(1, GetAddOnInfo(i))
             local title = GetAddOnMetadata(i, "Title") or "Unknown"
@@ -486,3 +843,93 @@ end
 
 InitializeEvents()
 InitializeCommands()
+
+-- ============================================================================
+-- OPTIONS PANEL: SexyMap mode selector (registered from compatibility module
+-- so it is visible regardless of minimap module state)
+-- ============================================================================
+
+local function IsSexyMapInstalled()
+    -- Check if SexyMap exists in the addon list at all (enabled or disabled).
+    -- We do NOT check enabled state because DragonUI itself disables SexyMap
+    -- in "DragonUI Only" mode, and the user needs the options to switch back.
+    for i = 1, GetNumAddOns() do
+        local name = GetAddOnInfo(i)
+        if name and name:lower() == "sexymap" then
+            return true
+        end
+    end
+    return false
+end
+
+-- Cache result at load time (addon list doesn't change mid-session)
+local sexyMapInstalled = IsSexyMapInstalled()
+-- Expose on addon object so options panel can read it without re-detecting
+addon._sexyMapInstalled = sexyMapInstalled
+
+if sexyMapInstalled then
+    local sexyMapOptions = {
+        name = L["SexyMap Compatibility"],
+        type = "group",
+        order = 11, -- right after minimap
+        args = {
+            description = {
+                type = 'description',
+                name = L["Choose how DragonUI and SexyMap share the minimap."],
+                order = 1
+            },
+            sexymap_mode = {
+                type = 'select',
+                name = L["Minimap Mode"],
+                desc = L["Requires UI reload to apply."],
+                values = {
+                    ["sexymap"]  = L["SexyMap"],
+                    ["dragonui"] = L["DragonUI"],
+                    ["hybrid"]   = L["Hybrid"],
+                },
+                get = function()
+                    local cfg = addon.db and addon.db.profile and addon.db.profile.modules
+                        and addon.db.profile.modules.minimap
+                    return cfg and cfg.sexymap_mode or "dragonui"
+                end,
+                set = function(_, val)
+                    if addon.db and addon.db.profile and addon.db.profile.modules
+                        and addon.db.profile.modules.minimap then
+                        addon.db.profile.modules.minimap.sexymap_mode = val
+                    end
+                    StaticPopup_Show("DRAGONUI_SEXYMAP_MODE_RELOAD")
+                end,
+                order = 2,
+            },
+            mode_desc = {
+                type = 'description',
+                name = function()
+                    return "\n|cFF888888" .. L["SexyMap"] .. ":|r " .. L["Uses SexyMap for the minimap."] .. "\n" ..
+                           "|cFF888888" .. L["DragonUI"] .. ":|r " .. L["Uses DragonUI for the minimap."] .. "\n" ..
+                           "|cFF888888" .. L["Hybrid"] .. ":|r " .. L["SexyMap visuals with DragonUI editor and positioning."]
+                end,
+                order = 3
+            }
+        }
+    }
+
+    StaticPopupDialogs["DRAGONUI_SEXYMAP_MODE_RELOAD"] = {
+        text = "|cFF00CCFFDragonUI|r\n\n" .. L["Minimap mode changed. Reload UI to apply?"],
+        button1 = ACCEPT or "Accept",
+        button2 = CANCEL or "Cancel",
+        OnAccept = function() ReloadUI() end,
+        timeout = 0,
+        whileDead = true,
+        hideOnEscape = true,
+        preferredIndex = 3
+    }
+
+    -- DragonUI_Options is LoadOnDemand — RegisterOptionsGroup may not exist yet.
+    -- Queue the table; it gets picked up when the first RegisterOptionsGroup call runs.
+    if addon.RegisterOptionsGroup then
+        addon:RegisterOptionsGroup("sexymap", sexyMapOptions)
+    else
+        addon._pendingOptionsGroups = addon._pendingOptionsGroups or {}
+        table.insert(addon._pendingOptionsGroups, { name = "sexymap", table = sexyMapOptions })
+    end
+end

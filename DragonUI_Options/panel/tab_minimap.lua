@@ -145,16 +145,50 @@ local function BuildMinimapTab(scroll)
         callback = RefreshMinimap,
     })
 
-    C:AddButton(display, {
-        label = LO["Reset Minimap Position"],
-        width = 200,
-        callback = function()
-            if addon.ResetMinimapPosition then
-                addon.ResetMinimapPosition()
-            end
-            print("|cFF00FF00[DragonUI]|r " .. LO["Minimap position reset."])
-        end,
-    })
+    -- ====================================================================
+    -- SEXYMAP COMPATIBILITY  (only when SexyMap is installed)
+    -- ====================================================================
+    if addon._sexyMapInstalled then
+        local sm = C:AddSection(scroll, L["SexyMap Compatibility"])
+
+        C:AddDescription(sm,
+            L["Choose how DragonUI and SexyMap share the minimap."])
+
+        C:AddDropdown(sm, {
+            label = L["Minimap Mode"],
+            values = {
+                ["sexymap"]  = L["SexyMap"],
+                ["dragonui"] = L["DragonUI"],
+                ["hybrid"]   = L["Hybrid"],
+            },
+            width = 220,
+            getFunc = function()
+                local cfg = addon.db and addon.db.profile and addon.db.profile.modules
+                    and addon.db.profile.modules.minimap
+                return cfg and cfg.sexymap_mode or "dragonui"
+            end,
+            setFunc = function(val)
+                if addon.db and addon.db.profile and addon.db.profile.modules
+                    and addon.db.profile.modules.minimap then
+                    addon.db.profile.modules.minimap.sexymap_mode = val
+                end
+                -- Enable/Disable the SexyMap addon at the WoW level so it
+                -- actually loads (or doesn't) after the UI reload
+                if val == "dragonui" then
+                    DisableAddOn("SexyMap")
+                else
+                    -- "sexymap" or "hybrid" both need SexyMap loaded
+                    EnableAddOn("SexyMap")
+                end
+                StaticPopup_Show("DRAGONUI_SEXYMAP_MODE_RELOAD")
+            end,
+        })
+
+        C:AddDescription(sm,
+            "|cFF888888" .. L["SexyMap"] .. ":|r " .. L["Uses SexyMap for the minimap."] .. "\n" ..
+            "|cFF888888" .. L["DragonUI"] .. ":|r " .. L["Uses DragonUI for the minimap."] .. "\n" ..
+            "|cFF888888" .. L["Hybrid"] .. ":|r " .. L["SexyMap visuals with DragonUI editor and positioning."])
+    end
 end
 
 -- Register the tab

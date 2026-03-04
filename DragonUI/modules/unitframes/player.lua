@@ -2365,6 +2365,15 @@ local function InitializePlayerFrame()
         SafeHookSecureFunc("UnitFramePortrait_Update", function(frame, unit)
             if frame == PlayerFrame and (unit == "player" or unit == "vehicle") then
                 UpdatePlayerClassPortrait()
+                -- Also refresh the fat-mode portrait overlay texture.
+                -- WeakAuras (and other addons that create PlayerModel objects)
+                -- can invalidate portrait textures during async loading;
+                -- re-applying SetPortraitTexture ensures the overlay stays valid.
+                if dragonFrame and dragonFrame.PortraitOverlayTexture
+                   and dragonFrame.PortraitOverlay
+                   and dragonFrame.PortraitOverlay:IsShown() then
+                    SetPortraitTexture(dragonFrame.PortraitOverlayTexture, unit or "player")
+                end
             end
         end)
         Module.blizzardHooksRegistered = true
@@ -2455,8 +2464,35 @@ local function InitializePlayerFrame()
         -- OnValueChanged + OnShow + UnitFrameHealthBar_Update hook cover all real update cases.
     end
 
+    -- Instance-level SetStatusBarColor defense (same pattern as small_frame.lua).
+    -- Blizzard's HealthBar_OnValueChanged calls SetStatusBarColor(green) on every
+    -- health change through code paths that DragonUI's higher-level hooks don't
+    -- intercept.  WeakAuras (and similar addons) trigger additional Blizzard UI
+    -- refresh cycles asynchronously, making the race visible.  This hook catches
+    -- ALL SetStatusBarColor calls regardless of code path and re-applies our color.
+    if PlayerFrameHealthBar then
+        local healthColorGuard = false
+        hooksecurefunc(PlayerFrameHealthBar, "SetStatusBarColor", function(self)
+            if healthColorGuard then return end
+            healthColorGuard = true
+            UpdatePlayerHealthBarColor()
+            healthColorGuard = false
+        end)
+    end
+
     if PlayerFrameManaBar and PlayerFrameManaBar.HookScript then
         PlayerFrameManaBar:HookScript('OnValueChanged', UpdateManaBarColor)
+    end
+
+    -- Instance-level SetStatusBarColor defense for mana bar (same rationale).
+    if PlayerFrameManaBar then
+        local manaColorGuard = false
+        hooksecurefunc(PlayerFrameManaBar, "SetStatusBarColor", function(self)
+            if manaColorGuard then return end
+            manaColorGuard = true
+            UpdateManaBarColor(self)
+            manaColorGuard = false
+        end)
     end
 
     -- Setup glow suppression hooks

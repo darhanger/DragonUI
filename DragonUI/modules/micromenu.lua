@@ -619,6 +619,19 @@ local function RestoreMicromenuSystem()
     end
 end
 
+-- Ensure MicroButtonPortrait stays valid after Blizzard updates.
+-- WeakAuras (and other addons using PlayerModel objects) can invalidate
+-- portrait textures during their async initialization. By hooking
+-- UpdateMicroButtons we re-apply the portrait texture every time
+-- Blizzard refreshes the micro button bar.
+if UpdateMicroButtons then
+    hooksecurefunc("UpdateMicroButtons", function()
+        if MicroButtonPortrait and MicroButtonPortrait:IsShown() then
+            SetPortraitTexture(MicroButtonPortrait, "player")
+        end
+    end)
+end
+
 local function ApplyMicromenuSystem()
     if MicromenuModule.applied or not IsModuleEnabled() then
         return

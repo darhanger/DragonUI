@@ -150,6 +150,33 @@ L["Keep Both"] = "Beide behalten"
 L["Conflicts with DragonUI's custom unit frame textures and power bar system."] = "Kollidiert mit DragonUIs benutzerdefinierten Einheiten-Rahmen-Texturen und dem Machtleistensystem."
 L["Known taint issues when manipulating party frames during combat. DragonUI provides automatic fixes."] = "Bekannte Kontaminationsprobleme beim Manipulieren von Gruppenrahmen im Kampf. DragonUI bietet automatische Korrekturen."
 L["Resets minimap mask and blip textures. DragonUI re-applies its custom textures automatically."] = "Setzt Minimap-Maske und Markierungs-Texturen zurück. DragonUI wendet seine benutzerdefinierten Texturen automatisch erneut an."
+L["SexyMap modifies the minimap borders, shape, and zone text which conflicts with DragonUI's minimap module."] = "SexyMap verändert die Minimap-Rahmen, Form und Zonentexte, was mit dem Minimap-Modul von DragonUI kollidiert."
+
+-- SexyMap-Kompatibilitäts-Popup
+L["DragonUI - SexyMap Detected"] = "DragonUI - SexyMap erkannt"
+L["Which minimap do you want to use?"] = "Welche Minikarte möchtest du verwenden?"
+L["SexyMap"] = "SexyMap"
+L["DragonUI"] = "DragonUI"
+L["Hybrid"] = "Hybrid"
+L["Recommended"] = "Empfohlen"
+
+-- SexyMap-Optionspanel
+L["SexyMap Compatibility"] = "SexyMap-Kompatibilität"
+L["Minimap Mode"] = "Minikarten-Modus"
+L["Choose how DragonUI and SexyMap share the minimap."] = "Wähle, wie DragonUI und SexyMap die Minikarte teilen."
+L["Requires UI reload to apply."] = "Erfordert UI-Neuladen."
+L["Uses SexyMap for the minimap."] = "Verwendet SexyMap für die Minikarte."
+L["Uses DragonUI for the minimap."] = "Verwendet DragonUI für die Minikarte."
+L["SexyMap visuals with DragonUI editor and positioning."] = "SexyMap-Optik, bewegbar und konfigurierbar über DragonUI."
+L["Minimap mode changed. Reload UI to apply?"] = "Minikarten-Modus geändert. UI neu laden?"
+
+-- SexyMap-Kompatibilitäts-Befehle
+L["SexyMap compatibility mode has been reset. Reload UI to choose again."] = "Der SexyMap-Kompatibilitätsmodus wurde zurückgesetzt. Lade die UI neu, um erneut zu wählen."
+L["Current SexyMap mode: |cFFFFFF00%s|r"] = "Aktueller SexyMap-Modus: |cFFFFFF00%s|r"
+L["No SexyMap mode selected (SexyMap not detected or not yet chosen)."] = "Kein SexyMap-Modus ausgewählt (SexyMap nicht erkannt oder noch nicht gewählt)."
+L["Show current SexyMap compatibility mode"] = "Aktuellen SexyMap-Kompatibilitätsmodus anzeigen"
+L["Reset SexyMap mode choice (re-prompts on reload)"] = "SexyMap-Modusauswahl zurücksetzen (fragt beim Neuladen erneut)"
+L["Loaded addons:"] = "Geladene Addons:"
 
 -- ============================================================================
 -- STATIC POPUPS

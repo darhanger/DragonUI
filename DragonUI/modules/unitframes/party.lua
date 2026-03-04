@@ -1075,7 +1075,7 @@ local function StylePartyFrames()
             local masterLooterIcon = _G[frame:GetName() .. 'MasterIcon']
             if masterLooterIcon then -- No combat restriction
                 masterLooterIcon:ClearAllPoints()
-                masterLooterIcon:SetPoint('TOPLEFT', 58, 20) -- Position next to leader icon
+                masterLooterIcon:SetPoint('TOPLEFT', 58, 11) -- Position next to leader icon
                 masterLooterIcon:SetSize(16, 16) -- Custom size
 
             end
@@ -1254,7 +1254,7 @@ local function UpdateDisconnectedState(frame)
         local masterLooterIcon = _G[frame:GetName() .. 'MasterIcon']
         if masterLooterIcon then
             masterLooterIcon:ClearAllPoints()
-            masterLooterIcon:SetPoint('TOPLEFT', 58, 20)
+            masterLooterIcon:SetPoint('TOPLEFT', 58, 11)
             masterLooterIcon:SetSize(16, 16)
         end
 
@@ -1298,7 +1298,7 @@ local function UpdateDisconnectedState(frame)
         local masterLooterIcon = _G[frame:GetName() .. 'MasterIcon']
         if masterLooterIcon then
             masterLooterIcon:ClearAllPoints()
-            masterLooterIcon:SetPoint('TOPLEFT', 58, 20)
+            masterLooterIcon:SetPoint('TOPLEFT', 58, 11)
             masterLooterIcon:SetSize(16, 16)
         end
     end

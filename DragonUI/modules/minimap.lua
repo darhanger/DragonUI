@@ -188,46 +188,72 @@ local function ReplaceBlizzardFrame(frame)
     minimapCluster:ClearAllPoints()
     minimapCluster:SetPoint("CENTER", frame, "CENTER", 0, 0)
 
-    local minimapBorderTop = MinimapBorderTop
-    minimapBorderTop:ClearAllPoints()
-    minimapBorderTop:SetPoint("TOP", 0, 5)
-    SetAtlasTexture(minimapBorderTop, 'Minimap-Border-Top')
-    minimapBorderTop:SetSize(156, 20)
+    -- In hybrid mode with SexyMap, skip border/zone text customization
+    -- SexyMap handles: borders, zone text styling, shapes
+    -- DragonUI handles: positioning, tracking icons, calendar, POI textures
+    local isHybridMode = MinimapModule.sexyMapHybridMode
+        or (addon.db and addon.db.profile and addon.db.profile.modules
+            and addon.db.profile.modules.minimap
+            and addon.db.profile.modules.minimap.sexymap_mode == "hybrid")
 
-    local minimapZoneButton = MinimapZoneTextButton
-    minimapZoneButton:ClearAllPoints()
-    minimapZoneButton:SetPoint("LEFT", minimapBorderTop, "LEFT", 7, 1)
-    minimapZoneButton:SetWidth(108)
+    if not isHybridMode then
+        -- DragonUI border top styling (skipped in hybrid mode)
+        local minimapBorderTop = MinimapBorderTop
+        minimapBorderTop:ClearAllPoints()
+        minimapBorderTop:SetPoint("TOP", 0, 5)
+        SetAtlasTexture(minimapBorderTop, 'Minimap-Border-Top')
+        minimapBorderTop:SetSize(156, 20)
 
-    minimapZoneButton:EnableMouse(true)
-    minimapZoneButton:SetScript("OnMouseUp", function(self, button)
-        if button == "LeftButton" then
-            if WorldMapFrame:IsShown() then
-                HideUIPanel(WorldMapFrame)
-            else
-                ShowUIPanel(WorldMapFrame)
+        local minimapZoneButton = MinimapZoneTextButton
+        minimapZoneButton:ClearAllPoints()
+        minimapZoneButton:SetPoint("LEFT", minimapBorderTop, "LEFT", 7, 1)
+        minimapZoneButton:SetWidth(108)
+
+        minimapZoneButton:EnableMouse(true)
+        minimapZoneButton:SetScript("OnMouseUp", function(self, button)
+            if button == "LeftButton" then
+                if WorldMapFrame:IsShown() then
+                    HideUIPanel(WorldMapFrame)
+                else
+                    ShowUIPanel(WorldMapFrame)
+                end
             end
-        end
-    end)
+        end)
 
-    local minimapZoneText = MinimapZoneText
-    minimapZoneText:SetAllPoints(minimapZoneButton)
-    minimapZoneText:SetJustifyH("LEFT")
+        local minimapZoneText = MinimapZoneText
+        minimapZoneText:SetAllPoints(minimapZoneButton)
+        minimapZoneText:SetJustifyH("LEFT")
+    else
+        -- In hybrid mode, only add the click handler for world map (SexyMap handles styling)
+        MinimapZoneTextButton:EnableMouse(true)
+        MinimapZoneTextButton:SetScript("OnMouseUp", function(self, button)
+            if button == "LeftButton" then
+                if WorldMapFrame:IsShown() then
+                    HideUIPanel(WorldMapFrame)
+                else
+                    ShowUIPanel(WorldMapFrame)
+                end
+            end
+        end)
+    end
 
-    local timeClockButton = TimeManagerClockButton
-    timeClockButton:GetRegions():Hide()
-    timeClockButton:ClearAllPoints()
-    timeClockButton:SetPoint("RIGHT", minimapBorderTop, "RIGHT", -5, 0)
-    timeClockButton:SetWidth(30)
+    if not isHybridMode then
+        -- DragonUI clock/calendar positioning (anchored to DragonUI's border top)
+        local timeClockButton = TimeManagerClockButton
+        timeClockButton:GetRegions():Hide()
+        timeClockButton:ClearAllPoints()
+        timeClockButton:SetPoint("RIGHT", MinimapBorderTop, "RIGHT", -5, 0)
+        timeClockButton:SetWidth(30)
 
-    local gameTimeFrame = GameTimeFrame
-    gameTimeFrame:ClearAllPoints()
-    gameTimeFrame:SetPoint("LEFT", minimapBorderTop, "RIGHT", 3, -1)
-    gameTimeFrame:SetSize(26, 24)
-    gameTimeFrame:SetHitRectInsets(0, 0, 0, 0)
-    gameTimeFrame:GetFontString():Hide()
+        local gameTimeFrame = GameTimeFrame
+        gameTimeFrame:ClearAllPoints()
+        gameTimeFrame:SetPoint("LEFT", MinimapBorderTop, "RIGHT", 3, -1)
+        gameTimeFrame:SetSize(26, 24)
+        gameTimeFrame:SetHitRectInsets(0, 0, 0, 0)
+        gameTimeFrame:GetFontString():Hide()
 
-    UpdateCalendarDate()
+        UpdateCalendarDate()
+    end
 
     -- Configure DurabilityFrame properly
     local durabilityFrame = DurabilityFrame
@@ -295,58 +321,66 @@ local function ReplaceBlizzardFrame(frame)
     minimapBattlefieldFrame:ClearAllPoints()
     minimapBattlefieldFrame:SetPoint("BOTTOMLEFT", 8, 2)
 
-    local minimapInstanceFrame = MiniMapInstanceDifficulty
-    minimapInstanceFrame:ClearAllPoints()
-    minimapInstanceFrame:SetPoint("TOP", minimapBorderTop, 'BOTTOMRIGHT', -20, 6)
-    minimapInstanceFrame:SetScale(0.85) -- Fixed scale for difficulty icon
+    if not isHybridMode then
+        -- DragonUI positioning for elements anchored to the border top
+        local minimapInstanceFrame = MiniMapInstanceDifficulty
+        minimapInstanceFrame:ClearAllPoints()
+        minimapInstanceFrame:SetPoint("TOP", MinimapBorderTop, 'BOTTOMRIGHT', -20, 6)
+        minimapInstanceFrame:SetScale(0.85) -- Fixed scale for difficulty icon
 
-    local minimapTracking = MiniMapTracking
-    minimapTracking:ClearAllPoints()
-    minimapTracking:SetPoint("RIGHT", minimapBorderTop, "LEFT", -3, 0)
-    minimapTracking:SetSize(26, 24)
+        local minimapTracking = MiniMapTracking
+        minimapTracking:ClearAllPoints()
+        minimapTracking:SetPoint("RIGHT", MinimapBorderTop, "LEFT", -3, 0)
+        minimapTracking:SetSize(26, 24)
 
-    local minimapMailFrame = MiniMapMailFrame
-    minimapMailFrame:ClearAllPoints()
-    minimapMailFrame:SetPoint("TOP", minimapTracking, "BOTTOM", 0, -3)
-    minimapMailFrame:SetSize(20, 14)
-    minimapMailFrame:SetHitRectInsets(0, 0, 0, 0)
+        local minimapMailFrame = MiniMapMailFrame
+        minimapMailFrame:ClearAllPoints()
+        minimapMailFrame:SetPoint("TOP", minimapTracking, "BOTTOM", 0, -3)
+        minimapMailFrame:SetSize(20, 14)
+        minimapMailFrame:SetHitRectInsets(0, 0, 0, 0)
 
-    local minimapMailIconTexture = MiniMapMailIcon
-    minimapMailIconTexture:SetAllPoints(minimapMailFrame)
-    SetAtlasTexture(minimapMailIconTexture, 'Minimap-Mail-Normal')
+        local minimapMailIconTexture = MiniMapMailIcon
+        minimapMailIconTexture:SetAllPoints(minimapMailFrame)
+        SetAtlasTexture(minimapMailIconTexture, 'Minimap-Mail-Normal')
 
-    local backgroundTexture = _G[minimapTracking:GetName() .. "Background"]
-    backgroundTexture:SetAllPoints(minimapTracking)
-    SetAtlasTexture(backgroundTexture, 'Minimap-Tracking-Background')
+        local backgroundTexture = _G[minimapTracking:GetName() .. "Background"]
+        backgroundTexture:SetAllPoints(minimapTracking)
+        SetAtlasTexture(backgroundTexture, 'Minimap-Tracking-Background')
 
-    local minimapTrackingButton = _G[minimapTracking:GetName() .. 'Button']
-    minimapTrackingButton:ClearAllPoints()
-    minimapTrackingButton:SetPoint("CENTER", 0, 0)
+        local minimapTrackingButton = _G[minimapTracking:GetName() .. 'Button']
+        minimapTrackingButton:ClearAllPoints()
+        minimapTrackingButton:SetPoint("CENTER", 0, 0)
 
-    minimapTrackingButton:SetSize(17, 15)
-    minimapTrackingButton:SetHitRectInsets(0, 0, 0, 0)
+        minimapTrackingButton:SetSize(17, 15)
+        minimapTrackingButton:SetHitRectInsets(0, 0, 0, 0)
 
-    --  Enable right-click functionality
-    minimapTrackingButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        --  Enable right-click functionality
+        minimapTrackingButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 
-    local shineTexture = _G[minimapTrackingButton:GetName() .. "Shine"]
-    shineTexture:SetTexture(nil)
+        local shineTexture = _G[minimapTrackingButton:GetName() .. "Shine"]
+        shineTexture:SetTexture(nil)
 
-    local normalTexture = minimapTrackingButton:GetNormalTexture() or minimapTrackingButton:CreateTexture(nil, "BORDER")
-    normalTexture:SetAllPoints(minimapTrackingButton)
-    SetAtlasTexture(normalTexture, 'Minimap-Tracking-Normal')
+        local normalTexture = minimapTrackingButton:GetNormalTexture() or minimapTrackingButton:CreateTexture(nil, "BORDER")
+        normalTexture:SetAllPoints(minimapTrackingButton)
+        SetAtlasTexture(normalTexture, 'Minimap-Tracking-Normal')
 
-    minimapTrackingButton:SetNormalTexture(normalTexture)
+        minimapTrackingButton:SetNormalTexture(normalTexture)
 
-    local highlightTexture = minimapTrackingButton:GetHighlightTexture()
-    highlightTexture:SetAllPoints(minimapTrackingButton)
-    SetAtlasTexture(highlightTexture, 'Minimap-Tracking-Highlight')
+        local highlightTexture = minimapTrackingButton:GetHighlightTexture()
+        highlightTexture:SetAllPoints(minimapTrackingButton)
+        SetAtlasTexture(highlightTexture, 'Minimap-Tracking-Highlight')
 
-    local pushedTexture = minimapTrackingButton:GetPushedTexture() or minimapTrackingButton:CreateTexture(nil, "BORDER")
-    pushedTexture:SetAllPoints(minimapTrackingButton)
-    SetAtlasTexture(pushedTexture, 'Minimap-Tracking-Pushed')
+        local pushedTexture = minimapTrackingButton:GetPushedTexture() or minimapTrackingButton:CreateTexture(nil, "BORDER")
+        pushedTexture:SetAllPoints(minimapTrackingButton)
+        SetAtlasTexture(pushedTexture, 'Minimap-Tracking-Pushed')
 
-    minimapTrackingButton:SetPushedTexture(pushedTexture)
+        minimapTrackingButton:SetPushedTexture(pushedTexture)
+    end
+    -- else: In hybrid mode, SexyMap's Buttons module handles tracking/mail positioning
+
+    -- Resolve minimapTrackingButton at outer scope for click scripts below
+    -- (the local above is only in the non-hybrid block)
+    local minimapTrackingButton = _G[MiniMapTracking:GetName() .. 'Button']
 
     local minimapFrame = Minimap
     minimapFrame:ClearAllPoints()
@@ -354,7 +388,11 @@ local function ReplaceBlizzardFrame(frame)
     minimapFrame:SetWidth(DEFAULT_MINIMAP_WIDTH / blipScale)
     minimapFrame:SetHeight(DEFAULT_MINIMAP_HEIGHT / blipScale)
     minimapFrame:SetScale(blipScale)
-    minimapFrame:SetMaskTexture("Interface\\AddOns\\DragonUI\\assets\\uiminimapmask.tga")
+
+    -- In hybrid mode, don't override SexyMap's mask (it controls shape)
+    if not isHybridMode then
+        minimapFrame:SetMaskTexture("Interface\\AddOns\\DragonUI\\assets\\uiminimapmask.tga")
+    end
 
     -- POI (Point of Interest) Custom Textures
     minimapFrame:SetStaticPOIArrowTexture("Interface\\AddOns\\DragonUI\\assets\\poi-static")
@@ -400,12 +438,19 @@ local function ReplaceBlizzardFrame(frame)
             Minimap:SetBlipTexture(tex)
             MinimapModule._settingBlipTexture = false
 
-            -- Re-apply POI textures and mask (Carbonite resets mask on init)
+            -- Re-apply POI textures (Carbonite resets these on init)
             Minimap:SetStaticPOIArrowTexture("Interface\\AddOns\\DragonUI\\assets\\poi-static")
             Minimap:SetCorpsePOIArrowTexture("Interface\\AddOns\\DragonUI\\assets\\poi-corpse")
             Minimap:SetPOIArrowTexture("Interface\\AddOns\\DragonUI\\assets\\poi-guard")
             Minimap:SetPlayerTexture("Interface\\AddOns\\DragonUI\\assets\\poi-player")
-            Minimap:SetMaskTexture("Interface\\AddOns\\DragonUI\\assets\\uiminimapmask.tga")
+            -- Only re-apply mask if not in hybrid mode (SexyMap controls the mask/shape)
+            local hybridCheck = MinimapModule.sexyMapHybridMode
+                or (addon.db and addon.db.profile and addon.db.profile.modules
+                    and addon.db.profile.modules.minimap
+                    and addon.db.profile.modules.minimap.sexymap_mode == "hybrid")
+            if not hybridCheck then
+                Minimap:SetMaskTexture("Interface\\AddOns\\DragonUI\\assets\\uiminimapmask.tga")
+            end
         end
 
         -- Override SetBlipTexture: blocks external calls when our custom blip skin is active,
@@ -465,65 +510,69 @@ local function ReplaceBlizzardFrame(frame)
         end
     end)
 
-    local minimapBackdropTexture = MinimapBackdrop
-    minimapBackdropTexture:ClearAllPoints()
-    minimapBackdropTexture:SetPoint("CENTER", minimapFrame, "CENTER", 0, 3)
+    -- In hybrid mode, don't touch MinimapBackdrop, border, circle, or zoom button skins
+    -- SexyMap controls all visual elements; DragonUI only handles positioning
+    if not isHybridMode then
+        local minimapBackdropTexture = MinimapBackdrop
+        minimapBackdropTexture:ClearAllPoints()
+        minimapBackdropTexture:SetPoint("CENTER", minimapFrame, "CENTER", 0, 3)
 
-    local minimapBorderTexture = MinimapBorder
-    minimapBorderTexture:Hide()
-    if not Minimap.Circle then
-        Minimap.Circle = MinimapBackdrop:CreateTexture(nil, 'ARTWORK')
+        local minimapBorderTexture = MinimapBorder
+        minimapBorderTexture:Hide()
+        if not Minimap.Circle then
+            Minimap.Circle = MinimapBackdrop:CreateTexture(nil, 'ARTWORK')
 
-        Minimap.Circle:SetSize(BORDER_SIZE, BORDER_SIZE)
-        Minimap.Circle:SetPoint('CENTER', Minimap, 'CENTER')
-        Minimap.Circle:SetTexture("Interface\\AddOns\\DragonUI\\assets\\uiminimapborder.tga")
-    end
+            Minimap.Circle:SetSize(BORDER_SIZE, BORDER_SIZE)
+            Minimap.Circle:SetPoint('CENTER', Minimap, 'CENTER')
+            Minimap.Circle:SetTexture("Interface\\AddOns\\DragonUI\\assets\\uiminimapborder.tga")
+        end
 
-    local zoomInButton = MinimapZoomIn
-    zoomInButton:ClearAllPoints()
-    zoomInButton:SetPoint("BOTTOMRIGHT", 0, 15)
+        local zoomInButton = MinimapZoomIn
+        zoomInButton:ClearAllPoints()
+        zoomInButton:SetPoint("BOTTOMRIGHT", 0, 15)
 
-    zoomInButton:SetSize(25, 24)
-    zoomInButton:SetHitRectInsets(0, 0, 0, 0)
+        zoomInButton:SetSize(25, 24)
+        zoomInButton:SetHitRectInsets(0, 0, 0, 0)
 
-    normalTexture = zoomInButton:GetNormalTexture()
-    normalTexture:SetAllPoints(zoomInButton)
-    SetAtlasTexture(normalTexture, 'Minimap-ZoomIn-Normal')
+        normalTexture = zoomInButton:GetNormalTexture()
+        normalTexture:SetAllPoints(zoomInButton)
+        SetAtlasTexture(normalTexture, 'Minimap-ZoomIn-Normal')
 
-    highlightTexture = zoomInButton:GetHighlightTexture()
-    highlightTexture:SetAllPoints(zoomInButton)
-    SetAtlasTexture(highlightTexture, 'Minimap-ZoomIn-Highlight')
+        highlightTexture = zoomInButton:GetHighlightTexture()
+        highlightTexture:SetAllPoints(zoomInButton)
+        SetAtlasTexture(highlightTexture, 'Minimap-ZoomIn-Highlight')
 
-    pushedTexture = zoomInButton:GetPushedTexture()
-    pushedTexture:SetAllPoints(zoomInButton)
-    SetAtlasTexture(pushedTexture, 'Minimap-ZoomIn-Pushed')
+        pushedTexture = zoomInButton:GetPushedTexture()
+        pushedTexture:SetAllPoints(zoomInButton)
+        SetAtlasTexture(pushedTexture, 'Minimap-ZoomIn-Pushed')
 
-    local disabledTexture = zoomInButton:GetDisabledTexture()
-    disabledTexture:SetAllPoints(zoomInButton)
-    SetAtlasTexture(disabledTexture, 'Minimap-ZoomIn-Pushed')
+        local disabledTexture = zoomInButton:GetDisabledTexture()
+        disabledTexture:SetAllPoints(zoomInButton)
+        SetAtlasTexture(disabledTexture, 'Minimap-ZoomIn-Pushed')
 
-    local zoomOutButton = MinimapZoomOut
-    zoomOutButton:ClearAllPoints()
-    zoomOutButton:SetPoint("BOTTOMRIGHT", -22, 0)
+        local zoomOutButton = MinimapZoomOut
+        zoomOutButton:ClearAllPoints()
+        zoomOutButton:SetPoint("BOTTOMRIGHT", -22, 0)
 
-    zoomOutButton:SetSize(20, 12)
-    zoomOutButton:SetHitRectInsets(0, 0, 0, 0)
+        zoomOutButton:SetSize(20, 12)
+        zoomOutButton:SetHitRectInsets(0, 0, 0, 0)
 
-    normalTexture = zoomOutButton:GetNormalTexture()
-    normalTexture:SetAllPoints(zoomOutButton)
-    SetAtlasTexture(normalTexture, 'Minimap-ZoomOut-Normal')
+        normalTexture = zoomOutButton:GetNormalTexture()
+        normalTexture:SetAllPoints(zoomOutButton)
+        SetAtlasTexture(normalTexture, 'Minimap-ZoomOut-Normal')
 
-    highlightTexture = zoomOutButton:GetHighlightTexture()
-    highlightTexture:SetAllPoints(zoomOutButton)
-    SetAtlasTexture(highlightTexture, 'Minimap-ZoomOut-Highlight')
+        highlightTexture = zoomOutButton:GetHighlightTexture()
+        highlightTexture:SetAllPoints(zoomOutButton)
+        SetAtlasTexture(highlightTexture, 'Minimap-ZoomOut-Highlight')
 
-    pushedTexture = zoomOutButton:GetPushedTexture()
-    pushedTexture:SetAllPoints(zoomOutButton)
-    SetAtlasTexture(pushedTexture, 'Minimap-ZoomOut-Pushed')
+        pushedTexture = zoomOutButton:GetPushedTexture()
+        pushedTexture:SetAllPoints(zoomOutButton)
+        SetAtlasTexture(pushedTexture, 'Minimap-ZoomOut-Pushed')
 
-    disabledTexture = zoomOutButton:GetDisabledTexture()
-    disabledTexture:SetAllPoints(zoomOutButton)
-    SetAtlasTexture(disabledTexture, 'Minimap-ZoomOut-Pushed')
+        disabledTexture = zoomOutButton:GetDisabledTexture()
+        disabledTexture:SetAllPoints(zoomOutButton)
+        SetAtlasTexture(disabledTexture, 'Minimap-ZoomOut-Pushed')
+    end -- not isHybridMode (backdrop, border, circle, zoom buttons)
 
     -- Reposition a single WorldStateCaptureBar to below the minimap
     local function RepositionCaptureBar(bar)
@@ -611,49 +660,52 @@ local function ReplaceBlizzardFrame(frame)
         end
     end)
 
-    --  Add right-click functionality to clear tracking
-    minimapTrackingButton:SetScript("OnClick", function(self, button)
-        if button == "RightButton" then
-            -- Set tracking to none
-            SetTracking()
-            -- Update the tracking display
-            MinimapModule:UpdateTrackingIcon()
+    -- In hybrid mode, don't override tracking button scripts — SexyMap's Buttons module handles them
+    if not isHybridMode then
+        --  Add right-click functionality to clear tracking
+        minimapTrackingButton:SetScript("OnClick", function(self, button)
+            if button == "RightButton" then
+                -- Set tracking to none
+                SetTracking()
+                -- Update the tracking display
+                MinimapModule:UpdateTrackingIcon()
 
-        else
-            -- Left click - use default behavior
-            ToggleDropDownMenu(1, nil, MiniMapTrackingDropDown, "MiniMapTrackingButton")
-        end
-    end)
-
-    --  MANUALLY CONTROL BUTTON MOVEMENT
-    minimapTrackingButton:SetScript("OnMouseDown", function(self, button)
-        if button == "LeftButton" then
-            -- Move the icon/button manually - YOU CONTROL HOW MUCH
-            if MiniMapTrackingIcon and MiniMapTrackingIcon:GetAlpha() > 0 then
-                -- Move icon OLD STYLE: 1 pixel down-right (subtle)
-                MiniMapTrackingIcon:ClearAllPoints()
-                MiniMapTrackingIcon:SetPoint('CENTER', MiniMapTracking, 'CENTER', 2, -2)
+            else
+                -- Left click - use default behavior
+                ToggleDropDownMenu(1, nil, MiniMapTrackingDropDown, "MiniMapTrackingButton")
             end
-        end
-    end)
+        end)
 
-    minimapTrackingButton:SetScript("OnMouseUp", function(self, button)
-        if button == "LeftButton" then
-            -- Restore original position on release
+        --  MANUALLY CONTROL BUTTON MOVEMENT
+        minimapTrackingButton:SetScript("OnMouseDown", function(self, button)
+            if button == "LeftButton" then
+                -- Move the icon/button manually - YOU CONTROL HOW MUCH
+                if MiniMapTrackingIcon and MiniMapTrackingIcon:GetAlpha() > 0 then
+                    -- Move icon OLD STYLE: 1 pixel down-right (subtle)
+                    MiniMapTrackingIcon:ClearAllPoints()
+                    MiniMapTrackingIcon:SetPoint('CENTER', MiniMapTracking, 'CENTER', 2, -2)
+                end
+            end
+        end)
+
+        minimapTrackingButton:SetScript("OnMouseUp", function(self, button)
+            if button == "LeftButton" then
+                -- Restore original position on release
+                if MiniMapTrackingIcon and MiniMapTrackingIcon:GetAlpha() > 0 then
+                    MiniMapTrackingIcon:ClearAllPoints()
+                    MiniMapTrackingIcon:SetPoint('CENTER', MiniMapTracking, 'CENTER', 0, 0)
+                end
+            end
+        end)
+
+        --  HOOK TO RESET ICON POSITION AFTER CLICKS
+        local function ResetTrackingIconPosition()
             if MiniMapTrackingIcon and MiniMapTrackingIcon:GetAlpha() > 0 then
                 MiniMapTrackingIcon:ClearAllPoints()
                 MiniMapTrackingIcon:SetPoint('CENTER', MiniMapTracking, 'CENTER', 0, 0)
             end
         end
-    end)
-
-    --  HOOK TO RESET ICON POSITION AFTER CLICKS
-    local function ResetTrackingIconPosition()
-        if MiniMapTrackingIcon and MiniMapTrackingIcon:GetAlpha() > 0 then
-            MiniMapTrackingIcon:ClearAllPoints()
-            MiniMapTrackingIcon:SetPoint('CENTER', MiniMapTracking, 'CENTER', 0, 0)
-        end
-    end
+    end -- not isHybridMode (tracking button scripts)
 
     -- Setup secure hooks after frame modifications (handles CloseDropDownMenus)
     SetupSecureHooks()
@@ -951,6 +1003,7 @@ local function UnskinAllMinimapButtons()
         end
     end
 end
+MinimapModule.UnskinAllMinimapButtons = UnskinAllMinimapButtons
 
 local function RemoveAllMinimapIconBorders()
 
@@ -1068,6 +1121,12 @@ local function StylePVPBattlefieldFrame()
 end
 
 local function RemoveBlizzardFrames()
+    -- Determine if hybrid mode is active
+    local isHybridMode = MinimapModule.sexyMapHybridMode
+        or (addon.db and addon.db.profile and addon.db.profile.modules
+            and addon.db.profile.modules.minimap
+            and addon.db.profile.modules.minimap.sexymap_mode == "hybrid")
+
     if MiniMapWorldMapButton then
         MiniMapWorldMapButton:Hide()
         MiniMapWorldMapButton:UnregisterAllEvents()
@@ -1076,11 +1135,14 @@ local function RemoveBlizzardFrames()
         MiniMapWorldMapButton:SetScript("OnLeave", nil)
     end
 
-    local blizzFrames =
-        {MiniMapTrackingIcon, MiniMapTrackingIconOverlay, MiniMapMailBorder, MiniMapTrackingButtonBorder}
+    -- In hybrid mode, don't hide tracking/mail elements — SexyMap's Buttons module manages them
+    if not isHybridMode then
+        local blizzFrames =
+            {MiniMapTrackingIcon, MiniMapTrackingIconOverlay, MiniMapMailBorder, MiniMapTrackingButtonBorder}
 
-    for _, frame in pairs(blizzFrames) do
-        frame:SetAlpha(0)
+        for _, frame in pairs(blizzFrames) do
+            frame:SetAlpha(0)
+        end
     end
 
     -- Hide vanilla north indicator and compass — DragonUI doesn't use them
@@ -1095,11 +1157,17 @@ end
 -- Stored on module table so the hooksecurefunc post-hook can reference it
 -- without calling the global (which would cause infinite recursion)
 MinimapModule.UpdateRotation = function()
-    -- Always hide the vanilla MinimapBorder — DragonUI uses Minimap.Circle instead.
-    -- Blizzard's Minimap_UpdateRotationSetting re-shows MinimapBorder when rotation
-    -- is toggled off (e.g. closing Interface Options); our post-hook must counteract that.
-    if MinimapBorder then
-        MinimapBorder:Hide()
+    -- In hybrid mode, let SexyMap control the border visibility
+    local isHybridMode = MinimapModule.sexyMapHybridMode
+        or MinimapModule._allowExternalBorderControl
+
+    if not isHybridMode then
+        -- Always hide the vanilla MinimapBorder — DragonUI uses Minimap.Circle instead.
+        -- Blizzard's Minimap_UpdateRotationSetting re-shows MinimapBorder when rotation
+        -- is toggled off (e.g. closing Interface Options); our post-hook must counteract that.
+        if MinimapBorder then
+            MinimapBorder:Hide()
+        end
     end
 
     if GetCVar("rotateMinimap") == "1" then
@@ -1121,6 +1189,13 @@ local allowedRaidDifficulty
 
 --  TRACKING UPDATE FUNCTION - Using exact logic from minimap_map.lua with atlas textures
 function MinimapModule:UpdateTrackingIcon()
+    -- In hybrid mode, don't override tracking icon — SexyMap controls it
+    local isHybridMode = self.sexyMapHybridMode
+        or (addon.db and addon.db.profile and addon.db.profile.modules
+            and addon.db.profile.modules.minimap
+            and addon.db.profile.modules.minimap.sexymap_mode == "hybrid")
+    if isHybridMode then return end
+
     local texture = GetTrackingTexture()
 
     local useOldStyle = addon.db and addon.db.profile and addon.db.profile.minimap and
@@ -1297,6 +1372,72 @@ function MinimapModule:StoreOriginalSettings()
     end
 end
 
+-- ── Dungeon Eye editor frame — separate from full minimap init so it works
+--    even when sexymap_mode == "sexymap" (micromenu styles LFG independently)
+function MinimapModule:RegisterLFGEditorFrame()
+    if not MiniMapLFGFrame then return end
+    if self.lfgWrapper then return end  -- already registered
+
+    -- Size wrapper to match the eye frame (hardcoded fallback: eye is ~52×56)
+    local lfgW = (MiniMapLFGFrame:GetWidth()  > 0 and MiniMapLFGFrame:GetWidth())  or 52
+    local lfgH = (MiniMapLFGFrame:GetHeight() > 0 and MiniMapLFGFrame:GetHeight()) or 56
+    local lfgWrapper = addon.CreateUIFrame(lfgW, lfgH, "LFGFrame")
+
+    -- Apply saved or default position
+    local lfgCfg    = addon.db and addon.db.profile.widgets and addon.db.profile.widgets.lfgframe
+    local lfgAnchor = (lfgCfg and lfgCfg.anchor) or "TOPRIGHT"
+    local lfgX      = (lfgCfg and lfgCfg.posX)   or -20
+    local lfgY      = (lfgCfg and lfgCfg.posY)   or -220
+    lfgWrapper:SetPoint(lfgAnchor, UIParent, lfgAnchor, lfgX, lfgY)
+
+    -- Hook SetPoint/ClearAllPoints BEFORE reparenting so Blizzard can't move it
+    local origLFGSetPoint       = MiniMapLFGFrame.SetPoint
+    local origLFGClearAllPoints = MiniMapLFGFrame.ClearAllPoints
+    local lfgLocked = false
+
+    MiniMapLFGFrame.SetPoint = function(self, ...)
+        if lfgLocked then return end
+        origLFGSetPoint(self, ...)
+    end
+    MiniMapLFGFrame.ClearAllPoints = function(self)
+        if lfgLocked then return end
+        origLFGClearAllPoints(self)
+    end
+
+    -- Reparent and lock in place
+    MiniMapLFGFrame:SetParent(lfgWrapper)
+    origLFGClearAllPoints(MiniMapLFGFrame)
+    origLFGSetPoint(MiniMapLFGFrame, "TOPLEFT", lfgWrapper, "TOPLEFT", 0, 0)
+    lfgLocked = true
+
+    -- Keep track of original Show/Hide so we can force-show in editor mode
+    local origLFGShow = MiniMapLFGFrame.Show
+    local origLFGHide = MiniMapLFGFrame.Hide
+    local lfgWasVisible = false  -- tracks state before editor opened
+
+    -- Register wrapper in editor so it becomes a moveable mover
+    addon:RegisterEditableFrame({
+        name    = "lfgframe",
+        frame   = lfgWrapper,
+        configPath = {"widgets", "lfgframe"},
+        showTest = function()
+            -- Hide the real eye so the wrapper can receive mouse/drag events
+            lfgWasVisible = MiniMapLFGFrame:IsShown()
+            origLFGHide(MiniMapLFGFrame)
+            lfgWrapper:Show()
+        end,
+        hideTest = function()
+            -- Restore eye visibility after editor closes
+            if lfgWasVisible then
+                origLFGShow(MiniMapLFGFrame)
+            end
+        end,
+        module  = self
+    })
+
+    self.lfgWrapper = lfgWrapper
+end
+
 function MinimapModule:ApplyMinimapSystem()
     if self.applied then
         return -- Already applied
@@ -1304,6 +1445,15 @@ function MinimapModule:ApplyMinimapSystem()
 
     -- Check module enabled state
     if not IsModuleEnabled() then
+        return
+    end
+
+    -- If SexyMap-only mode, don't apply any DragonUI minimap modifications
+    local minimapModuleConfig = addon.db and addon.db.profile and addon.db.profile.modules
+        and addon.db.profile.modules.minimap
+    if minimapModuleConfig and minimapModuleConfig.sexymap_mode == "sexymap" then
+        -- Still register the LFG editor frame — micromenu styles it independently
+        self:RegisterLFGEditorFrame()
         return
     end
 
@@ -1459,66 +1609,7 @@ function MinimapModule:InitializeMinimapSystem()
     })
 
     -- ── Dungeon Eye (MiniMapLFGFrame) — independent moveable frame ────────────
-    if MiniMapLFGFrame then
-        -- Size wrapper to match the eye frame (hardcoded fallback: eye is ~52x56)
-        local lfgW = (MiniMapLFGFrame:GetWidth()  > 0 and MiniMapLFGFrame:GetWidth())  or 52
-        local lfgH = (MiniMapLFGFrame:GetHeight() > 0 and MiniMapLFGFrame:GetHeight()) or 56
-        local lfgWrapper = CreateUIFrame(lfgW, lfgH, "LFGFrame")
-
-        -- Apply saved or default position
-        local lfgCfg    = addon.db and addon.db.profile.widgets and addon.db.profile.widgets.lfgframe
-        local lfgAnchor = (lfgCfg and lfgCfg.anchor) or "TOPRIGHT"
-        local lfgX      = (lfgCfg and lfgCfg.posX)   or -20
-        local lfgY      = (lfgCfg and lfgCfg.posY)   or -220
-        lfgWrapper:SetPoint(lfgAnchor, UIParent, lfgAnchor, lfgX, lfgY)
-
-        -- Hook SetPoint/ClearAllPoints BEFORE reparenting so Blizzard can't move it
-        local origLFGSetPoint       = MiniMapLFGFrame.SetPoint
-        local origLFGClearAllPoints = MiniMapLFGFrame.ClearAllPoints
-        local lfgLocked = false
-
-        MiniMapLFGFrame.SetPoint = function(self, ...)
-            if lfgLocked then return end
-            origLFGSetPoint(self, ...)
-        end
-        MiniMapLFGFrame.ClearAllPoints = function(self)
-            if lfgLocked then return end
-            origLFGClearAllPoints(self)
-        end
-
-        -- Reparent and lock in place
-        MiniMapLFGFrame:SetParent(lfgWrapper)
-        origLFGClearAllPoints(MiniMapLFGFrame)
-        origLFGSetPoint(MiniMapLFGFrame, "TOPLEFT", lfgWrapper, "TOPLEFT", 0, 0)
-        lfgLocked = true
-
-        -- Keep track of original Show/Hide so we can force-show in editor mode
-        local origLFGShow = MiniMapLFGFrame.Show
-        local origLFGHide = MiniMapLFGFrame.Hide
-        local lfgWasVisible = false  -- tracks state before editor opened
-
-        -- Register wrapper in editor so it becomes a moveable mover
-        addon:RegisterEditableFrame({
-            name    = "lfgframe",
-            frame   = lfgWrapper,
-            configPath = {"widgets", "lfgframe"},
-            showTest = function()
-                -- Hide the real eye so the wrapper can receive mouse/drag events
-                lfgWasVisible = MiniMapLFGFrame:IsShown()
-                origLFGHide(MiniMapLFGFrame)
-                lfgWrapper:Show()
-            end,
-            hideTest = function()
-                -- Restore eye visibility after editor closes
-                if lfgWasVisible then
-                    origLFGShow(MiniMapLFGFrame)
-                end
-            end,
-            module  = self
-        })
-
-        self.lfgWrapper = lfgWrapper
-    end
+    self:RegisterLFGEditorFrame()
 
     local defaultX, defaultY = -7, 0
     local widgetConfig = addon.db and addon.db.profile.widgets and addon.db.profile.widgets.minimap
@@ -1530,8 +1621,16 @@ function MinimapModule:InitializeMinimapSystem()
         self.minimapFrame:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", defaultX, defaultY)
     end
 
-    self.borderFrame = CreateMinimapBorderFrame(232, 232)
-    self.borderFrame:SetPoint("CENTER", MinimapBorder, "CENTER", 0, -2)
+    -- Determine hybrid mode for conditional border creation
+    local isHybridMode = self.sexyMapHybridMode
+        or (addon.db and addon.db.profile and addon.db.profile.modules
+            and addon.db.profile.modules.minimap
+            and addon.db.profile.modules.minimap.sexymap_mode == "hybrid")
+
+    if not isHybridMode then
+        self.borderFrame = CreateMinimapBorderFrame(232, 232)
+        self.borderFrame:SetPoint("CENTER", MinimapBorder, "CENTER", 0, -2)
+    end
 
     RemoveBlizzardFrames()
     ReplaceBlizzardFrame(self.minimapFrame)
@@ -1539,13 +1638,15 @@ function MinimapModule:InitializeMinimapSystem()
     --  ADD THIS LINE TO APPLY ALL SETTINGS AT STARTUP
     self:UpdateSettings()
 
-    -- Hook tracking changes to update icon automatically
-    MiniMapTrackingButton:HookScript("OnEvent", function()
-        self:UpdateTrackingIcon()
-    end)
+    -- Hook tracking changes to update icon automatically (not in hybrid mode)
+    if not isHybridMode then
+        MiniMapTrackingButton:HookScript("OnEvent", function()
+            self:UpdateTrackingIcon()
+        end)
 
-    -- Initial tracking icon update
-    self:UpdateTrackingIcon()
+        -- Initial tracking icon update
+        self:UpdateTrackingIcon()
+    end
 
 end
 
@@ -1557,6 +1658,16 @@ function MinimapModule:Initialize()
     -- Check if minimap module is enabled
     if not IsModuleEnabled() then
         -- Don't apply any DragonUI modifications when disabled
+        return
+    end
+
+    -- If SexyMap-only mode is saved, skip all DragonUI minimap modifications
+    -- so SexyMap gets a clean, unmodified minimap to work with
+    local minimapModuleConfig = addon.db and addon.db.profile and addon.db.profile.modules
+        and addon.db.profile.modules.minimap
+    if minimapModuleConfig and minimapModuleConfig.sexymap_mode == "sexymap" then
+        -- Still register the LFG editor frame — the eye lives independently
+        self:RegisterLFGEditorFrame()
         return
     end
 
@@ -1684,12 +1795,62 @@ function MinimapModule:ApplyAllSettings()
 
     local settings = addon.db.profile.minimap
 
-    --  APPLY BORDER ALPHA
-    if MinimapBorderTop and settings.border_alpha then
-        MinimapBorderTop:SetAlpha(settings.border_alpha)
-    end
+    -- In hybrid mode, skip settings that modify DragonUI-styled elements
+    -- (border top, zone text positioning, clock anchoring, calendar)
+    -- SexyMap controls those visual elements
+    local isHybridMode = self.sexyMapHybridMode
+        or (addon.db and addon.db.profile and addon.db.profile.modules
+            and addon.db.profile.modules.minimap
+            and addon.db.profile.modules.minimap.sexymap_mode == "hybrid")
 
-    --  APPLY ZOOM BUTTONS VISIBILITY
+    if not isHybridMode then
+        --  APPLY BORDER ALPHA
+        if MinimapBorderTop and settings.border_alpha then
+            MinimapBorderTop:SetAlpha(settings.border_alpha)
+        end
+
+        --  APPLY CALENDAR VISIBILITY
+        if settings.calendar ~= nil then
+            if GameTimeFrame then
+                if settings.calendar then
+                    GameTimeFrame:Show()
+                else
+                    GameTimeFrame:Hide()
+                end
+            end
+        end
+
+        --  APPLY CLOCK VISIBILITY AND ADJUST ZONE TEXT
+        if settings.clock ~= nil then
+            if TimeManagerClockButton then
+                if settings.clock then
+                    TimeManagerClockButton:Show()
+                    -- Clock visible: zone text left-aligned (original position)
+                    if MinimapZoneTextButton then
+                        MinimapZoneTextButton:ClearAllPoints()
+                        MinimapZoneTextButton:SetPoint("LEFT", MinimapBorderTop, "LEFT", 7, 1)
+                        MinimapZoneTextButton:SetWidth(108)
+                    end
+                    if MinimapZoneText then
+                        MinimapZoneText:SetJustifyH("LEFT")
+                    end
+                else
+                    TimeManagerClockButton:Hide()
+                    -- Clock hidden: center zone text across the entire border
+                    if MinimapZoneTextButton then
+                        MinimapZoneTextButton:ClearAllPoints()
+                        MinimapZoneTextButton:SetPoint("CENTER", MinimapBorderTop, "CENTER", 0, 1)
+                        MinimapZoneTextButton:SetWidth(150) -- Wider for centered text
+                    end
+                    if MinimapZoneText then
+                        MinimapZoneText:SetJustifyH("CENTER")
+                    end
+                end
+            end
+        end
+    end -- not isHybridMode (border, calendar, clock, zone text)
+
+    --  APPLY ZOOM BUTTONS VISIBILITY (applies in all modes)
     if settings.zoom_buttons ~= nil then
         if MinimapZoomIn and MinimapZoomOut then
             if settings.zoom_buttons then
@@ -1702,48 +1863,8 @@ function MinimapModule:ApplyAllSettings()
         end
     end
 
-    --  APPLY CALENDAR VISIBILITY
-    if settings.calendar ~= nil then
-        if GameTimeFrame then
-            if settings.calendar then
-                GameTimeFrame:Show()
-            else
-                GameTimeFrame:Hide()
-            end
-        end
-    end
-
-    --  APPLY CLOCK VISIBILITY AND ADJUST ZONE TEXT
-    if settings.clock ~= nil then
-        if TimeManagerClockButton then
-            if settings.clock then
-                TimeManagerClockButton:Show()
-                -- Clock visible: zone text left-aligned (original position)
-                if MinimapZoneTextButton then
-                    MinimapZoneTextButton:ClearAllPoints()
-                    MinimapZoneTextButton:SetPoint("LEFT", MinimapBorderTop, "LEFT", 7, 1)
-                    MinimapZoneTextButton:SetWidth(108)
-                end
-                if MinimapZoneText then
-                    MinimapZoneText:SetJustifyH("LEFT")
-                end
-            else
-                TimeManagerClockButton:Hide()
-                -- Clock hidden: center zone text across the entire border
-                if MinimapZoneTextButton then
-                    MinimapZoneTextButton:ClearAllPoints()
-                    MinimapZoneTextButton:SetPoint("CENTER", MinimapBorderTop, "CENTER", 0, 1)
-                    MinimapZoneTextButton:SetWidth(150) -- Wider for centered text
-                end
-                if MinimapZoneText then
-                    MinimapZoneText:SetJustifyH("CENTER")
-                end
-            end
-        end
-    end
-
-    --  APPLY CLOCK FONT SIZE (IMPROVED)
-    if settings.clock_font_size and TimeManagerClockButton then
+    --  APPLY CLOCK FONT SIZE (IMPROVED) — skip in hybrid mode
+    if not isHybridMode and settings.clock_font_size and TimeManagerClockButton then
         local clockText = GetClockTextFrame()
         if clockText then
             local font, _, flags = clockText:GetFont()
@@ -1754,8 +1875,8 @@ function MinimapModule:ApplyAllSettings()
         end
     end
 
-    --  APPLY ZONE TEXT FONT SIZE
-    if settings.zonetext_font_size and MinimapZoneText then
+    --  APPLY ZONE TEXT FONT SIZE — skip in hybrid mode
+    if not isHybridMode and settings.zonetext_font_size and MinimapZoneText then
         local font, _, flags = MinimapZoneText:GetFont()
         MinimapZoneText:SetFont(font, settings.zonetext_font_size, flags)
     end
@@ -1837,6 +1958,16 @@ end
 
 -- System refresh function for enable/disable
 function addon:RefreshMinimapSystem()
+    -- If SexyMap-only mode, never apply DragonUI minimap
+    local minimapModuleConfig = addon.db and addon.db.profile and addon.db.profile.modules
+        and addon.db.profile.modules.minimap
+    if minimapModuleConfig and minimapModuleConfig.sexymap_mode == "sexymap" then
+        if MinimapModule.applied then
+            MinimapModule:RestoreMinimapSystem()
+        end
+        return
+    end
+
     local isEnabled =
         addon.db and addon.db.profile and addon.db.profile.modules and addon.db.profile.modules.minimap and
             addon.db.profile.modules.minimap.enabled
