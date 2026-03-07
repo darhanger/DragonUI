@@ -577,6 +577,8 @@ L["Center"] = "중앙"
 L["Horizontal position offset"] = "가로 위치 오프셋"
 L["Vertical position offset"] = "세로 위치 오프셋"
 L["Reset quest tracker to default position"] = "퀘스트 추적기를 기본 위치로 초기화"
+L["Font Size"] = "글꼴 크기"
+L["Font size for quest tracker text"] = "퀘스트 추적기 텍스트 글꼴 크기"
 
 -- ============================================================================
 -- 유닛 프레임 탭 (UNIT FRAMES TAB)
