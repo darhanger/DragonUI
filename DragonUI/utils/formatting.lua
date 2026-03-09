@@ -1,3 +1,8 @@
+-- ============================================================================
+-- DragonUI - Text Formatting Utilities
+-- Keybind text abbreviation, number formatting, and display helpers.
+-- ============================================================================
+
 local addon = select(2,...);
 local config = addon.config;
 local pairs = pairs;

@@ -141,7 +141,6 @@ local function ShowHelp()
     addon:Print(L["=== DragonUI Commands ==="])
     print("  " .. L["/dragonui or /dui - Open configuration"])
     print("  " .. L["/dragonui config - Open configuration"])
-    print("  " .. L["/dragonui legacy - Open legacy AceConfig options"])
     print("  " .. L["/dragonui edit - Toggle editor mode (move UI elements)"])
     print("  " .. L["/dragonui reset - Reset all positions to defaults"])
     print("  " .. L["/dragonui reset <name> - Reset specific mover"])
@@ -167,8 +166,6 @@ local function SlashCommandHandler(input)
     
     if cmd == "config" or cmd == "options" or cmd == "opt" then
         OpenConfig()
-    elseif cmd == "legacy" or cmd == "old" then
-        OpenConfig("legacy")
     elseif cmd == "edit" or cmd == "editor" or cmd == "move" or cmd == "moveui" then
         ToggleEditorMode()
     elseif cmd == "reset" then

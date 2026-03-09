@@ -16,8 +16,6 @@ local _G = getfenv(0);
 -- BUTTONS MODULE FOR DRAGONUI
 -- ============================================================================
 
--- RANGE_INDICATOR = "•";
-
 local actionbars = {
 	'ActionButton',
 	'MultiBarBottomLeftButton',
@@ -142,7 +140,7 @@ local function setup_background(button, anchor, shadow)
 end
 
 -- ============================================================================
--- KEY FORMATTING SYSTEM (Full control from DragonUI)
+-- KEY FORMATTING SYSTEM
 -- ============================================================================
 
 local GetKeyText
@@ -214,7 +212,7 @@ local function actionbuttons_hotkey(button)
 	else
 		hotkey:SetAlpha(db.hotkey.show and 1 or 0)
 		
-		-- FULL CONTROL: Use our custom formatting system
+		-- Use custom formatting system
 		local formattedText = GetKeyText(text)
 		hotkey:SetText(formattedText)
 		
@@ -609,13 +607,10 @@ function addon.possessbuttons_template()
 	end
 end
 
--- setup totem/multicast buttons (shaman)
--- NOTE: Leave Blizzard's multicast bar alone - don't modify any textures
--- The multicast module only handles positioning, not styling
+-- Totem/multicast buttons (Shaman) — intentionally left unstyled.
+-- The multicast module handles positioning only; modifying textures here
+-- caused invisibility issues with Blizzard's multicast bar.
 function addon.totembuttons_template()
-    -- INTENTIONALLY EMPTY
-    -- Multicast buttons should keep their original Blizzard appearance
-    -- Any styling was causing invisibility issues
 end
 
 -- setup pet action buttons

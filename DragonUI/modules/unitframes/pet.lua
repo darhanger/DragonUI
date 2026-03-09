@@ -1,5 +1,5 @@
 -- ===============================================================
--- DRAGONUI PET FRAME MODULE - OPTIMIZED WITH TEXT SYSTEM
+-- DRAGONUI PET FRAME MODULE
 -- ===============================================================
 local addon = select(2, ...)
 local UF = addon.UF
@@ -31,7 +31,7 @@ local COMBAT_TEX_COORDS = PET_TEX.COMBAT_TEX_COORDS
 -- COMBAT PULSE ANIMATIONS
 -- ===============================================================
 
---  COLOR PULSE CONFIGURATION
+-- Combat pulse color configuration
 local COMBAT_PULSE_SETTINGS = {
     speed = 9,              -- Heartbeat speed
     minIntensity = 0.3,     -- Minimum red intensity (0.4 = dark red)
@@ -39,12 +39,11 @@ local COMBAT_PULSE_SETTINGS = {
     enabled = true          -- Enable/disable animation
 }
 
---  STATE VARIABLE
 local combatPulseTimer = 0
 
 
 -- ===============================================================
--- NEW ANIMATION FUNCTION WITH COLOR CHANGE
+-- COMBAT PULSE ANIMATION
 -- ===============================================================
 local function AnimatePetCombatPulse(elapsed)
     if not COMBAT_PULSE_SETTINGS.enabled then
@@ -64,7 +63,7 @@ local function AnimatePetCombatPulse(elapsed)
                      (COMBAT_PULSE_SETTINGS.maxIntensity - COMBAT_PULSE_SETTINGS.minIntensity) * 
                      (math.sin(combatPulseTimer) * 0.5 + 0.5)
     
-    --  CHANGE COLOR INSTEAD OF ALPHA
+    -- Pulse vertex color between min/max red intensity
     texture:SetVertexColor(intensity, 0.0, 0.0, 1.0)
 end
 
@@ -191,19 +190,17 @@ local function ConfigurePetThreatGlow()
     local threatFlash = _G.PetFrameFlash
     if not threatFlash then return end
     
-    --  APPLY YOUR CUSTOM TEXTURE
+    -- Apply custom texture and coordinates
     threatFlash:SetTexture(ATLAS_TEXTURE)  
     threatFlash:SetTexCoord(unpack(COMBAT_TEX_COORDS))
-    --  TEXTURE COORDINATES (adjust according to your texture)
-    -- Format: left, right, top, bottom (values between 0 and 1)
    
     
-    --  VISUAL CONFIGURATION
-    threatFlash:SetBlendMode("ADD")  -- Glow effect
-    threatFlash:SetAlpha(0.7)  -- Transparency
-    threatFlash:SetDrawLayer("OVERLAY", 10)  -- Above everything
+    --  Visual configuration
+    threatFlash:SetBlendMode("ADD")
+    threatFlash:SetAlpha(0.7)
+    threatFlash:SetDrawLayer("OVERLAY", 10)
     
-    --  POSITIONING FOR PET FRAME
+    -- Position relative to pet frame
     threatFlash:ClearAllPoints()
     threatFlash:SetPoint("CENTER", PetFrame, "CENTER", -7, -2)  
     threatFlash:SetSize(114, 47)  
@@ -529,14 +526,14 @@ local function CreatePetAnchorFrame()
     return PetFrameModule.anchor
 end
 
---  FUNCTION TO APPLY POSITION FROM WIDGETS (LIKE party.lua)
+-- Apply saved widget position to the anchor frame
 local function ApplyWidgetPosition()
     if not PetFrameModule.anchor then
         
         return
     end
 
-    --  ENSURE CONFIGURATION EXISTS
+    -- Ensure configuration exists
     if not addon.db or not addon.db.profile or not addon.db.profile.widgets then
         
         return
@@ -550,16 +547,16 @@ local function ApplyWidgetPosition()
         PetFrameModule.anchor:SetPoint(anchor, UIParent, anchor, widgetConfig.posX, widgetConfig.posY)
         
     else
-        --  DEFAULT POSITION LIKE RETAILUI (upper right corner)
+        -- Default position (upper right corner)
         PetFrameModule.anchor:ClearAllPoints()
         PetFrameModule.anchor:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -50, -150)
         
     end
 end
 
---  FUNCTIONS REQUIRED BY THE CENTRALIZED SYSTEM
+-- Centralized system interface
 function PetFrameModule:LoadDefaultSettings()
-    --  ENSURE CONFIGURATION EXISTS IN WIDGETS
+    -- Ensure widgets config table exists
     if not addon.db.profile.widgets then
         addon.db.profile.widgets = {}
     end
@@ -573,7 +570,7 @@ function PetFrameModule:LoadDefaultSettings()
         
     end
     
-    --  ENSURE CONFIGURATION EXISTS IN UNITFRAME.PET
+    -- Ensure unitframe.pet config table exists
     if not addon.db.profile.unitframe then
         addon.db.profile.unitframe = {}
     end
@@ -586,21 +583,20 @@ end
 
 function PetFrameModule:UpdateWidgets()
     ApplyWidgetPosition()
-    --  REPOSITION THE PET FRAME RELATIVE TO THE UPDATED ANCHOR
+    -- Reposition the pet frame relative to the updated anchor
     if not InCombatLockdown() then
         -- The pet frame should follow the anchor
         ApplyFramePositioning()
     end
 end
 
---  FUNCTION TO CHECK IF THE PET FRAME SHOULD BE VISIBLE
--- FOLLOWING RETAILUI: Always visible in editor, NOT filtered by class
+-- Always visible in editor mode, not filtered by class
 local function ShouldPetFrameBeVisible()
     -- RetailUI siempre permite editar el PET frame independientemente de la clase
     return true
 end
 
---  TESTING FUNCTIONS FOR THE EDITOR
+-- Test display functions for editor mode
 local function ShowPetFrameTest()
     -- Show the PET frame even if there is no pet
     if PetFrame then
@@ -661,20 +657,20 @@ local function HidePetFrameTest()
     end
 end
 
---  CENTRALIZED SYSTEM INITIALIZATION FUNCTION
+-- Initialize pet frame for the editor system
 local function InitializePetFrameForEditor()
     -- Create the anchor frame
     CreatePetAnchorFrame()
     
-    --  FULL REGISTRATION WITH ALL FUNCTIONS (LIKE party.lua and castbar.lua)
+    -- Register with editor system (full interface like party.lua and castbar.lua)
     addon:RegisterEditableFrame({
         name = "PetFrame",
         frame = PetFrameModule.anchor,
-        configPath = {"widgets", "pet"},  --  Array like other modules
-        hasTarget = ShouldPetFrameBeVisible,  --  Always true (like RetailUI)
-        showTest = ShowPetFrameTest,  --  Lowercase like party.lua
-        hideTest = HidePetFrameTest,  --  Lowercase like party.lua
-        onHide = function() PetFrameModule:UpdateWidgets() end,  --  To apply changes
+        configPath = {"widgets", "pet"},
+        hasTarget = ShouldPetFrameBeVisible,
+        showTest = ShowPetFrameTest,
+        hideTest = HidePetFrameTest,
+        onHide = function() PetFrameModule:UpdateWidgets() end,
         LoadDefaultSettings = function() PetFrameModule:LoadDefaultSettings() end,
         UpdateWidgets = function() PetFrameModule:UpdateWidgets() end
     })
@@ -683,10 +679,10 @@ local function InitializePetFrameForEditor()
     
 end
 
---  INITIALIZATION
+-- Initialization
 InitializePetFrameForEditor()
 
---  LISTENER FOR WHEN THE ADDON IS FULLY LOADED
+-- Apply widget positions once addon is fully loaded
 local readyFrame = CreateFrame("Frame")
 readyFrame:RegisterEvent("ADDON_LOADED")
 readyFrame:SetScript("OnEvent", function(self, event, addonName)

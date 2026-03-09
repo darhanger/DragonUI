@@ -24,6 +24,7 @@ L["Cannot reset positions during combat!"] = true
 L["Cannot toggle keybind mode during combat!"] = true
 L["Cannot move frames during combat!"] = true
 L["Cannot open options in combat."] = true
+L["Options panel not available. Try /reload."] = true
 
 -- Module availability
 L["Editor mode not available."] = true
@@ -44,7 +45,6 @@ L["Unknown command: "] = true
 L["=== DragonUI Commands ==="] = true
 L["/dragonui or /dui - Open configuration"] = true
 L["/dragonui config - Open configuration"] = true
-L["/dragonui legacy - Open legacy AceConfig options"] = true
 L["/dragonui edit - Toggle editor mode (move UI elements)"] = true
 L["/dragonui reset - Reset all positions to defaults"] = true
 L["/dragonui reset <name> - Reset specific mover"] = true
@@ -132,6 +132,12 @@ L["MicroMenu"] = "Micro Menu"
 L["VehicleExitOverlay"] = "Vehicle Exit"
 L["StanceOverlay"] = "Stance Bar"
 L["petbar"] = "Pet Bar"
+L["boss"] = "Boss Frames"
+L["Boss Frames"] = true
+L["Boss1Frame"] = "Boss Frames"
+L["Boss2Frame"] = "Boss Frames"
+L["Boss3Frame"] = "Boss Frames"
+L["Boss4Frame"] = "Boss Frames"
 L["TotemBarOverlay"] = "Totem Bar"
 L["PlayerCastbar"] = "Castbar"
 L["Auras"] = true

@@ -44,7 +44,6 @@ L["Unknown command: "] = "알 수 없는 명령어: "
 L["=== DragonUI Commands ==="] = "=== DragonUI 명령어 ==="
 L["/dragonui or /dui - Open configuration"] = "/dragonui 또는 /dui - 설정창 열기"
 L["/dragonui config - Open configuration"] = "/dragonui config - 설정창 열기"
-L["/dragonui legacy - Open legacy AceConfig options"] = "/dragonui legacy - 기존 AceConfig 옵션 열기"
 L["/dragonui edit - Toggle editor mode (move UI elements)"] = "/dragonui edit - 편집 모드 전환 (UI 요소 이동)"
 L["/dragonui reset - Reset all positions to defaults"] = "/dragonui reset - 모든 위치를 기본값으로 초기화"
 L["/dragonui reset <name> - Reset specific mover"] = "/dragonui reset <이름> - 특정 요소의 위치 초기화"
@@ -144,6 +143,14 @@ L["Right-click to reset"] = "우클릭으로 초기화"
 -- 편집 모드 시스템 메시지
 L["All editable frames shown for editing"] = "편집을 위해 모든 프레임을 표시합니다."
 L["All editable frames hidden, positions saved"] = "모든 프레임을 숨기고 위치를 저장했습니다."
+
+-- 보스 프레임
+L["boss"] = "보스 프레임"
+L["Boss Frames"] = "보스 프레임"
+L["Boss1Frame"] = "보스 프레임"
+L["Boss2Frame"] = "보스 프레임"
+L["Boss3Frame"] = "보스 프레임"
+L["Boss4Frame"] = "보스 프레임"
 
 -- ============================================================================
 -- 고정 팝업창 (STATIC POPUPS)

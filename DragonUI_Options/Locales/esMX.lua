@@ -1,10 +1,10 @@
 --[[
 ================================================================================
-DragonUI_Options - Spanish (esES) Locale
+DragonUI_Options - Latin American Spanish (esMX) Locale
 ================================================================================
 ]]
 
-local L = LibStub("AceLocale-3.0"):NewLocale("DragonUI_Options", "esES")
+local L = LibStub("AceLocale-3.0"):NewLocale("DragonUI_Options", "esMX")
 if not L then return end
 
 -- ============================================================================
@@ -212,6 +212,49 @@ L["Middle"] = "Centro"
 L["Combuctor"] = "Combuctor"
 L["Enable Combuctor"] = "Activar Combuctor"
 L["All-in-one bag replacement with item filtering, search, quality indicators, and bank integration."] = "Reemplazo de bolsas todo-en-uno con filtrado de objetos, búsqueda, indicadores de calidad e integración con el banco."
+L["Combuctor Settings"] = "Opciones de Combuctor"
+L["Show 'All' Tab"] = "Mostrar pestaña 'Todo'"
+L["Show the 'All' category tab that displays all items without filtering."] = "Mostrar la pestaña de categoría 'Todo' que muestra todos los objetos sin filtrar."
+L["Show Equipment Tab"] = "Mostrar pestaña Equipamiento"
+L["Show the Equipment category tab for armor and weapons."] = "Mostrar la pestaña de categoría Equipamiento para armaduras y armas."
+L["Show Usable Tab"] = "Mostrar pestaña Utilizables"
+L["Show the Usable category tab for consumables and devices."] = "Mostrar la pestaña de categoría Utilizables para consumibles y dispositivos."
+L["Show Consumable Tab"] = "Mostrar pestaña Consumibles"
+L["Show the Consumable category tab."] = "Mostrar la pestaña de categoría Consumibles."
+L["Show Quest Tab"] = "Mostrar pestaña Misión"
+L["Show the Quest items category tab."] = "Mostrar la pestaña de categoría objetos de Misión."
+L["Show Trade Goods Tab"] = "Mostrar pestaña Bienes Comerciales"
+L["Show the Trade Goods category tab (includes gems and recipes)."] = "Mostrar la pestaña de categoría Bienes Comerciales (incluye gemas y recetas)."
+L["Show Miscellaneous Tab"] = "Mostrar pestaña Miscelánea"
+L["Show the Miscellaneous items category tab."] = "Mostrar la pestaña de categoría objetos Miscelánea."
+L["Left Side Tabs"] = "Pestañas a la Izquierda"
+L["Place category filter tabs on the left side of the bag frame instead of the right."] = "Colocar las pestañas de filtro de categoría en el lado izquierdo del marco de bolsas en lugar del derecho."
+L["Place category filter tabs on the left side of the bank frame instead of the right."] = "Colocar las pestañas de filtro de categoría en el lado izquierdo del marco del banco en lugar del derecho."
+L["Changes require closing and reopening bags to take effect."] = "Los cambios requieren cerrar y reabrir las bolsas para aplicarse."
+L["Subtabs"] = "Subpestañas"
+L["Configure which bottom subtabs appear within each category tab. Applies to both inventory and bank."] = "Configurar qué subpestañas inferiores aparecen en cada pestaña de categoría. Se aplica tanto al inventario como al banco."
+L["Normal"] = "Normal"
+L["Trade Bags"] = "Bolsas de Profesión"
+L["Show the Normal bags subtab (non-profession bags)."] = "Mostrar la subpestaña de bolsas normales (no profesionales)."
+L["Show the Trade bags subtab (profession bags)."] = "Mostrar la subpestaña de bolsas de profesión."
+L["Show the Armor subtab."] = "Mostrar la subpestaña Armadura."
+L["Show the Weapon subtab."] = "Mostrar la subpestaña Arma."
+L["Show the Trinket subtab."] = "Mostrar la subpestaña Abalorio."
+L["Show the Consumable subtab."] = "Mostrar la subpestaña Consumible."
+L["Show the Devices subtab."] = "Mostrar la subpestaña Dispositivos."
+L["Show the Trade Goods subtab."] = "Mostrar la subpestaña Bienes Comerciales."
+L["Show the Gem subtab."] = "Mostrar la subpestaña Gema."
+L["Show the Recipe subtab."] = "Mostrar la subpestaña Receta."
+L["Configure Combuctor bag replacement settings."] = "Configurar las opciones del reemplazo de bolsas Combuctor."
+L["Category Tabs"] = "Pestañas de Categoría"
+L["Inventory Tabs"] = "Pestañas de Inventario"
+L["Bank Tabs"] = "Pestañas del Banco"
+L["Inventory"] = "Inventario"
+L["Bank"] = "Banco"
+L["Choose which category tabs appear on the bag frame. Changes require closing and reopening bags to take effect."] = "Elegir qué pestañas de categoría aparecen en el marco de bolsas. Los cambios requieren cerrar y reabrir las bolsas para aplicarse."
+L["Choose which category tabs appear on the inventory bag frame."] = "Elegir qué pestañas de categoría aparecen en el marco de inventario."
+L["Choose which category tabs appear on the bank frame."] = "Elegir qué pestañas de categoría aparecen en el marco del banco."
+L["Display"] = "Visualización"
 
 -- Advanced modules - Fallback display names
 L["Main Bars"] = "Barras Principales"
@@ -740,85 +783,26 @@ L["Vertical position (only active if Override is checked)"] = "Posición vertica
 -- Target of Target
 L["Follows the Target frame by default. Move it in Editor Mode (/dragonui edit) to detach and position freely."] = "Sigue al marco del Objetivo por defecto. Muévelo en el Modo Editor (/dragonui edit) para desanclar y posicionar libremente."
 L["Detached — positioned freely via Editor Mode"] = "Desanclado — posicionado libremente mediante el Modo Editor"
-L["Attached — follows Target frame"] = "Anclado — sigue al marco del Objetivo"
-L["Re-attach to Target"] = "Re-anclar al Objetivo"
-
--- Target of Focus
-L["Target of Focus"] = "Objetivo del Foco"
-L["Follows the Focus frame by default. Move it in Editor Mode (/dragonui edit) to detach and position freely."] = "Sigue al marco del Foco por defecto. Muévelo en el Modo Editor (/dragonui edit) para desanclar y posicionar libremente."
-L["Attached — follows Focus frame"] = "Anclado — sigue al marco del Foco"
-L["Re-attach to Focus"] = "Re-anclar al Foco"
+L["Re-attach to Target"] = "Reanclaje al Objetivo"
+L["Re-attach to Focus"] = "Reanclaje al Foco"
 
 -- Party Frames
 L["Party Frames"] = "Marcos de Grupo"
 L["Party Frames Configuration"] = "Configuración de Marcos de Grupo"
-L["Custom styling for party member frames with automatic health/mana text display and class colors."] = "Estilo personalizado para marcos de miembros de grupo con texto automático de vida/maná y colores de clase."
+L["Custom styling for party member frames with automatic health/mana text display and class colors."] = "Estilo personalizado para marcos de grupo con visualización automática de texto de vida/maná y colores de clase."
 L["Orientation"] = "Orientación"
 L["Vertical"] = "Vertical"
 L["Horizontal"] = "Horizontal"
 L["Party frame orientation"] = "Orientación de marcos de grupo"
 L["Vertical Padding"] = "Espaciado Vertical"
 L["Space between party frames in vertical mode"] = "Espacio entre marcos de grupo en modo vertical"
-L["Space between party frames in vertical mode."] = "Espacio entre marcos de grupo en modo vertical."
 L["Horizontal Padding"] = "Espaciado Horizontal"
 L["Space between party frames in horizontal mode"] = "Espacio entre marcos de grupo en modo horizontal"
-L["Space between party frames in horizontal mode."] = "Espacio entre marcos de grupo en modo horizontal."
+L["Show Party Buffs"] = "Mostrar Beneficios de Grupo"
+L["Show buff icons on party frames"] = "Mostrar iconos de beneficios en marcos de grupo"
+L["Show Party Debuffs"] = "Mostrar Perjuicios de Grupo"
+L["Show debuff icons on party frames"] = "Mostrar iconos de perjuicios en marcos de grupo"
 
--- ============================================================================
--- XP & REP BARS TAB
--- ============================================================================
-
-L["Bar Style"] = "Estilo de Barra"
-L["XP / Rep Bar Style"] = "Estilo de Barra de XP / Rep"
-L["DragonflightUI: fully custom bars with rested XP background.\nRetailUI: atlas-based reskin of Blizzard bars.\n\nChanging style requires a UI reload."] = "DragonflightUI: barras completamente personalizadas con fondo de XP descansada.\nRetailUI: reskin basado en atlas de las barras de Blizzard.\n\nCambiar el estilo requiere recargar la IU."
-L["DragonflightUI"] = "DragonflightUI"
-L["RetailUI"] = "RetailUI"
-L["XP bar style changed to "] = "Estilo de barra de XP cambiado a "
-L["A UI reload is required to apply this change."] = "Se requiere recargar la IU para aplicar este cambio."
-
--- Size & Scale
-L["Size & Scale"] = "Tamaño y Escala"
-L["Bar Height"] = "Altura de Barra"
-L["Height of the XP and Reputation bars (in pixels)."] = "Altura de las barras de XP y Reputación (en píxeles)."
-L["Experience Bar Scale"] = "Escala de Barra de Experiencia"
-L["Scale of the experience bar."] = "Escala de la barra de experiencia."
-L["Reputation Bar Scale"] = "Escala de Barra de Reputación"
-L["Scale of the reputation bar."] = "Escala de la barra de reputación."
-
--- Rested XP
-L["Rested XP"] = "XP Descansada"
-L["Show Rested XP Background"] = "Mostrar Fondo de XP Descansada"
-L["Display a translucent bar showing the total available rested XP range.\n(DragonflightUI style only)"] = "Mostrar una barra translúcida indicando el rango total de XP descansada disponible.\n(Solo estilo DragonflightUI)"
-L["Show Exhaustion Tick"] = "Mostrar Marca de Agotamiento"
-L["Show the exhaustion tick indicator on the XP bar, marking where rested XP ends."] = "Mostrar el indicador de marca de agotamiento en la barra de XP, señalando dónde termina la XP descansada."
-
--- Text Display
-L["Text Display"] = "Visualización de Texto"
-L["Always Show Text"] = "Siempre Mostrar Texto"
-L["Always display XP/Rep text instead of only on hover."] = "Mostrar siempre el texto de XP/Rep en lugar de solo al pasar el cursor."
-L["Show XP Percentage"] = "Mostrar Porcentaje de XP"
-L["Display XP percentage alongside the value text."] = "Mostrar el porcentaje de XP junto al texto de valor."
-
--- ============================================================================
--- PROFILES TAB
--- ============================================================================
-
-L["Database not available."] = "Base de datos no disponible."
-L["Save and switch between different configurations per character."] = "Guardar y cambiar entre diferentes configuraciones por personaje."
-L["Current Profile"] = "Perfil Actual"
-L["Active: "] = "Activo: "
-L["Switch or Create Profile"] = "Cambiar o Crear Perfil"
-L["Select Profile"] = "Seleccionar Perfil"
-L["New Profile Name"] = "Nombre del Nuevo Perfil"
-L["Copy From"] = "Copiar Desde"
-L["Copies all settings from the selected profile into your current one."] = "Copia todas las configuraciones del perfil seleccionado al actual."
-L["Copied profile: "] = "Perfil copiado: "
-L["Delete Profile"] = "Eliminar Perfil"
-L["Warning: Deleting a profile is permanent and cannot be undone."] = "Aviso: Eliminar un perfil es permanente y no se puede deshacer."
-L["Delete"] = "Eliminar"
-L["Deleted profile: "] = "Perfil eliminado: "
-L["Reset Current Profile"] = "Restablecer Perfil Actual"
-L["Restores the current profile to its defaults. This cannot be undone."] = "Restaura el perfil actual a sus valores predeterminados. Esto no se puede deshacer."
-L["Reset Profile"] = "Restablecer Perfil"
-L["All changes will be lost and the UI will be reloaded.\nAre you sure you want to reset your profile?"] = "Todos los cambios se perderán y la IU se recargará.\n¿Estás seguro de que quieres restablecer tu perfil?"
-L["Profile reset to defaults."] = "Perfil restablecido a los valores predeterminados."
+-- Boss Frames
+L["Boss Frames"] = "Marcos de Jefe"
+L["Enabled"] = "Activado"

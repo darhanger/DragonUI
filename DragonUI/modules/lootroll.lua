@@ -14,8 +14,7 @@ local LootRollModule = {
 }
 addon.LootRollModule = LootRollModule
 
--- NOTE: Loot Roll is NOT registered as a toggleable module.
--- It always runs (repositions GroupLootContainer) and has no enable/disable toggle.
+-- Loot Roll is not registered as a toggleable module — it always runs.
 -- Position is managed via Editor Mode only.
 
 -- =============================================================================

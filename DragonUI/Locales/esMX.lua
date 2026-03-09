@@ -1,10 +1,10 @@
 --[[
 ================================================================================
-DragonUI - Spanish Locale (esES)
+DragonUI - Latin American Spanish Locale (esMX)
 ================================================================================
 ]]
 
-local L = LibStub("AceLocale-3.0"):NewLocale("DragonUI", "esES")
+local L = LibStub("AceLocale-3.0"):NewLocale("DragonUI", "esMX")
 if not L then return end
 
 -- ============================================================================
@@ -163,17 +163,10 @@ L["Recommended"] = "Recomendado"
 -- Panel de opciones SexyMap
 L["SexyMap Compatibility"] = "Compatibilidad SexyMap"
 L["Minimap Mode"] = "Modo de Minimapa"
-L["Choose how DragonUI and SexyMap share the minimap."] = "Elige cómo comparten el minimapa DragonUI y SexyMap."
-L["Requires UI reload to apply."] = "Requiere recargar la interfaz para aplicar."
-L["Uses SexyMap for the minimap."] = "Usa SexyMap para el minimapa."
-L["Uses DragonUI for the minimap."] = "Usa DragonUI para el minimapa."
-L["SexyMap visuals with DragonUI editor and positioning."] = "Aspecto de SexyMap, movible y configurable desde DragonUI."
-L["Minimap mode changed. Reload UI to apply?"] = "Modo de minimapa cambiado. ¿Recargar interfaz para aplicar?"
-
--- Comandos de compatibilidad SexyMap
-L["SexyMap compatibility mode has been reset. Reload UI to choose again."] = "El modo de compatibilidad SexyMap se ha restablecido. Recarga la interfaz para elegir de nuevo."
-L["Current SexyMap mode: |cFFFFFF00%s|r"] = "Modo SexyMap actual: |cFFFFFF00%s|r"
-L["No SexyMap mode selected (SexyMap not detected or not yet chosen)."] = "No se ha seleccionado modo SexyMap (SexyMap no detectado o aún no elegido)."
+L["Choose which addon controls the minimap"] = "Elige qué addon controla el minimapa"
+L["DragonUI controls minimap (SexyMap disabled)"] = "DragonUI controla el minimapa (SexyMap desactivado)"
+L["SexyMap controls minimap (DragonUI minimap features disabled)"] = "SexyMap controla el minimapa (funciones de minimapa de DragonUI desactivadas)"
+L["Both addons active (SexyMap shape + DragonUI textures)"] = "Ambos addons activos (forma de SexyMap + texturas de DragonUI)"
 L["Show current SexyMap compatibility mode"] = "Mostrar modo de compatibilidad SexyMap actual"
 L["Reset SexyMap mode choice (re-prompts on reload)"] = "Restablecer la elección de modo SexyMap (vuelve a preguntar al recargar)"
 L["Loaded addons:"] = "Addons cargados:"
@@ -190,6 +183,7 @@ L["Boss4Frame"] = "Marcos de Jefe"
 -- STATIC POPUPS
 -- ============================================================================
 
-L["Changing this setting requires a UI reload to apply correctly."] = "Cambiar esta opción requiere recargar la interfaz para aplicarse correctamente."
-L["Reload UI"] = "Recargar Interfaz"
-L["Not Now"] = "Ahora No"
+L["DragonUI Reload Required"] = "DragonUI Requiere Recarga"
+L["A UI reload is required for this change to take effect. Reload now?"] = "Se requiere recargar la interfaz para que este cambio surta efecto. ¿Recargar ahora?"
+L["Reload"] = "Recargar"
+L["Cancel"] = "Cancelar"

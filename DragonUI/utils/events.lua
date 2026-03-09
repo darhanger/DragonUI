@@ -1,3 +1,8 @@
+-- ============================================================================
+-- DragonUI - Event Package System
+-- Centralized event registration and dispatch for addon subsystems.
+-- ============================================================================
+
 local addon = select(2,...);
 local tinsert = table.insert;
 local select, next = select, next;

@@ -1,6 +1,11 @@
+-- ============================================================================
+-- DragonUI - Database Defaults
+-- Defines default profile values for AceDB-3.0. All configurable settings
+-- live here as the single source of truth for new/reset profiles.
+-- ============================================================================
+
 local addon = select(2, ...);
 
--- Default values for new profiles
 local defaults = {
     profile = {
         -- Widgets
@@ -533,6 +538,16 @@ local defaults = {
                 anchor = 'BOTTOMRIGHT',
                 anchorParent = 'BOTTOMRIGHT',
                 anchorFrame = 'FocusFrame'
+            },
+            boss = {
+                enabled = true,
+                scale = 1.0,
+                classcolor = false,
+                override = false,
+                anchor = 'TOPRIGHT',
+                anchorParent = 'TOPRIGHT',
+                x = -85,
+                y = -300
             }
         },
 
@@ -595,18 +610,24 @@ local defaults = {
             itemquality = {
                 enabled = true, -- Color item borders by quality in bags, character panel, bank, merchant
                 min_quality = 2 -- Minimum quality to show (2 = Uncommon/green)
+            },
+            chatmods = {
+                enabled = true, -- Chat enhancements: hide buttons, editbox position, URL copy, chat copy
+                editbox = "top" -- Editbox position: "top", "bottom", or "middle"
+            },
+            combuctor = {
+                enabled = true -- All-in-one bag replacement with filtering and search
             }
         }
     }
 };
 
--- Initialize AceDB immediately to ensure it's available for modules
--- This is a temporary placeholder that will be replaced in OnInitialize
+-- Temporary profile placeholder (replaced by AceDB in core.lua:OnInitialize)
 addon.db = {
     profile = addon.defaults and addon.defaults.profile or {}
 };
 
--- Function to recursively copy tables  
+-- Recursive table copy (preserves existing keys in target)
 local function deepCopy(source, target)
     for key, value in pairs(source) do
         if type(value) == "table" then
@@ -620,7 +641,7 @@ local function deepCopy(source, target)
     end
 end
 
--- Copy defaults to the temporary profile immediately
+-- Populate temporary profile with defaults
 if defaults and defaults.profile then
     deepCopy(defaults.profile, addon.db.profile);
 end
@@ -628,7 +649,7 @@ end
 -- Export defaults for use in core.lua
 addon.defaults = defaults;
 
--- Function to get database values
+-- Database accessors
 function addon:GetConfigValue(section, key, subkey)
     if subkey then
         return self.db.profile[section][key][subkey];
@@ -639,7 +660,6 @@ function addon:GetConfigValue(section, key, subkey)
     end
 end
 
--- Function to set database values
 function addon:SetConfigValue(section, key, subkey, value)
     if subkey then
         self.db.profile[section][key][subkey] = value;

@@ -13,9 +13,9 @@ local UF = addon.UF
 UF.SmallFrame = UF.SmallFrame or {}
 
 
---------------------------------------------------------------------------------
+-- ============================================================================
 -- Factory function
---------------------------------------------------------------------------------
+-- ============================================================================
 -- opts fields:
 --   configKey         : string  "tot" or "fot" (database key)
 --   unitToken         : string  "targettarget" or "focustarget"
@@ -31,7 +31,7 @@ UF.SmallFrame = UF.SmallFrame or {}
 --   defaultY            : number  default Y offset for positioning
 --   cvar                : string? "showTargetOfTarget" for ToT, nil for FoT
 --   extraInit           : func?   function(Module, config) — called at end of InitializeFrame
---------------------------------------------------------------------------------
+-- ============================================================================
 
 function UF.SmallFrame.Create(opts)
     -- ========================================================================

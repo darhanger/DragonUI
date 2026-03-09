@@ -18,8 +18,10 @@ L["KeyBind Mode"] = "Tastenbelegungsmodus"
 L["Exit Editor Mode"] = "Editor-Modus beenden"
 L["KeyBind Mode Active"] = "Tastenbelegungsmodus aktiv"
 L["Move UI Elements"] = "UI-Elemente verschieben"
-L["/dragonui  |  /dragonui legacy for classic options"] = "/dragonui  |  /dragonui legacy für klassische Optionen"
 L["Cannot open options during combat."] = "Optionen können im Kampf nicht geöffnet werden."
+L["Open DragonUI Settings"] = "DragonUI-Einstellungen öffnen"
+L["Open the DragonUI configuration panel."] = "Das DragonUI-Konfigurationsfenster öffnen."
+L["Use /dragonui to open the full settings panel."] = "Nutze /dragonui, um das vollständige Einstellungsfenster zu öffnen."
 
 -- Quick Actions
 L["Quick Actions"] = "Schnellaktionen"
@@ -28,7 +30,6 @@ L["Dragonflight-inspired UI for WotLK 3.3.5a."] = "Dragonflight-inspiriertes UI 
 L["Experimental Branch — This options panel is in early beta."] = "Experimenteller Branch — Dieses Optionsfenster ist in einer frühen Beta."
 L["Features may change or be incomplete. Report issues on GitHub."] = "Funktionen können sich ändern oder unvollständig sein. Melde Probleme auf GitHub."
 L["Use /dragonui or /pi to toggle this panel."] = "Nutze /dragonui oder /pi, um dieses Fenster ein-/auszublenden."
-L["Use /dragonui legacy to open the classic AceConfig options."] = "Nutze /dragonui legacy, um die klassischen AceConfig-Optionen zu öffnen."
 
 -- ============================================================================
 -- STATIC POPUPS
@@ -58,6 +59,10 @@ L["Profiles"] = "Profile"
 L["Quest Tracker"] = "Questverfolgung"
 L["Unit Frames"] = "Einheitenfenster"
 L["XP & Rep Bars"] = "EP- & Rufleisten"
+L["Chat"] = "Chat"
+L["Bags"] = "Taschen"
+L["Left Side Tabs"] = "Tabs links"
+L["Place category filter tabs on the left side of the bag frame instead of the right."] = "Kategorie-Filter-Tabs auf der linken Seite des Taschenfensters statt rechts platzieren."
 
 -- ============================================================================
 -- MODULES TAB
@@ -176,6 +181,21 @@ L["Restyle the tooltip health bar with class/reaction colors and slimmer look."]
 L["Anchor to Cursor"] = "Am Cursor verankern"
 L["Make the tooltip follow the cursor position instead of the default anchor."] = "Tooltip der Cursorposition folgen lassen statt der Standard-Verankerung."
 L["Make the tooltip follow the cursor position instead of using the default anchor."] = "Tooltip der Cursorposition folgen lassen statt die Standard-Verankerung zu verwenden."
+
+-- Chat-Mods
+L["Chat Mods"] = "Chat-Mods"
+L["Enable Chat Mods"] = "Chat-Mods aktivieren"
+L["Chat enhancements: hide buttons, editbox positioning, URL detection & copy, chat copy, link hover tooltips, tell target, mousewheel scroll."] = "Chat-Verbesserungen: Buttons ausblenden, Editbox-Positionierung, URL-Erkennung & Kopie, Chat kopieren, Link-Hover-Tooltips, Ziel anflüstern, Mausrad-Scrollen."
+L["Editbox Position"] = "Editbox-Position"
+L["Choose where the chat editbox is positioned."] = "Wähle die Position des Chat-Eingabefelds."
+L["Top"] = "Oben"
+L["Bottom"] = "Unten"
+L["Middle"] = "Mitte"
+
+-- Combuctor
+L["Combuctor"] = "Combuctor"
+L["Enable Combuctor"] = "Combuctor aktivieren"
+L["All-in-one bag replacement with item filtering, search, quality indicators, and bank integration."] = "Komplett-Taschenersatz mit Gegenstandsfilterung, Suche, Qualitätsindikatoren und Bankintegration."
 
 -- Advanced modules - Fallback display names
 L["Main Bars"] = "Hauptleisten"

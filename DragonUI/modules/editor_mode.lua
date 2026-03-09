@@ -1,3 +1,8 @@
+-- ============================================================================
+-- DragonUI - Editor Mode
+-- Provides a visual grid overlay and controls for repositioning UI elements.
+-- ============================================================================
+
 local addon = select(2, ...);
 local L = addon.L
 
@@ -75,7 +80,6 @@ local function styleEditorButton(button)
     end
 end
 
---  EXIT EDITOR MODE BUTTON
 local function createExitButton()
     if exitEditorButton then return; end
 
@@ -96,7 +100,6 @@ local function createExitButton()
     exitEditorButton:Hide();
 end
 
---  RESET ALL POSITIONS BUTTON
 local function createResetAllButton()
     if resetAllButton then return; end
 
@@ -117,16 +120,15 @@ local function createResetAllButton()
     resetAllButton:Hide();
 end
 
---  YOUR IMPROVED GRID - NOW SYMMETRICAL SQUARES
+-- Create symmetrical grid overlay for alignment
 local function createGridOverlay()
     if gridOverlay then return; end
 
-    --  CHANGE: Make SYMMETRICAL squares with EXACT center line
     local screenWidth = GetScreenWidth()
     local screenHeight = GetScreenHeight()
     
-    --  SYMMETRICAL ALGORITHM: Split from center outward
-    local cellSize = 32  -- Base cell size
+    -- Split from center outward to ensure exact symmetry
+    local cellSize = 32
     
     -- Calculate how many complete cells fit from center to each side
     local halfCellsHorizontal = math.floor((screenWidth / 2) / cellSize)
@@ -210,15 +212,14 @@ function EditorMode:Show()
     exitEditorButton:Show()
     resetAllButton:Show()
 
-    --  NEW: USE CENTRALIZED SYSTEM - SINGLE LINE
     addon:ShowAllEditableFrames()
     
-    --  NEW: Enable action bar overlays for mouse blocking during editor mode
+    -- Enable action bar overlays to block clicks during editing
     if addon.EnableActionBarOverlays then
         addon.EnableActionBarOverlays()
     end
     
-    --  HOOK: Maintain configured scales during editor mode
+    --  Maintain configured scales during editor mode
     EditorMode:InstallScaleHooks()
     
     -- Update overlay sizes after showing
@@ -238,21 +239,20 @@ function EditorMode:Hide(showReloadPopup)
     if exitEditorButton then exitEditorButton:Hide() end
     if resetAllButton then resetAllButton:Hide() end
 
-    --  NEW: USE CENTRALIZED SYSTEM - SINGLE LINE
     addon:HideAllEditableFrames(true) -- true = refresh and save positions
     
-    --  NEW: Disable action bar overlays to allow normal interaction with action buttons
+    -- Disable action bar overlays to restore normal interaction
     if addon.DisableActionBarOverlays then
         addon.DisableActionBarOverlays()
     end
     
-    --  UNHOOK: Remove scale hooks when exiting editor mode
+    --  Remove scale hooks when exiting editor mode
     EditorMode:RemoveScaleHooks()
     
     -- Refresh AceConfig to update button state
     self:RefreshOptionsUI()
     
-    -- NEW: Only show reload UI popup if not coming from reset positions
+    -- Only show reload UI popup if not coming from reset positions
     if showReloadPopup ~= false then
         StaticPopup_Show("DRAGONUI_RELOAD_UI")
     end
@@ -284,18 +284,18 @@ function EditorMode:IsActive()
     return gridOverlay and gridOverlay:IsShown()
 end
 
---  SLASH COMMAND
+-- Slash commands
 SLASH_DRAGONUI_EDITOR1 = "/duiedit"
 SLASH_DRAGONUI_EDITOR2 = "/dragonedit"
 SlashCmdList["DRAGONUI_EDITOR"] = function()
     EditorMode:Toggle()
 end
 
---  HOOKS TO MAINTAIN SCALES DURING EDITOR MODE
+-- Scale hooks to maintain configured scales during editor mode
 local scaleHooks = {}
 
 function EditorMode:InstallScaleHooks()
-    --  DISABLED: Conflicting with RetailUI pattern in mainbars.lua
+    -- Disabled: conflicts with RetailUI pattern in mainbars.lua
     -- Hook for MainMenuExpBar
     --[[ 
     if MainMenuExpBar and not scaleHooks.xpbar then
@@ -312,7 +312,7 @@ function EditorMode:InstallScaleHooks()
     end
     ]]--
     
-    --  DISABLED: Conflicting with RetailUI pattern in mainbars.lua
+    -- Disabled: conflicts with RetailUI pattern in mainbars.lua
     -- Hook for ReputationWatchBar
     --[[
     if ReputationWatchBar and not scaleHooks.repbar then
@@ -337,12 +337,11 @@ function EditorMode:RemoveScaleHooks()
     scaleHooks.repbar = nil
 end
 
---  CONFIRMATION FUNCTION FOR RESET ALL POSITIONS
 function EditorMode:ShowResetConfirmation()
     StaticPopup_Show("DRAGONUI_RESET_ALL_POSITIONS")
 end
 
---  FUNCTION TO RESET ONLY WIDGETS USING ACE3 (OUTSIDE EDITOR MODE)
+-- Reset widget positions to defaults (works outside editor mode)
 function EditorMode:ResetAllPositions()
     if not addon.db or not addon.db.profile then
         return
@@ -400,7 +399,7 @@ function EditorMode:ResetAllPositions()
     ReloadUI()
 end
 
---  HELPER FUNCTION FOR DEEP COPY (if not already in addon)
+-- Deep copy fallback (used if addon.CopyTable not yet defined)
 if not addon.CopyTable then
     function addon:CopyTable(orig)
         local orig_type = type(orig)
@@ -418,7 +417,7 @@ if not addon.CopyTable then
     end
 end
 
---  DEFINE THE CONFIRMATION POPUP
+-- Reset confirmation dialog
 StaticPopupDialogs["DRAGONUI_RESET_ALL_POSITIONS"] = {
     text = L["Are you sure you want to reset all interface elements to their default positions?"],
     button1 = L["Yes"],

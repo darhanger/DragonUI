@@ -23,8 +23,10 @@ L["KeyBind Mode"] = "단축키 설정 모드"
 L["Exit Editor Mode"] = "편집 모드 종료"
 L["KeyBind Mode Active"] = "단축키 설정 모드 활성화됨"
 L["Move UI Elements"] = "UI 요소 이동"
-L["/dragonui  |  /dragonui legacy for classic options"] = "/dragonui  |  기존 Ace 옵션은 /dragonui legacy"
 L["Cannot open options during combat."] = "전투 중에는 옵션을 열 수 없습니다."
+L["Open DragonUI Settings"] = "DragonUI 설정 열기"
+L["Open the DragonUI configuration panel."] = "DragonUI 설정 패널을 엽니다."
+L["Use /dragonui to open the full settings panel."] = "/dragonui 명령어로 전체 설정 패널을 열 수 있습니다."
 
 -- 빠른 설정 (Quick Actions)
 L["Quick Actions"] = "빠른 설정"
@@ -33,7 +35,6 @@ L["Dragonflight-inspired UI for WotLK 3.3.5a."] = "용군단 스타일에서 영
 L["Experimental Branch — This options panel is in early beta."] = "실험적 버전 — 이 옵션 패널은 초기 베타 단계입니다."
 L["Features may change or be incomplete. Report issues on GitHub."] = "기능이 변경되거나 미완성일 수 있습니다. 문제는 GitHub에 제보해 주세요."
 L["Use /dragonui or /pi to toggle this panel."] = "/dragonui 또는 /pi 명령어로 이 창을 열 수 있습니다."
-L["Use /dragonui legacy to open the classic AceConfig options."] = "/dragonui legacy를 사용하여 기존 AceConfig 옵션을 엽니다."
 
 -- ============================================================================
 -- 고정 팝업창 (STATIC POPUPS)
@@ -62,6 +63,10 @@ L["Profiles"] = "프로필"
 L["Quest Tracker"] = "퀘스트 추적기"
 L["Unit Frames"] = "유닛 프레임"
 L["XP & Rep Bars"] = "경험치 및 평판 바"
+L["Chat"] = "채팅"
+L["Bags"] = "가방"
+L["Left Side Tabs"] = "왼쪽 탭"
+L["Place category filter tabs on the left side of the bag frame instead of the right."] = "가방 프레임의 왼쪽에 카테고리 필터 탭을 배치합니다."
 
 -- ============================================================================
 -- 모듈 탭 (MODULES TAB)
@@ -180,6 +185,21 @@ L["Restyle the tooltip health bar with class/reaction colors and slimmer look."]
 L["Anchor to Cursor"] = "커서에 고정"
 L["Make the tooltip follow the cursor position instead of the default anchor."] = "툴팁을 기본 고정 위치 대신 커서 위치를 따라다니게 합니다."
 L["Make the tooltip follow the cursor position instead of using the default anchor."] = "툴팁이 기본 고정 위치를 사용하지 않고 커서 위치를 따라다니도록 설정합니다."
+
+-- 채팅 모드 (Chat Mods)
+L["Chat Mods"] = "채팅 모드"
+L["Enable Chat Mods"] = "채팅 모드 활성화"
+L["Chat enhancements: hide buttons, editbox positioning, URL detection & copy, chat copy, link hover tooltips, tell target, mousewheel scroll."] = "채팅 개선: 버튼 숨기기, 입력창 위치, URL 감지 및 복사, 채팅 복사, 링크 툴팁, 대상 귀속말, 마우스 휠 스크롤."
+L["Editbox Position"] = "입력창 위치"
+L["Choose where the chat editbox is positioned."] = "채팅 입력창 위치를 선택합니다."
+L["Top"] = "위"
+L["Bottom"] = "아래"
+L["Middle"] = "가운데"
+
+-- 콤벅터 (Combuctor)
+L["Combuctor"] = "콤벅터"
+L["Enable Combuctor"] = "콤벅터 활성화"
+L["All-in-one bag replacement with item filtering, search, quality indicators, and bank integration."] = "아이템 필터링, 검색, 품질 표시 및 은행 통합 기능을 갖춘 올인원 가방 대체."
 
 -- 고급 모듈 - 대체 표시 이름 (Advanced modules - Fallback display names)
 L["Main Bars"] = "주 단축바"

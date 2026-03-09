@@ -1,7 +1,8 @@
---[[
-    Copyright (c) Dmitriy. All rights reserved.
-    Licensed under the MIT license. See LICENSE file in the project root for details.
-]]
+-- ============================================================================
+-- DragonUI - Atlas Texture Definitions
+-- Original texture atlas system by Dmitriy (RetailUI), MIT License.
+-- Maps sprite names to texture coordinates for the custom UI assets.
+-- ============================================================================
 
 local addonPath = 'Interface\\AddOns\\DragonUI\\'
 
@@ -19,7 +20,7 @@ local CalendarAsset = { path = addonPath .. 'Textures\\Minimap\\Calendar.blp', w
 local BattlefieldAsset = { path = addonPath .. 'assets\\uibattlefieldicon.tga', width = 256, height = 64 }
 local LFGRoleAsset = { path = addonPath .. 'Textures\\PlayerFrame\\LFGRoleIcons.blp', width = 256, height = 256 }
 local QuestTrackerAsset = { path = addonPath .. 'Textures\\UI\\QuestTracker.BLP', width = 1024, height = 512 }
-local GuildBannerAsset = { path = addonPath .. 'Textures\\Minimap\\GuildBanner.BLP', width = 256, 256 }
+local GuildBannerAsset = { path = addonPath .. 'Textures\\Minimap\\GuildBanner.BLP', width = 256, height = 256 }
 
 
 local atlasTextures = {

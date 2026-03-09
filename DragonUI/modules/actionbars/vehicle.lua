@@ -183,7 +183,7 @@ local function CreateVehicleExitButton()
 
     vehicleExitButton:Hide()
 
-    -- NOTE: State driver for visibility is registered separately in ApplyVehicleSystem
+    -- State driver for visibility is registered separately in ApplyVehicleSystem
     -- so the editor overlay is always available regardless of artstyle setting
 
     VehicleModule.frames.vehicleExitButton = vehicleExitButton
@@ -268,7 +268,7 @@ local function CreateVehicleArtFrames()
         'SecureHandlerStateTemplate'
     )
     vehiclebar:SetAllPoints(vehicleBarBackground)
-    -- NOTE: vehiclebar is NOT hidden — it inherits visibility from vehicleBarBackground
+    -- vehiclebar is NOT hidden — it inherits visibility from vehicleBarBackground
 
     VehicleModule.frames.vehicleBarBackground = vehicleBarBackground
     VehicleModule.frames.vehiclebar = vehiclebar

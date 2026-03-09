@@ -5,6 +5,7 @@
 	
 	<!-- Official translations -->
 	<Script file="esES.lua"/>
+	<Script file="esMX.lua"/>
 	
 	<!-- Community translations -->
 	<Script file="ptBR.lua"/>

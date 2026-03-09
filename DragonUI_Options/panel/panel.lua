@@ -246,7 +246,7 @@ local function CreatePanel()
     statusText:SetFont(T.font, 11, "")
     statusText:SetPoint("BOTTOM", f, "BOTTOM", 0, 4)
     statusText:SetTextColor(0.4, 0.4, 0.4, 1)
-    statusText:SetText(LO["/dragonui  |  /dragonui legacy for classic options"])
+    statusText:SetText("/dragonui  |  /pi")
 
     -- Resize grip (bottom-right corner)
     local resizeGrip = CreateFrame("Frame", nil, f)

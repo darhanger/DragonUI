@@ -1,12 +1,17 @@
+-- ============================================================================
+-- DragonUI - Configuration Layer
+-- Metatable-based config wrapper that routes to database or static values.
+-- Initialized early so core/ files and modules can use localization.
+-- ============================================================================
+
 local addon = select(2,...);
 
--- Initialize localization early (before core/ files load)
--- AceLocale was registered in Locales/enUS.lua (default) with fallback chain
+-- Localization (must load before any core/ file that references addon.L)
 addon.L = LibStub("AceLocale-3.0"):GetLocale("DragonUI")
 
 addon._dir = [[Interface\AddOns\DragonUI\assets\]];
 
--- Locale-aware font for action bar text (expressway.ttf lacks CJK/Cyrillic glyphs)
+-- Locale-aware font selection (expressway.ttf lacks CJK/Cyrillic glyphs)
 local _locale = GetLocale()
 local _needsCJKFont = (_locale == "koKR" or _locale == "zhCN" or _locale == "zhTW")
 local _actionbarFont = _needsCJKFont and (({
@@ -15,14 +20,14 @@ local _actionbarFont = _needsCJKFont and (({
 	zhTW = "Fonts\\bLEI00D.TTF",
 })[_locale]) or addon._dir..'expressway.ttf'
 
--- Static assets that don't need variables
+-- Static assets (not backed by database)
 local static_assets = {
 	font = _actionbarFont,
 	normal = addon._dir..'uiactionbariconframe.tga',
 	highlight = addon._dir..'uiactionbariconframehighlight.tga',
 };
 
--- Static fonts in buttons section
+-- Static font definitions for button text elements
 local static_fonts = {
 	count_font = {_actionbarFont, 14, 'OUTLINE'},
 	hotkey_font = {_actionbarFont, 14, ''},
@@ -31,7 +36,7 @@ local static_fonts = {
 	cooldown_font = {_actionbarFont, 14, 'OUTLINE'},
 };
 
--- Config wrapper with metatable
+-- Config wrapper: routes access through metatables to database or static values
 addon.config = {};
 
 setmetatable(addon.config, {
@@ -40,16 +45,15 @@ setmetatable(addon.config, {
 			return static_assets;
 		end
 		
-		-- Return proxy table for each section
+		-- Dynamic proxy: delegates lookups to addon.db.profile[section]
 		local proxy = {};
 		setmetatable(proxy, {
 			__index = function(pt, key)
-				-- Handle static values first
 				if section == "map" and key == "border_point" then
 					return {'CENTER', 0, 100};
 				end
 				
-				-- Handle buttons section specially for fonts
+				-- Buttons section: proxy font tables as static values
 				if section == "buttons" then
 					if key == "count" then
 						local count_proxy = {};
@@ -118,12 +122,12 @@ setmetatable(addon.config, {
 					end
 				end
 				
-				-- Handle nested tables
+				-- Nested table proxy (delegates to database)
 				if type(addon.db and addon.db.profile[section] and addon.db.profile[section][key]) == "table" then
 					local nested_proxy = {};
 					setmetatable(nested_proxy, {
 						__index = function(npt, nkey)
-							-- Handle vehicle position as static
+							-- Vehicle position is static, not stored in database
 							if section == "additional" and key == "vehicle" and nkey == "position" then
 								return {'BOTTOMLEFT', -52, 0};
 							end
@@ -133,7 +137,6 @@ setmetatable(addon.config, {
 					return nested_proxy;
 				end
 				
-				-- Return simple values
 				return addon.db and addon.db.profile[section][key];
 			end
 		});

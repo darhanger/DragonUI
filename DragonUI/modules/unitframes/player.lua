@@ -2,7 +2,7 @@ local addon = select(2, ...)
 local UF = addon.UF
 
 -- ====================================================================
--- DRAGONUI PLAYER FRAME MODULE - Optimized for WoW 3.3.5a
+-- DRAGONUI PLAYER FRAME MODULE
 -- ====================================================================
 
 -- ============================================================================
@@ -12,13 +12,11 @@ local UF = addon.UF
 -- Variable to defer application after combat
 local deferredPositionUpdate = false
 
--- IMPROVE: Add module tracking like other parts of the addon
 local Module = {
     playerFrame = nil,
     textSystem = nil,
     initialized = false,
     eventsFrame = nil,
-    -- ADD: State tracking per DragonUI pattern
     hooks = {},
     registeredEvents = {},
     originalStates = {}
@@ -750,7 +748,7 @@ local function UpdateRune(button)
     end
 end
 
--- Setup Death Knight rune frame (improved like RetailUI)
+-- Setup Death Knight rune frame
 local function SetupRuneFrame()
     -- WoW automatically handles rune availability for DKs
     -- No need to manually check the class
@@ -806,7 +804,6 @@ local function UpdatePlayerRoleIcon()
     local iconTexture = dragonFrame.PlayerRoleIcon
     local isTank, isHealer, isDamage = UnitGroupRolesAssigned("player")
 
-    --  IMPROVE: Use RetailUI logic
     if isTank then
         iconTexture:SetTexture(TEXTURES.LFG_ICONS)
         iconTexture:SetTexCoord(unpack(ROLE_COORDS.TANK))
@@ -1000,7 +997,7 @@ local function UpdatePVPIconPosition()
         end
     end
     
-    -- NEW: Reposition the PVP timer based on mode
+    -- Reposition the PVP timer based on mode
     UpdatePVPTimerPosition(isEliteMode)
 end
 
@@ -2223,7 +2220,7 @@ local function SetCombatFlashVisible(visible)
     SetEliteCombatFlashVisible(visible) -- Use unified system
 end
 
---  FUNCTION TO APPLY POSITION FROM WIDGETS (LIKE MINIMAP)
+-- Apply saved widget position to the player frame
 local function ApplyWidgetPosition()
     -- COMBAT GUARD: Do NOT touch ANY frame during combat.
     -- Even our aux frame (DragonUI_PlayerFrame) generates taint when called from
@@ -2335,10 +2332,10 @@ end
 -- ============================================================================
 -- INITIALIZATION
 -- ============================================================================
---  NEW: Hook for automatic class color refresh
+-- Hook for automatic class color refresh on health bar updates
 local function SetupPlayerClassColorHooks()
     if not _G.DragonUI_PlayerHealthHookSetup then
-        --  ONLY A SIMPLE HOOK - when Blizzard updates the health bar
+        -- Taint-safe hook: refresh color when Blizzard updates health bar
         hooksecurefunc("UnitFrameHealthBar_Update", function(statusbar, unit)
             if statusbar == PlayerFrameHealthBar and unit == "player" then
                 UpdatePlayerHealthBarColor()
@@ -2680,7 +2677,7 @@ local function SetupPlayerEvents()
                     Module.textSystem.update()
                 end
                 
-                -- NEW: Hide dragon decoration when entering vehicle
+                -- Hide dragon decoration when entering vehicle
                 local config = GetPlayerConfig()
                 local decorationType = config.dragon_decoration or "none"
                 local isEliteMode = decorationType == "elite" or decorationType == "rareelite"
@@ -2697,7 +2694,7 @@ local function SetupPlayerEvents()
                     Module.textSystem.update()
                 end
                 
-                -- NEW: Show dragon decoration when exiting vehicle
+                -- Show dragon decoration when exiting vehicle
                 local config = GetPlayerConfig()
                 local decorationType = config.dragon_decoration or "none"
                 local isEliteMode = decorationType == "elite" or decorationType == "rareelite"

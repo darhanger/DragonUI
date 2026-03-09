@@ -1,11 +1,11 @@
---[[
-    Original code by Dmitriy (RetailUI) - Licensed under MIT License
-    Adapted for DragonUI with DragonflightUI-inspired positioning control
-]]
+-- ============================================================================
+-- DragonUI - Buff Frame Module
+-- Based on RetailUI by Dmitriy (MIT License)
+-- Adapted for DragonUI with Dragonflight-inspired positioning control.
+-- ============================================================================
 
 local addon = select(2, ...);
 
---  CREATE MODULE USING THE DRAGONUI SYSTEM
 local BuffFrameModule = {}
 addon.BuffFrameModule = BuffFrameModule
 
@@ -14,15 +14,15 @@ if addon.RegisterModule then
     addon:RegisterModule("buffs", BuffFrameModule, "Buff Frame", "Custom buff frame styling, positioning and toggle button")
 end
 
---  LOCAL VARIABLES
+-- Local variables
 local buffFrame = nil
 local toggleButton = nil
-local dragonUIBuffFrame = nil  --  OUR CUSTOM FRAME
-local dragonUIWeaponBuffFrame = nil  -- INDEPENDENT WEAPON ENCHANT FRAME
-local buffsHiddenByToggle = false  -- Track if user manually hid buffs via toggle
-local weaponEnchantsAreSeparated = false  -- Runtime flag for the separation state
+local dragonUIBuffFrame = nil
+local dragonUIWeaponBuffFrame = nil
+local buffsHiddenByToggle = false
+local weaponEnchantsAreSeparated = false
 
--- DEFAULT BUFF FRAME POSITION (must match database.lua defaults)
+-- Default buff frame position (must match database.lua defaults)
 local BUFF_DEFAULT_ANCHOR = "TOPRIGHT"
 local BUFF_DEFAULT_POSX = -270
 local BUFF_DEFAULT_POSY = -15
@@ -70,7 +70,7 @@ local WEAPON_DEFAULT_ANCHOR = "TOPRIGHT"
 local WEAPON_DEFAULT_POSX = -270
 local WEAPON_DEFAULT_POSY = -170
 
---  FUNCTION TO REPLACE BUFFFRAME (TOGGLE BUTTON)
+-- Create the collapse/expand toggle button
 local function ReplaceBlizzardFrame(frame)
     frame.toggleButton = frame.toggleButton or CreateFrame('Button', nil, UIParent)
     toggleButton = frame.toggleButton
@@ -139,7 +139,7 @@ local function ReplaceBlizzardFrame(frame)
     original_CB_SetPoint(consolidatedBuffFrame, "TOPRIGHT", frame, "TOPRIGHT", 0, 0)
 end
 
---  FUNCTION TO SHOW/HIDE THE BUTTON BASED ON BUFFS
+-- Show/hide toggle button based on condition
 local function ShowToggleButtonIf(condition)
     if condition then
         dragonUIBuffFrame.toggleButton:Show()
@@ -148,7 +148,7 @@ local function ShowToggleButtonIf(condition)
     end
 end
 
---  FUNCTION TO COUNT BUFFS
+-- Count active buffs on a unit
 local function GetUnitBuffCount(unit, range)
     local count = 0
     for index = 1, range do
@@ -168,7 +168,7 @@ end
 -- anchor it to our dragonUIBuffFrame. We only touch dragonUIBuffFrame position.
 -- ============================================================================
 
---  FUNCTION TO POSITION OUR FRAME (dragonUIBuffFrame moves, BuffFrame follows)
+-- Update the position of dragonUIBuffFrame (BuffFrame follows via override)
 function BuffFrameModule:UpdatePosition()
     if not dragonUIBuffFrame then return end
     if not addon.db or not addon.db.profile or not addon.db.profile.widgets or not addon.db.profile.widgets.buffs then
@@ -178,14 +178,14 @@ function BuffFrameModule:UpdatePosition()
     local widgetOptions = addon.db.profile.widgets.buffs
     
     if IsBuffFrameAtDefaultPosition() then
-        -- DEFAULT POSITION: shift down when ticket/GM panel is open
+        -- Default position: shift down when ticket/GM panel is open
         local ticketOpen = (TicketStatusFrame and TicketStatusFrame:IsShown())
                         or (GMChatStatusFrame and GMChatStatusFrame:IsShown())
         local posY = ticketOpen and BUFF_TICKET_POSY or BUFF_DEFAULT_POSY
         dragonUIBuffFrame:ClearAllPoints()
         dragonUIBuffFrame:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", BUFF_DEFAULT_POSX, posY)
     else
-        -- CUSTOM POSITION (editor): use saved coordinates, ignore tickets
+        -- Custom position (user-placed via editor): use saved coordinates
         dragonUIBuffFrame:ClearAllPoints()
         dragonUIBuffFrame:SetPoint(
             widgetOptions.anchor, UIParent, widgetOptions.anchor,
@@ -299,7 +299,7 @@ function BuffFrameModule:ToggleWeaponEnchantSeparation(enabled)
     end
 end
 
---  FUNCTION TO ENABLE/DISABLE THE MODULE
+-- Toggle module on/off
 function BuffFrameModule:Toggle(enabled)
     if not addon.db or not addon.db.profile then return end
     
@@ -312,14 +312,14 @@ function BuffFrameModule:Toggle(enabled)
     end
 end
 
---  FUNCTION TO ENABLE THE MODULE
+-- Enable the buff frame module
 function BuffFrameModule:Enable()
     if not addon.db.profile.buffs.enabled then return end
     
-    --  CREATE BUFFFRAME USING CreateUIFrame
+    -- Create auxiliary frame for editor mode
     dragonUIBuffFrame = addon.CreateUIFrame(BuffFrame:GetWidth(), BuffFrame:GetHeight(), "Auras")
     
-    --  REGISTER IN CENTRALIZED SYSTEM
+    -- Register with editor system
     addon:RegisterEditableFrame({
         name = "buffs",
         frame = dragonUIBuffFrame,
@@ -670,7 +670,7 @@ function BuffFrameModule:Enable()
     end
 end
 
---  FUNCTION TO DISABLE THE MODULE
+-- Disable the buff frame module
 function BuffFrameModule:Disable()
     -- Restore original BuffFrame and ConsolidatedBuffs positioning methods
     buffFramePositionLocked = false
@@ -706,7 +706,7 @@ function BuffFrameModule:Disable()
     end
 end
 
---  AUTOMATIC INITIALIZATION
+-- Initialization
 local initFrame = CreateFrame("Frame")
 initFrame:RegisterEvent("ADDON_LOADED")
 initFrame:SetScript("OnEvent", function(self, event, addonName)
@@ -718,7 +718,7 @@ initFrame:SetScript("OnEvent", function(self, event, addonName)
     end
 end)
 
---  FUNCTION TO BE CALLED FROM OPTIONS.LUA
+-- Refresh callback for options panel
 function addon:RefreshBuffFrame()
     if BuffFrameModule and addon.db.profile.buffs.enabled then
         BuffFrameModule:UpdatePosition()

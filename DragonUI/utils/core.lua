@@ -1,3 +1,8 @@
+-- ============================================================================
+-- DragonUI - Core Utilities
+-- Base runtime setup: event frame, noop, class detection, API tables.
+-- ============================================================================
+
 local unpack = unpack;
 local select = select;
 local pairs = pairs;

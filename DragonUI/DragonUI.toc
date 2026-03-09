@@ -23,6 +23,7 @@ libs\AceConsole-3.0\AceConsole-3.0.xml
 libs\AceComm-3.0\AceComm-3.0.xml
 libs\AceTab-3.0\AceTab-3.0.xml
 libs\AceSerializer-3.0\AceSerializer-3.0.xml
+libs\LibItemSearch-1.0\LibItemSearch-1.0.lua
 
 # Note: AceConfig-3.0, AceGUI-3.0, AceDBOptions-3.0 moved to DragonUI_Options
 

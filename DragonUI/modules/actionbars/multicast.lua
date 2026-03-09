@@ -1,3 +1,8 @@
+-- ============================================================================
+-- DragonUI - Multicast (Totem/Possess) Bar Module
+-- Handles Shaman totem bar and possession bar positioning and styling.
+-- ============================================================================
+
 local addon = select(2,...);
 local InCombatLockdown = InCombatLockdown;
 local UnitAffectingCombat = UnitAffectingCombat;
@@ -236,7 +241,7 @@ local function CreateMulticastFrames()
         dragStartX = GetCursorPosition() / scale
         dragStartY = select(2, GetCursorPosition()) / scale
         
-        -- IMPORTANT: When dragging starts, switch to manual positioning mode
+        -- When dragging starts, switch to manual positioning mode
         -- and calculate current position relative to UIParent BOTTOM
         if addon.db and addon.db.profile and addon.db.profile.additional and addon.db.profile.additional.totem then
             local totemConfig = addon.db.profile.additional.totem
@@ -249,7 +254,7 @@ local function CreateMulticastFrames()
                 local screenHeight = UIParent:GetHeight()
                 
                 -- Calculate position relative to BOTTOM center of UIParent
-                local base_y = 200  -- Our base Y for manual positioning
+                local base_y = 200  -- Base Y for manual positioning
                 configStartX = math.floor((anchorCenterX - screenWidth/2) + 0.5)
                 configStartY = math.floor((anchorCenterY - base_y) + 0.5)
                 
@@ -348,7 +353,7 @@ local function SetupShamanMulticast()
     MultiCastActionBarFrame:SetScript('OnHide', nil)
     
     -- Parent the MultiCastActionBarFrame to our anchor
-    -- This is the KEY: once parented, all child buttons stay relative to this parent
+    -- Once parented, all child buttons stay relative to this parent
     MultiCastActionBarFrame:SetParent(totembar)
     MultiCastActionBarFrame:ClearAllPoints()
     MultiCastActionBarFrame:SetPoint('BOTTOMLEFT', anchor, 'BOTTOMLEFT', 0, 0)

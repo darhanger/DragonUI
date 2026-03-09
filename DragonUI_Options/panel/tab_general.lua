@@ -31,7 +31,6 @@ local function BuildGeneralTab(scroll)
     C:AddDescription(about, LO["Features may change or be incomplete. Report issues on GitHub."])
     C:AddSpacer(about)
     C:AddDescription(about, LO["Use /dragonui or /pi to toggle this panel."])
-    C:AddDescription(about, LO["Use /dragonui legacy to open the classic AceConfig options."])
 
     C:AddSpacer(scroll)
 

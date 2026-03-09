@@ -34,7 +34,6 @@ L["Unknown command: "] = "Unbekannter Befehl: "
 L["=== DragonUI Commands ==="] = "=== DragonUI-Befehle ==="
 L["/dragonui or /dui - Open configuration"] = "/dragonui oder /dui - Konfiguration öffnen"
 L["/dragonui config - Open configuration"] = "/dragonui config - Konfiguration öffnen"
-L["/dragonui legacy - Open legacy AceConfig options"] = "/dragonui legacy - Alte AceConfig-Optionen öffnen"
 L["/dragonui edit - Toggle editor mode (move UI elements)"] = "/dragonui edit - Editor-Modus umschalten (UI-Elemente verschieben)"
 L["/dragonui reset - Reset all positions to defaults"] = "/dragonui reset - Alle Positionen auf Standard zurücksetzen"
 L["/dragonui reset <name> - Reset specific mover"] = "/dragonui reset <name> - Bestimmten Mover zurücksetzen"
@@ -177,6 +176,14 @@ L["No SexyMap mode selected (SexyMap not detected or not yet chosen)."] = "Kein 
 L["Show current SexyMap compatibility mode"] = "Aktuellen SexyMap-Kompatibilitätsmodus anzeigen"
 L["Reset SexyMap mode choice (re-prompts on reload)"] = "SexyMap-Modusauswahl zurücksetzen (fragt beim Neuladen erneut)"
 L["Loaded addons:"] = "Geladene Addons:"
+
+-- Boss Frames
+L["boss"] = "Boss-Rahmen"
+L["Boss Frames"] = "Boss-Rahmen"
+L["Boss1Frame"] = "Boss-Rahmen"
+L["Boss2Frame"] = "Boss-Rahmen"
+L["Boss3Frame"] = "Boss-Rahmen"
+L["Boss4Frame"] = "Boss-Rahmen"
 
 -- ============================================================================
 -- STATIC POPUPS

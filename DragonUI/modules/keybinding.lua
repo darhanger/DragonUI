@@ -1,8 +1,7 @@
---[[
-    DragonUI KeyBinding Module
-    Implements LibKeyBound-1.0 for intuitive keybinding system
-    Allows hover + key press to bind keys to buttons
-]]
+-- ============================================================================
+-- DragonUI - Keybinding Module
+-- Integrates LibKeyBound-1.0 for intuitive hover + key press binding.
+-- ============================================================================
 
 local addon = select(2, ...)
 local L = addon.L

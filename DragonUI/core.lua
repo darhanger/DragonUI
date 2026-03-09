@@ -94,34 +94,11 @@ function addon:ToggleOptionsUI(msg)
         end
     end
 
-    -- Check for "legacy" argument to open old AceConfigDialog
-    if msg and (msg == "legacy" or msg == "config" or msg == "old") then
-        local AceConfigDialog = LibStub("AceConfigDialog-3.0")
-        if AceConfigDialog then
-            local ConfigOpen = AceConfigDialog.OpenFrames and AceConfigDialog.OpenFrames["DragonUI"]
-            if ConfigOpen then
-                AceConfigDialog:Close("DragonUI")
-            else
-                AceConfigDialog:Open("DragonUI")
-            end
-        end
-        return
-    end
-
-    -- Use the new custom panel
+    -- Use the custom panel
     if addon.OptionsPanel then
         addon.OptionsPanel:Toggle(msg)
     else
-        -- Fallback to AceConfigDialog if panel not available
-        local AceConfigDialog = LibStub("AceConfigDialog-3.0")
-        if AceConfigDialog then
-            local ConfigOpen = AceConfigDialog.OpenFrames and AceConfigDialog.OpenFrames["DragonUI"]
-            if ConfigOpen then
-                AceConfigDialog:Close("DragonUI")
-            else
-                AceConfigDialog:Open("DragonUI")
-            end
-        end
+        print("|cFFFF0000[DragonUI]|r " .. L["Options panel not available. Try /reload."])
     end
 end
 
@@ -184,8 +161,6 @@ function addon.core:SlashCommand(input)
             addon:ToggleOptionsUI()
         elseif input:lower() == "config" then
             addon:ToggleOptionsUI()
-        elseif input:lower() == "legacy" or input:lower() == "old" then
-            addon:ToggleOptionsUI("legacy")
         elseif input:lower() == "edit" or input:lower() == "editor" then
             addon.CommandHandlers.ToggleEditorMode()
         elseif input:lower() == "help" then

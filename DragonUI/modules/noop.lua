@@ -1,3 +1,7 @@
+-- ============================================================================
+-- DragonUI - Noop Module
+-- Disables unused Blizzard UI elements (gryphons, extra bars, etc.)
+-- ============================================================================
 local addon = select(2,...);
 local pairs = pairs;
 local hooksecurefunc = hooksecurefunc;

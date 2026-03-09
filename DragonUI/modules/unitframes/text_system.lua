@@ -1,7 +1,7 @@
 local addon = select(2, ...)
 
 -- ===============================================================
--- DRAGONUI TEXT SYSTEM - IMPROVED HYBRID SYSTEM
+-- DRAGONUI TEXT SYSTEM
 -- ===============================================================
 
 local TextSystem = {}
@@ -74,7 +74,7 @@ function TextSystem.FormatStatusText(current, maximum, textFormat, useBreakup, f
 end
 
 -- ===============================================================
--- TEXT ELEMENT SYSTEM (IMPROVED)
+-- TEXT ELEMENT SYSTEM
 -- ===============================================================
 
 -- Function to create dual text elements (for "both" format)
@@ -188,10 +188,10 @@ function TextSystem.UpdateDualText(parentFrame, prefix, formattedText, textForma
 end
 
 -- ===============================================================
--- UTILITY FUNCTIONS (IMPROVED)
+-- UTILITY FUNCTIONS
 -- ===============================================================
 
--- Function to detect hover over a specific bar (BETTER DETECTION)
+-- Detect if the mouse is hovering over a frame
 function TextSystem.IsMouseOverFrame(frame)
     if not frame or not frame:IsVisible() then
         return false
@@ -220,13 +220,12 @@ end
 -- HYBRID SYSTEM - HOOK + HOVER + EVENTS
 -- ===============================================================
 
---  FUNCTION: Hook StatusBar for automatic updates
+-- Hook StatusBar:SetValue for automatic text updates
 function TextSystem.HookStatusBar(statusBar, parentFrame, prefix, frameType, unit, updateCallback)
     if not statusBar or not parentFrame then
         return
     end
 
-    --  HOOK SetValue using hooksecurefunc (taint-safe, no method replacement)
     if not statusBar.DragonUIHooked then
         hooksecurefunc(statusBar, "SetValue", function(self, value)
             -- Update our text immediately after Blizzard's SetValue completes
@@ -296,9 +295,9 @@ end
 -- INITIAL SETUP FUNCTIONS (HYBRID)
 -- ===============================================================
 
---  MAIN FUNCTION: Setup for any unitframe (HYBRID)
+-- Setup text system for any unit frame
 function TextSystem.SetupFrameTextSystem(frameType, unit, parentFrame, healthBar, manaBar, prefix)
-    --  SAFETY VALIDATIONS
+    -- Input validation
     if not parentFrame then
 
         return {
@@ -353,7 +352,7 @@ function TextSystem.SetupFrameTextSystem(frameType, unit, parentFrame, healthBar
     }
 end
 
---  FUNCTION: Set up hover events (PLAYER CLICK-THROUGH)
+-- Set up hover events for text display (player frame uses click-through)
 function TextSystem.SetupHoverEvents(parentFrame, healthBar, manaBar, updateCallback)
     -- Detect if it's PlayerFrame to apply click-through
     local parentName = parentFrame:GetName() or ""

@@ -94,8 +94,10 @@ local function ApplyWidgetPosition()
     end
 
     -- CRITICAL: Set BACKGROUND strata to stay behind Compact Raid Frames (which use LOW/MEDIUM)
-    PartyFrames.anchor:SetFrameStrata('BACKGROUND')
-    PartyFrames.anchor:SetFrameLevel(1)
+    if not InCombatLockdown() then
+        PartyFrames.anchor:SetFrameStrata('BACKGROUND')
+        PartyFrames.anchor:SetFrameLevel(1)
+    end
 
     -- Ensure configuration exists
     if not addon.db or not addon.db.profile or not addon.db.profile.widgets then
@@ -985,13 +987,10 @@ local function StylePartyFrames()
     for i = 1, MAX_PARTY_MEMBERS do
         local frame = _G['PartyMemberFrame' .. i]
         if frame then
-            frame:SetScale(settings.scale or 1)
-            
-            -- CRITICAL: Set each party frame to BACKGROUND strata like old code
-            frame:SetFrameStrata('BACKGROUND')
-            frame:SetFrameLevel(1)
-            
             if not InCombatLockdown() then
+                frame:SetScale(settings.scale or 1)
+                frame:SetFrameStrata('BACKGROUND')
+                frame:SetFrameLevel(1)
                 frame:ClearAllPoints()
                 if orientation == 'horizontal' then
                     local xOffset = (i - 1) * step
@@ -1013,6 +1012,13 @@ local function StylePartyFrames()
             if texture then
                 texture:SetTexture()
                 texture:Hide()
+            end
+
+            -- Hide vehicle texture (shown when party member is in a vehicle)
+            local vehicleTex = _G[frame:GetName() .. 'VehicleTexture']
+            if vehicleTex then
+                vehicleTex:SetTexture()
+                vehicleTex:Hide()
             end
 
             -- Health bar
@@ -1338,6 +1344,13 @@ local function SetupPartyHooks()
                 texture:Hide()
             end
 
+            -- Re-hide vehicle texture
+            local vehicleTex = _G[frame:GetName() .. 'VehicleTexture']
+            if vehicleTex then
+                vehicleTex:SetTexture()
+                vehicleTex:Hide()
+            end
+
             local bg = _G[frame:GetName() .. 'Background']
             if bg then
                 bg:Hide()
@@ -1392,7 +1405,7 @@ local function SetupPartyHooks()
                 end
             end
             
-            -- Update our custom texts - ADDED UPDATE HERE
+            -- Update custom health/mana text
             local healthbar = _G[frame:GetName() .. 'HealthBar']
             local manabar = _G[frame:GetName() .. 'ManaBar']
             if healthbar then UpdateHealthText(healthbar, false) end
@@ -1541,10 +1554,9 @@ local function SetupPartyHooks()
 end
 
 -- ===============================================================
--- MODULE INTERFACE FUNCTIONS (SIMPLIFIED FOR ACE3)
+-- MODULE INTERFACE FUNCTIONS
 -- ===============================================================
 
--- Simplified function compatible with Ace3
 function PartyFrames:UpdateSettings()
     -- Check initial configuration
     if not addon.db or not addon.db.profile or not addon.db.profile.widgets or not addon.db.profile.widgets.party then
@@ -1797,6 +1809,171 @@ recoveryFrame:SetScript("OnEvent", function(self, event, unit)
     end
 end)
 
+
+-- ===============================================================
+-- VEHICLE & RELOAD RECOVERY SYSTEM
+-- ===============================================================
+-- PartyMemberFrame_UpdateArt hook catches all vehicle art transitions.
+-- PLAYER_ENTERING_WORLD with delay handles reload while in vehicle.
+
+-- Hook PartyMemberFrame_UpdateArt — catches both vehicle enter and exit
+if type(PartyMemberFrame_UpdateArt) == "function" then
+    hooksecurefunc("PartyMemberFrame_UpdateArt", function(frame)
+        if not frame or not frame:GetName() then return end
+        if not frame:GetName():match("^PartyMemberFrame%d+$") then return end
+
+        local texture = _G[frame:GetName() .. "Texture"]
+        if texture then
+            texture:SetTexture()
+            texture:Hide()
+        end
+
+        local bg = _G[frame:GetName() .. "Background"]
+        if bg then
+            bg:Hide()
+        end
+
+        local frameIndex = frame:GetID()
+        local healthbar = _G[frame:GetName() .. "HealthBar"]
+        if healthbar then
+            healthbar:SetStatusBarTexture(TEXTURES.healthBar)
+            UpdatePartyHealthBarColor(frameIndex)
+        end
+
+        if frame.DragonUI_BorderFrame and frame.DragonUI_BorderFrame.texture then
+            frame.DragonUI_BorderFrame.texture:Show()
+        end
+
+        UpdateManaBarTexture(frame)
+        HideBlizzardTexts(frame)
+        CreateCustomTexts(frame)
+        UpdateDisconnectedState(frame)
+    end)
+end
+
+-- Hook PartyMemberFrame_ToVehicleArt — hides the vehicle texture Blizzard shows
+if type(PartyMemberFrame_ToVehicleArt) == "function" then
+    hooksecurefunc("PartyMemberFrame_ToVehicleArt", function(frame)
+        if not frame or not frame:GetName() then return end
+        if not frame:GetName():match("^PartyMemberFrame%d+$") then return end
+
+        -- Hide Blizzard vehicle texture
+        local vehicleTex = _G[frame:GetName() .. "VehicleTexture"]
+        if vehicleTex then
+            vehicleTex:SetTexture()
+            vehicleTex:Hide()
+        end
+
+        -- Also re-hide the normal texture (Blizzard may have restored it)
+        local texture = _G[frame:GetName() .. "Texture"]
+        if texture then
+            texture:SetTexture()
+            texture:Hide()
+        end
+
+        local bg = _G[frame:GetName() .. "Background"]
+        if bg then
+            bg:Hide()
+        end
+
+        -- Re-apply DragonUI styling
+        local frameIndex = frame:GetID()
+        local healthbar = _G[frame:GetName() .. "HealthBar"]
+        if healthbar then
+            healthbar:SetStatusBarTexture(TEXTURES.healthBar)
+            UpdatePartyHealthBarColor(frameIndex)
+        end
+
+        if frame.DragonUI_BorderFrame and frame.DragonUI_BorderFrame.texture then
+            frame.DragonUI_BorderFrame.texture:Show()
+        end
+
+        UpdateManaBarTexture(frame)
+        HideBlizzardTexts(frame)
+        CreateCustomTexts(frame)
+        UpdateDisconnectedState(frame)
+    end)
+end
+
+-- Hook PartyMemberFrame_ToPlayerArt — re-applies DragonUI styling when exiting vehicle
+if type(PartyMemberFrame_ToPlayerArt) == "function" then
+    hooksecurefunc("PartyMemberFrame_ToPlayerArt", function(frame)
+        if not frame or not frame:GetName() then return end
+        if not frame:GetName():match("^PartyMemberFrame%d+$") then return end
+
+        -- Hide vehicle texture (may linger)
+        local vehicleTex = _G[frame:GetName() .. "VehicleTexture"]
+        if vehicleTex then
+            vehicleTex:SetTexture()
+            vehicleTex:Hide()
+        end
+
+        -- Hide normal Blizzard texture
+        local texture = _G[frame:GetName() .. "Texture"]
+        if texture then
+            texture:SetTexture()
+            texture:Hide()
+        end
+
+        local bg = _G[frame:GetName() .. "Background"]
+        if bg then
+            bg:Hide()
+        end
+
+        -- Re-apply DragonUI styling
+        local frameIndex = frame:GetID()
+        local healthbar = _G[frame:GetName() .. "HealthBar"]
+        if healthbar then
+            healthbar:SetStatusBarTexture(TEXTURES.healthBar)
+            UpdatePartyHealthBarColor(frameIndex)
+        end
+
+        if frame.DragonUI_BorderFrame and frame.DragonUI_BorderFrame.texture then
+            frame.DragonUI_BorderFrame.texture:Show()
+        end
+
+        UpdateManaBarTexture(frame)
+        HideBlizzardTexts(frame)
+        CreateCustomTexts(frame)
+        UpdateDisconnectedState(frame)
+    end)
+end
+
+-- Helper: full party frame refresh (shared by vehicle and reload recovery)
+local function RefreshAllPartyFrames()
+    StylePartyFrames()
+    RepositionBlizzardBuffs()
+    for i = 1, MAX_PARTY_MEMBERS do
+        local frame = _G["PartyMemberFrame" .. i]
+        if frame and UnitExists("party" .. i) then
+            HideBlizzardTexts(frame)
+            CreateCustomTexts(frame)
+            UpdateManaBarTexture(frame)
+            UpdateDisconnectedState(frame)
+            local healthbar = _G[frame:GetName() .. "HealthBar"]
+            local manabar = _G[frame:GetName() .. "ManaBar"]
+            if healthbar then UpdateHealthText(healthbar, false) end
+            if manabar then UpdateManaText(manabar, false) end
+        end
+    end
+end
+
+-- Reload recovery: Blizzard re-initializes vehicle state after /reload
+local vehicleRecoveryFrame = CreateFrame("Frame")
+vehicleRecoveryFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+vehicleRecoveryFrame:SetScript("OnEvent", function(self, event)
+    if addon.core and addon.core.ScheduleTimer then
+        addon.core:ScheduleTimer(function()
+            if InCombatLockdown() then
+                if addon.CombatQueue then
+                    addon.CombatQueue:Add("party_vehicle_recovery", RefreshAllPartyFrames)
+                end
+                return
+            end
+            RefreshAllPartyFrames()
+        end, 0.8)
+    end
+end)
 
 -- ===============================================================
 -- MODULE LOADED CONFIRMATION

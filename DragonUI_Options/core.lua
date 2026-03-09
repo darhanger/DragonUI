@@ -38,85 +38,18 @@ StaticPopupDialogs["DRAGONUI_RELOAD_UI"] = {
 }
 
 -- ============================================================================
--- REGISTRATION FUNCTION (for backwards compatibility with option files)
+-- REGISTRATION FUNCTION (kept for backwards compatibility)
 -- ============================================================================
 
 -- Register an options group directly to addon.Options.args
+-- Retained so any module calling this won't error, but no longer rendered
 function addon:RegisterOptionsGroup(name, optionsTable, order)
     if not addon.Options then
         addon.Options = { type = "group", name = "DragonUI", args = {} }
     end
-    
     addon.Options.args[name] = optionsTable
     if order then
         addon.Options.args[name].order = order
-    end
-
-    -- Process any options groups that were queued before Options loaded
-    if addon._pendingOptionsGroups then
-        for _, pending in ipairs(addon._pendingOptionsGroups) do
-            addon.Options.args[pending.name] = pending.table
-        end
-        addon._pendingOptionsGroups = nil
-    end
-end
-
--- ============================================================================
--- WINDOW SIZE SETUP
--- ============================================================================
-
-local function SetupWindowSize()
-    local AceConfigDialog = LibStub("AceConfigDialog-3.0")
-    if not AceConfigDialog then return end
-    
-    local userHasResized = false
-    local defaultWidth, defaultHeight = 900, 600
-
-    local function setupDragonUIWindowSize()
-        local configFrame = AceConfigDialog.OpenFrames["DragonUI"]
-        if configFrame and configFrame.frame then
-            local statusWidth = configFrame.status.width
-            local statusHeight = configFrame.status.height
-
-            if statusWidth and statusHeight then
-                if statusWidth ~= defaultWidth or statusHeight ~= defaultHeight then
-                    userHasResized = true
-                end
-            end
-
-            if not userHasResized then
-                configFrame.frame:SetWidth(defaultWidth)
-                configFrame.frame:SetHeight(defaultHeight)
-                configFrame.frame:ClearAllPoints()
-                configFrame.frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-                configFrame.status.width = defaultWidth
-                configFrame.status.height = defaultHeight
-            else
-                configFrame.frame:ClearAllPoints()
-                configFrame.frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-            end
-        end
-    end
-
-    -- Hook the status table application
-    local originalSetStatusTable = AceConfigDialog.SetStatusTable
-    AceConfigDialog.SetStatusTable = function(self, appName, statusTable)
-        local result = originalSetStatusTable(self, appName, statusTable)
-        if appName == "DragonUI" then
-            setupDragonUIWindowSize()
-        end
-        return result
-    end
-
-    -- Hook Open to set size immediately
-    local originalOpen = AceConfigDialog.Open
-    AceConfigDialog.Open = function(self, appName, ...)
-        local result = originalOpen(self, appName, ...)
-        if appName == "DragonUI" then
-            userHasResized = false
-            setupDragonUIWindowSize()
-        end
-        return result
     end
 end
 
@@ -125,18 +58,32 @@ end
 -- ============================================================================
 
 function addon:InitializeOptions()
-    -- Add profiles options
-    local profilesOptions = LibStub("AceDBOptions-3.0"):GetOptionsTable(addon.db)
-    addon.Options.args.profiles = profilesOptions
-    addon.Options.args.profiles.order = 100
-    
-    -- Register with AceConfig
+    -- Register a minimal BlizzOptions entry that redirects to the custom panel
+    addon.Options.args.open_panel = {
+        type = "execute",
+        name = "|cff1784d1" .. (LO["Open DragonUI Settings"] or "Open DragonUI Settings") .. "|r",
+        desc = LO["Open the DragonUI configuration panel."] or "Open the DragonUI configuration panel.",
+        func = function()
+            local AceConfigDialog = LibStub("AceConfigDialog-3.0")
+            if AceConfigDialog then
+                AceConfigDialog:Close("DragonUI")
+            end
+            if addon.OptionsPanel then
+                addon.OptionsPanel:Toggle()
+            end
+        end,
+        order = 1,
+        width = "full"
+    }
+    addon.Options.args.info = {
+        type = "description",
+        name = "\n" .. (LO["Use /dragonui to open the full settings panel."] or "Use /dragonui to open the full settings panel."),
+        order = 2
+    }
+
     LibStub("AceConfig-3.0"):RegisterOptionsTable("DragonUI", addon.Options)
     LibStub("AceConfigDialog-3.0"):AddToBlizOptions("DragonUI", "DragonUI")
-    
-    -- Setup window size hooks
-    SetupWindowSize()
-    
+
     addon.OptionsLoaded = true
 end
 

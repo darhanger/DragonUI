@@ -905,6 +905,11 @@ local function CreateCastbar(unitType)
     frames.castbar:SetScript('OnUpdate', function(self, elapsed)
         CastbarModule:OnUpdate(unitType, self, elapsed)
     end)
+
+    -- Notify dark mode to re-darken borders on this new castbar
+    if addon.RefreshDarkModeCastbars then
+        addon.RefreshDarkModeCastbars()
+    end
 end
 
 -- ============================================================================

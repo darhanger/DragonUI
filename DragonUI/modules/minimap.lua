@@ -1,20 +1,16 @@
---[[
-    DragonUI Minimap Module - Adapted from RetailUI
-    Base code by Dmitriy (RetailUI) adapted for DragonUI
-]] local addon = select(2, ...);
+-- ============================================================================
+-- DragonUI - Minimap Module
+-- Based on RetailUI by Dmitriy, adapted for DragonUI.
+-- ============================================================================
 
---  Import DragonUI atlas function for tracking icons
+local addon = select(2, ...);
+
 local atlas = addon.minimap_SetAtlas;
 
--- _noop defined centrally in core/api.lua
+-- ============================================================================
+-- MODULE STATE
+-- ============================================================================
 
--- #################################################################
--- ##                    DragonUI Minimap Module                  ##
--- ##              Unified minimap system (1 file)                ##
--- ##        Based on RetailUI pattern                            ##
--- #################################################################
-
--- Convert module to use DragonUI module pattern
 local MinimapModule = {
     initialized = false,
     applied = false,
@@ -53,7 +49,7 @@ local BORDER_SIZE = 71 * 2 * 2 ^ 0.5
 
 local ADDON_ORBIT_RADIUS = 15
 
---  ADDON ICON SKINNING: Define whitelist and function BEFORE ReplaceBlizzardFrame
+-- Addon icon whitelist: define before ReplaceBlizzardFrame
 local WHITE_LIST = {'MiniMapBattlefieldFrame', 'MiniMapTrackingButton', 'MiniMapMailFrame', 'HelpOpenTicketButton',
                     'GatherMatePin', 'HandyNotesPin', 'TimeManagerClockButton', 'Archy', 'GatherNote', 'MinimMap',
                     'Spy_MapNoteList_mini', 'ZGVMarker', 'poiWorldMapPOIFrame', 'WorldMapPOIFrame', 'QuestMapPOI',
@@ -76,7 +72,7 @@ local function IsFrameWhitelisted(frameName)
     return false
 end
 
---  VERIFY ATLAS FUNCTION AT STARTUP
+-- Verify atlas function availability at startup
 local function GetAtlasFunction()
     -- Check multiple possible locations of the atlas function
     if addon.minimap_SetAtlas then
@@ -910,7 +906,7 @@ local function UnskinAddonButton(button)
     button:SetAlpha(1)
 end
 
---  BORDER REMOVAL: Apply skin to icons (SIMPLE like oldminimapcore.lua)
+-- Skin addon icons by removing borders
 
 -- Collect all minimap-related buttons from multiple parent frames
 -- Some addons (e.g. Carbonite) parent buttons to MinimapBackdrop instead of Minimap
@@ -1076,7 +1072,7 @@ minimapButtonSkinFrame:SetScript("OnEvent", function(self, event, addonName)
     end
 end)
 
---  PVP STYLING: Style PVP frame with faction detection (from minimapa_old.lua)
+-- Style PVP battleground frame with faction detection
 local function StylePVPBattlefieldFrame()
     if not MiniMapBattlefieldFrame then
         return
@@ -1187,7 +1183,7 @@ end
 local selectedRaidDifficulty
 local allowedRaidDifficulty
 
---  TRACKING UPDATE FUNCTION - Using exact logic from minimap_map.lua with atlas textures
+-- Update tracking icon using atlas textures
 function MinimapModule:UpdateTrackingIcon()
     -- In hybrid mode, don't override tracking icon — SexyMap controls it
     local isHybridMode = self.sexyMapHybridMode
@@ -1352,7 +1348,7 @@ function MinimapModule:StoreOriginalSettings()
         }
     end
 
-    -- NEW: Store original DurabilityFrame settings
+    -- Store original DurabilityFrame settings
     if DurabilityFrame then
         local point, relativeTo, relativePoint, xOfs, yOfs = DurabilityFrame:GetPoint(1)
         self.originalMinimapSettings.durability = {
@@ -1700,7 +1696,7 @@ function MinimapModule:UpdateSettings()
 
         end
 
-        -- NEW: Update DurabilityFrame position when settings change
+        -- Update DurabilityFrame position
         if DurabilityFrame then
             DurabilityFrame:ClearAllPoints()
             DurabilityFrame:SetPoint("TOP", Minimap, "BOTTOM", 0, 0)
@@ -1787,7 +1783,7 @@ local function GetClockTextFrame()
     return nil
 end
 
---  NEW FUNCTION TO APPLY ALL SETTINGS
+-- Apply all minimap settings from the database
 function MinimapModule:ApplyAllSettings()
     if not addon.db or not addon.db.profile or not addon.db.profile.minimap then
         return
@@ -1863,7 +1859,7 @@ function MinimapModule:ApplyAllSettings()
         end
     end
 
-    --  APPLY CLOCK FONT SIZE (IMPROVED) — skip in hybrid mode
+    -- Apply clock font size (skip in hybrid mode)
     if not isHybridMode and settings.clock_font_size and TimeManagerClockButton then
         local clockText = GetClockTextFrame()
         if clockText then
@@ -1894,9 +1890,9 @@ function MinimapModule:ApplyAllSettings()
         Minimap:SetPlayerTextureWidth(settings.player_arrow_size)
     end
 end
---  Editor Mode Functions
+-- Editor mode interface
 function MinimapModule:LoadDefaultSettings()
-    --  USE THE CORRECT DATABASE: addon.db (not addon.core.db)
+    -- Use correct database: addon.db (not addon.core.db)
     if not addon.db.profile.widgets then
         addon.db.profile.widgets = {}
     end
@@ -1908,7 +1904,7 @@ function MinimapModule:LoadDefaultSettings()
 end
 
 function MinimapModule:UpdateWidgets()
-    --  USE THE CORRECT DATABASE: addon.db (not addon.core.db)
+    -- Use correct database: addon.db (not addon.core.db)
     if not addon.db or not addon.db.profile.widgets or not addon.db.profile.widgets.minimap then
 
         self:LoadDefaultSettings()
@@ -1920,7 +1916,7 @@ function MinimapModule:UpdateWidgets()
 
 end
 
---  EDITOR MODE FUNCTIONS REMOVED - NOW USES CENTRALIZED SYSTEM
+-- Editor mode uses centralized system
 
 -- Refresh function to be called from options.lua
 function addon:RefreshMinimap()
@@ -1983,7 +1979,7 @@ function addon:RefreshMinimapSystem()
     end
 end
 
---  NEW FUNCTION: Clean skinning from all buttons
+-- Clean all skinned minimap button borders
 local function CleanAllMinimapButtons()
     local buttons = GetAllMinimapButtons()
     for _, child in ipairs(buttons) do
@@ -1995,7 +1991,7 @@ local function CleanAllMinimapButtons()
     end
 end
 
---  FUNCTION FOR DEBUGGING
+-- Debug utility for minimap button inspection
 function addon:DebugMinimapButtons()
     local buttons = GetAllMinimapButtons()
     for _, child in ipairs(buttons) do

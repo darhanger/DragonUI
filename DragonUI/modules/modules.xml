@@ -44,4 +44,10 @@
     
     <!-- Item Quality Borders module -->
     <Script file="itemquality.lua"/>
+    
+    <!-- Chat Mods module -->
+    <Script file="chatmods.lua"/>
+    
+    <!-- Combuctor bag replacement module -->
+    <Include file="combuctor\combuctor.xml"/>
 </Ui>

@@ -13,7 +13,7 @@ local HideUIPanel = HideUIPanel
 -- Button state
 local dragonUIButton = nil
 local buttonAdded = false
-local buttonPositioned = false -- New flag to prevent multiple repositioning
+local buttonPositioned = false -- Prevents multiple repositioning
 
 -- List of all game menu buttons in order of appearance (WoW 3.3.5a)
 local GAME_MENU_BUTTONS = {

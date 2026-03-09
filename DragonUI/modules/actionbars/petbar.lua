@@ -1,11 +1,11 @@
 local addon = select(2, ...);
 
 -- ============================================================================
--- PETBAR MODULE - WORKING LEGACY BASE + DRAGONUI SYSTEMS
+-- PETBAR MODULE FOR DRAGONUI
 -- ============================================================================
 
 
--- Legacy petbar constants (from working implementation)
+-- Petbar constants
 local unpack = unpack;
 local select = select;
 local pairs = pairs;
@@ -95,10 +95,10 @@ local function GetPetbarDualBarOffset()
 end
 
 -- ============================================================================
--- LEGACY PETBAR IMPLEMENTATION (working combat-safe approach)
+-- PETBAR IMPLEMENTATION (combat-safe)
 -- ============================================================================
 
--- Create anchor frame (like legacy petbar - this is what makes it work!)
+-- Create anchor frame
 local function CreateAnchorFrame()
     if not IsModuleEnabled() then return end
     if PetbarModule.anchor then return PetbarModule.anchor end
@@ -205,10 +205,10 @@ local function CreatePetbarFrame()
 end
 
 -- ============================================================================
--- LEGACY PET BUTTON STATE MANAGEMENT (the secret that makes it work!)
+-- PET BUTTON STATE MANAGEMENT
 -- ============================================================================
 
--- This is directly from the working legacy petbar - handles all icon updates
+-- Handle pet action button icon and state updates
 local function petbutton_updatestate(self, event)
     if not IsModuleEnabled() then return end
     
@@ -317,11 +317,11 @@ local function petbutton_position()
     
     PetActionBarFrame.showgrid = 1
     
-    -- Register state driver (legacy working pattern)
+    -- Register state driver for pet visibility
     RegisterStateDriver(petbar, 'visibility', '[pet,novehicleui,nobonusbar:5] show; hide')
     PetbarModule.stateDrivers.visibility = petbar
     
-    -- Hook for updates (legacy approach - this is the key!)
+    -- Hook for pet action updates
     hooksecurefunc('PetActionBar_Update', petbutton_updatestate)
     PetbarModule.hooks.PetActionBar_Update = true
 end
@@ -336,7 +336,7 @@ local function CreateEventFrame()
     local function OnEvent(self, event, ...)
         if not IsModuleEnabled() then return end
         
-        -- Use legacy event handling (proven working)
+        -- Handle pet bar events
         local arg1 = ...
         if event == 'PLAYER_LOGIN' then
             petbutton_position()
@@ -358,7 +358,7 @@ local function CreateEventFrame()
     
     eventFrame:SetScript('OnEvent', OnEvent)
     
-    -- Register legacy events (proven working pattern)
+    -- Register pet bar events
     local events = {
         'PET_BAR_HIDE',
         'PET_BAR_UPDATE',
@@ -425,7 +425,7 @@ local function ApplyPetbarSystem()
         return
     end
 
-    -- Create anchor and petbar frames (legacy working approach)
+    -- Create anchor and petbar frames
     CreateAnchorFrame()
     CreatePetbarFrame()
     
@@ -445,7 +445,7 @@ local function ApplyPetbarSystem()
         end
     end
 
-    -- Initialize legacy system (working approach)
+    -- Initialize pet bar system
     petbutton_position()
     
     -- Register legacy event system

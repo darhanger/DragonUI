@@ -1,3 +1,8 @@
+-- ============================================================================
+-- DragonUI - Cooldown Text Module
+-- Displays countdown timers on action buttons via metatable hooking.
+-- ============================================================================
+
 local addon = select(2, ...)
 local unpack = unpack
 local ceil = math.ceil
@@ -166,12 +171,11 @@ function addon.ForceRefreshCooldowns()
     end
 end
 
--- This function will be called from core.lua to ensure the hook is applied only once and at the right time.
+-- Called from core.lua to ensure the hook is applied only once at the right time
 local isHooked = false
 function addon.InitializeCooldowns()
     if isHooked then return end
     
-    -- TODO: Verify that the button exists before hooking
     if not _G.ActionButton1Cooldown then
 
         return

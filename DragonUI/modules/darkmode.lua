@@ -289,6 +289,19 @@ local function DarkenMainBarArt(tint)
         end
     end
 
+    -- Explicit named XP/Rep border textures (restored by mainbars after noop clears them)
+    local namedBarTextures = {
+        "MainMenuXPBarTexture0", "MainMenuXPBarTexture1", "MainMenuXPBarTexture2", "MainMenuXPBarTexture3",
+        "ReputationXPBarTexture0", "ReputationXPBarTexture1",
+        "ReputationWatchBarTexture0", "ReputationWatchBarTexture1",
+    }
+    for _, texName in ipairs(namedBarTextures) do
+        local tex = _G[texName]
+        if tex and tex.GetTexture and tex:GetTexture() then
+            DarkenTexture(tex, tint)
+        end
+    end
+
     -- DragonflightUI custom XP/Rep bars (if they exist)
     local dfBarNames = { "DragonUI_XPBar", "DragonUI_RepBar" }
     for _, name in ipairs(dfBarNames) do
@@ -382,16 +395,34 @@ local function DarkenUnitFrameBorders(tint)
     if targetTex then DarkenTexture(targetTex, tint) end
     DarkenFrameBorderTextures(_G["TargetFrameToT"])
 
+    -- DragonUI custom ToT border/background (created by small_frame factory)
+    local totBorder = _G["ToTBorder"]
+    if totBorder then DarkenTexture(totBorder, tint) end
+    local totBg = _G["ToTBG"]
+    if totBg then DarkenTexture(totBg, tint) end
+
     -- Focus frame
     DarkenFrameBorderTextures(_G["FocusFrame"])
     local focusTex = _G["FocusFrameTexture"]
     if focusTex then DarkenTexture(focusTex, tint) end
     DarkenFrameBorderTextures(_G["FocusFrameToT"])
 
+    -- DragonUI custom ToF border/background (created by small_frame factory)
+    local tofBorder = _G["ToFBorder"]
+    if tofBorder then DarkenTexture(tofBorder, tint) end
+    local tofBg = _G["ToFBG"]
+    if tofBg then DarkenTexture(tofBg, tint) end
+
     -- Pet frame
     DarkenFrameBorderTextures(_G["PetFrame"])
     local petTex = _G["PetFrameTexture"]
     if petTex then DarkenTexture(petTex, tint) end
+
+    -- DragonUI custom pet frame border/background
+    local petBorder = _G["DragonUIPetFrameBorder"]
+    if petBorder then DarkenTexture(petBorder, tint) end
+    local petBg = _G["DragonUIPetFrameBackground"]
+    if petBg then DarkenTexture(petBg, tint) end
 
     -- Party frames
     for i = 1, 4 do
@@ -557,9 +588,26 @@ local function DarkenMicroMenuBorders(tint)
 end
 
 -- -----------------------------------------------------------------------
--- CASTBAR: darken border only
+-- ADDON BUTTON SKINNING: darken the circle border overlay on minimap buttons
 -- -----------------------------------------------------------------------
+local function DarkenAddonButtonBorders(tint)
+    -- Scan Minimap and MinimapBackdrop children for skinned addon buttons
+    local parents = { _G["Minimap"], _G["MinimapBackdrop"] }
+    for _, parent in ipairs(parents) do
+        if parent and parent.GetChildren then
+            for _, child in ipairs({ parent:GetChildren() }) do
+                if child.DragonUI_Skinned and child.circle then
+                    DarkenTexture(child.circle, tint)
+                end
+            end
+        end
+    end
+end
+
+-- -----------------------------------------------------------------------
+-- CASTBAR: darken border only
 local function DarkenCastbarBorders(tint)
+    -- Blizzard CastingBarFrame
     local castbar = _G["CastingBarFrame"]
     if castbar and castbar.GetRegions then
         local regions = { castbar:GetRegions() }
@@ -578,6 +626,47 @@ local function DarkenCastbarBorders(tint)
                     else
                         DarkenTexture(region, tint)
                     end
+                end
+            end
+        end
+    end
+
+    -- DragonUI custom castbars (player, target, focus)
+    local dragonCastbars = {
+        "DragonUIPlayerCastbar",
+        "DragonUITargetCastbar",
+        "DragonUIFocusCastbar",
+    }
+    for _, name in ipairs(dragonCastbars) do
+        local bar = _G[name]
+        if bar and bar.GetRegions then
+            -- Darken ARTWORK/BACKGROUND layer textures (border + bg) but SKIP icons
+            for _, region in ipairs({ bar:GetRegions() }) do
+                if region and region.GetObjectType and region:GetObjectType() == "Texture" then
+                    local layer = region:GetDrawLayer()
+                    if layer == "ARTWORK" or layer == "BACKGROUND" then
+                        -- Skip spell icon textures (named "...Icon") and icon border (UI-Quickslot2)
+                        local rName = region.GetName and region:GetName()
+                        if rName and rName:find("Icon") then
+                            -- This is the castbar spell icon — do NOT darken
+                        else
+                            local tex = region.GetTexture and region:GetTexture()
+                            if type(tex) == "string" and tex:find("UI%-Quickslot") then
+                                -- This is the icon border ring — do NOT darken
+                            else
+                                DarkenTexture(region, tint)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        -- Darken the text background frame border
+        local textBG = _G[name .. "TextBG"]
+        if textBG and textBG.GetRegions then
+            for _, region in ipairs({ textBG:GetRegions() }) do
+                if region and region.GetObjectType and region:GetObjectType() == "Texture" then
+                    DarkenTexture(region, tint)
                 end
             end
         end
@@ -632,6 +721,7 @@ local function ApplyDarkMode()
     DarkenMicroMenuBorders(tint)
     DarkenCastbarBorders(tint)
     DarkenBackpackCutout(tint)
+    DarkenAddonButtonBorders(tint)
 
     DarkModeModule.applied = true
 end
@@ -798,6 +888,16 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
             ApplyDarkMode()
         end)
 
+        -- Second pass for castbars: target/focus castbars are created lazily
+        -- by the castbar module at ~0.5s. Re-darken castbar borders after they exist.
+        addon:After(0.8, function()
+            if not DarkModeModule.applied then return end
+            local tint = GetTintValues()
+            DarkenCastbarBorders(tint)
+            -- Also catch addon buttons that may have loaded late
+            DarkenAddonButtonBorders(tint)
+        end)
+
     elseif event == "UPDATE_SHAPESHIFT_FORM" or event == "UPDATE_BONUS_ACTIONBAR"
         or event == "ACTIONBAR_PAGE_CHANGED" then
         -- Form/stance/page changed — re-darken all action + stance buttons after a tiny delay
@@ -840,4 +940,11 @@ addon.RefreshDarkModeUnitFrames = function()
     if not DarkModeModule.applied then return end
     local ufTint = GetUFTintValues()
     DarkenUnitFrameBorders(ufTint)
+end
+
+-- Re-darken castbar borders (called from castbar.lua after lazy castbar creation)
+addon.RefreshDarkModeCastbars = function()
+    if not DarkModeModule.applied then return end
+    local tint = GetTintValues()
+    DarkenCastbarBorders(tint)
 end

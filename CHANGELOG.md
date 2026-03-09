@@ -2,6 +2,21 @@
 
 > **⚠️ Experimental Branch** - All changes below still need further in-game testing and may contain bugs or incomplete features. If you run into any problems, feel free to let me know [here](https://github.com/NeticSoul/DragonUI/issues/141) - any feedback helps!
 
+## 📅 2026-03-09
+
+### Added
+- **Chat enhancements module** — Moveable editbox, URL detection & copy, chat copy via double-click tab, mousewheel scroll (ported from KPack ChatMods)
+- **Combuctor bags module** — All-in-one bag/bank replacement with item filtering and search (ported from KPack Combuctor)
+- **Bags options tab** — New panel section for configuring the Combuctor module
+- **Boss frames in Editor Mode** — Boss unit frames can now be repositioned via Editor Mode
+- **esMX locale** — Full Mexican Spanish translation for both addons
+
+### Fixed
+- **Boss frames** — Restyled with Dragonflight atlas textures
+- **Dark mode** — Now covers XP/Rep bar textures, pet frame border, ToT/ToF custom borders, and skinned minimap addon buttons
+- **Party frames** — Vehicle texture hidden correctly; strata/level fixes to prevent overlap
+- **Options panel** — Removed legacy options panel; reduced file size across all options tabs
+
 ## 📅 2026-03-07
 
 ### Added

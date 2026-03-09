@@ -2,12 +2,10 @@ local addon = select(2, ...)
 addon._dir = "Interface\\AddOns\\DragonUI\\assets\\"
 
 -- ============================================================================
--- MODULE STATE TRACKING (AT FILE SCOPE - FOLLOWING ELVUI PATTERN)
+-- MAINBARS MODULE FOR DRAGONUI
 -- ============================================================================
--- This module table is defined at file scope to be accessible from outside
--- the initialization function, following the pattern used by other DragonUI
--- modules (stance.lua, petbar.lua, vehicle.lua, etc.)
 
+-- Module state tracking (file scope for cross-function access)
 local MainbarsModule = {
     initialized = false,
     applied = false,
@@ -362,7 +360,7 @@ local function InitializeMainbars()
     end
 
     -- ============================================================================
-    -- CORE MAINBAR FUNCTIONS (From working code)
+    -- CORE MAINBAR FUNCTIONS
     -- ============================================================================
 
    function MainMenuBarMixin:actionbutton_setup()

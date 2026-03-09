@@ -1,3 +1,8 @@
+-- ============================================================================
+-- DragonUI - Atlas Definitions (Legacy)
+-- Texture atlas lookup table mapping sprite names to texture coordinates.
+-- ============================================================================
+
 local addon = select(2,...);
 local assets = addon._dir;
 local unpack = unpack;

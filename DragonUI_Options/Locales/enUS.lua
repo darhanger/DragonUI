@@ -26,8 +26,10 @@ L["KeyBind Mode"] = true
 L["Exit Editor Mode"] = true
 L["KeyBind Mode Active"] = true
 L["Move UI Elements"] = true
-L["/dragonui  |  /dragonui legacy for classic options"] = true
 L["Cannot open options during combat."] = true
+L["Open DragonUI Settings"] = true
+L["Open the DragonUI configuration panel."] = true
+L["Use /dragonui to open the full settings panel."] = true
 
 -- Quick Actions
 L["Quick Actions"] = true
@@ -35,8 +37,7 @@ L["About"] = true
 L["Dragonflight-inspired UI for WotLK 3.3.5a."] = true
 L["Experimental Branch — This options panel is in early beta."] = true
 L["Features may change or be incomplete. Report issues on GitHub."] = true
-L["Use /dragonui or /pi to toggle this panel."] = true
-L["Use /dragonui legacy to open the classic AceConfig options."] = true
+L["Use /dragonui or /pi to toggle this panel."]  = true
 
 -- ============================================================================
 -- STATIC POPUPS
@@ -66,6 +67,10 @@ L["Profiles"] = true
 L["Quest Tracker"] = true
 L["Unit Frames"] = true
 L["XP & Rep Bars"] = true
+L["Chat"] = true
+L["Bags"] = true
+L["Left Side Tabs"] = true
+L["Place category filter tabs on the left side of the bag frame instead of the right."] = true
 
 -- ============================================================================
 -- MODULES TAB
@@ -201,6 +206,64 @@ L["Anchor to Cursor"] = true
 L["Make the tooltip follow the cursor position instead of the default anchor."] = true
 L["Make the tooltip follow the cursor position instead of using the default anchor."] = true
 
+-- Chat Mods
+L["Chat Mods"] = true
+L["Enable Chat Mods"] = true
+L["Chat enhancements: hide buttons, editbox positioning, URL detection & copy, chat copy, link hover tooltips, tell target, mousewheel scroll."] = true
+L["Editbox Position"] = true
+L["Choose where the chat editbox is positioned."] = true
+L["Top"] = true
+L["Bottom"] = true
+L["Middle"] = true
+
+-- Combuctor
+L["Combuctor"] = true
+L["Enable Combuctor"] = true
+L["All-in-one bag replacement with item filtering, search, quality indicators, and bank integration."] = true
+L["Combuctor Settings"] = true
+L["Show 'All' Tab"] = true
+L["Show the 'All' category tab that displays all items without filtering."] = true
+L["Show Equipment Tab"] = true
+L["Show the Equipment category tab for armor and weapons."] = true
+L["Show Usable Tab"] = true
+L["Show the Usable category tab for consumables and devices."] = true
+L["Show Consumable Tab"] = true
+L["Show the Consumable category tab."] = true
+L["Show Quest Tab"] = true
+L["Show the Quest items category tab."] = true
+L["Show Trade Goods Tab"] = true
+L["Show the Trade Goods category tab (includes gems and recipes)."] = true
+L["Show Miscellaneous Tab"] = true
+L["Show the Miscellaneous items category tab."] = true
+L["Left Side Tabs"] = true
+L["Place category filter tabs on the left side of the bag frame instead of the right."] = true
+L["Place category filter tabs on the left side of the bank frame instead of the right."] = true
+L["Changes require closing and reopening bags to take effect."] = true
+L["Subtabs"] = true
+L["Configure which bottom subtabs appear within each category tab. Applies to both inventory and bank."] = true
+L["Normal"] = true
+L["Trade Bags"] = true
+L["Show the Normal bags subtab (non-profession bags)."] = true
+L["Show the Trade bags subtab (profession bags)."] = true
+L["Show the Armor subtab."] = true
+L["Show the Weapon subtab."] = true
+L["Show the Trinket subtab."] = true
+L["Show the Consumable subtab."] = true
+L["Show the Devices subtab."] = true
+L["Show the Trade Goods subtab."] = true
+L["Show the Gem subtab."] = true
+L["Show the Recipe subtab."] = true
+L["Configure Combuctor bag replacement settings."] = true
+L["Category Tabs"] = true
+L["Inventory Tabs"] = true
+L["Bank Tabs"] = true
+L["Inventory"] = true
+L["Bank"] = true
+L["Choose which category tabs appear on the bag frame. Changes require closing and reopening bags to take effect."] = true
+L["Choose which category tabs appear on the inventory bag frame."] = true
+L["Choose which category tabs appear on the bank frame."] = true
+L["Display"] = true
+
 -- Advanced modules - Fallback display names
 L["Main Bars"] = true
 L["Vehicle"] = true
@@ -238,6 +301,10 @@ L["Vehicle interface enhancements"] = true
 L["Stance/shapeshift bar positioning and styling"] = true
 L["Pet action bar positioning and styling"] = true
 L["Multicast (totem/possess) bar positioning and styling"] = true
+L["Chat Mods"] = true
+L["Chat enhancements: hide buttons, editbox position, URL copy, chat copy, link hover, tell target"] = true
+L["Combuctor"] = true
+L["All-in-one bag replacement with filtering and search"] = true
 
 -- ============================================================================
 -- ACTION BARS TAB
@@ -751,6 +818,11 @@ L["Re-attach to Focus"] = true
 L["Party Frames"] = true
 L["Party Frames Configuration"] = true
 L["Custom styling for party member frames with automatic health/mana text display and class colors."] = true
+
+-- Boss Frames
+L["Boss Frames"] = true
+L["Enabled"] = true
+
 L["Orientation"] = true
 L["Vertical"] = true
 L["Horizontal"] = true

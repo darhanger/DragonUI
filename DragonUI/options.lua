@@ -1,3 +1,8 @@
+-- ============================================================================
+-- DragonUI - Legacy Options Table
+-- Provides AceConfig table for fallback /dragonui config panel.
+-- ============================================================================
+
 local addon = select(2, ...);
 local L = addon.L
 
@@ -21,7 +26,7 @@ function addon:CreateOptionsTable()
         name = "DragonUI",
         type = 'group',
         args = {
-            --  BUTTON TO ACTIVATE EDITOR MODE
+            -- Editor mode toggle button
             toggle_editor_mode = {
                 type = 'execute',
                 name = function()
@@ -49,12 +54,12 @@ function addon:CreateOptionsTable()
                         addon.EditorMode:Toggle()
                     end
                 end,
-                -- FORCE button to be enabled initially to avoid AceConfig timing issues
+                -- Force enabled initially to avoid AceConfig timing issues
                 disabled = false,
                 order = 0 -- Lowest order so it appears first
             },
             
-            -- ✅ KEYBINDING MODE BUTTON
+            -- Keybinding mode button
             toggle_keybind_mode = {
                 type = 'execute',
                 name = function()
@@ -83,14 +88,14 @@ function addon:CreateOptionsTable()
                 order = 0.3
             },
             
-            --  VISUAL SEPARATOR
+            -- Separator
             editor_separator = {
                 type = 'header',
-                name = ' ', -- A blank space acts as a separator
+                name = ' ',
                 order = 0.5
             },
 
-            -- NEW SECTION: MODULES
+            -- Module toggles
             modules = {
                 type = 'group',
                 name = "Modules",
@@ -174,7 +179,7 @@ function addon:CreateOptionsTable()
                         order = 20
                     },
 
-                    -- UNIFIED ACTION BARS SYSTEM
+                    -- Action Bars System (unified toggle)
                     actionbars_system_enabled = {
                         type = 'toggle',
                         name = "Action Bars System",
@@ -212,7 +217,7 @@ function addon:CreateOptionsTable()
                         order = 21
                     },
 
-                    -- MICRO MENU & BAGS
+                    -- Micro Menu & Bags
                     micromenu_enabled = {
                         type = 'toggle',
                         name = "Micro Menu & Bags",
@@ -234,7 +239,7 @@ function addon:CreateOptionsTable()
                         order = 22
                     },
 
-                    -- COOLDOWN TIMERS
+                    -- Cooldown Timers
                     cooldowns_enabled = {
                         type = 'toggle',
                         name = "Cooldown Timers",
@@ -258,7 +263,7 @@ function addon:CreateOptionsTable()
                         order = 23
                     },
 
-                    -- MINIMAP SYSTEM
+                    -- Minimap System
                     minimap_enabled = {
                         type = 'toggle',
                         name = "Minimap System",
@@ -280,7 +285,7 @@ function addon:CreateOptionsTable()
                         order = 24
                     },
 
-                    -- BUFF FRAME SYSTEM
+                    -- Buff Frame System
                     buffs_enabled = {
                         type = 'toggle',
                         name = "Buff Frame System",
