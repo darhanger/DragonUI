@@ -192,3 +192,9 @@ L["Boss4Frame"] = "Boss-Rahmen"
 L["Changing this setting requires a UI reload to apply correctly."] = "Das Ändern dieser Einstellung erfordert ein Neuladen der UI, damit es korrekt angewendet wird."
 L["Reload UI"] = "UI neu laden"
 L["Not Now"] = "Nicht jetzt"
+
+-- Taschen sortieren (Bag Sort)
+L["Sort Bags"] = "Taschen sortieren"
+L["Sort Bank"] = "Bank sortieren"
+L["Sort Items"] = "Gegenstände sortieren"
+L["Click to sort items by type, rarity, and name."] = "Klicken, um Gegenstände nach Typ, Seltenheit und Name zu sortieren."

@@ -187,3 +187,9 @@ L["DragonUI Reload Required"] = "DragonUI Requiere Recarga"
 L["A UI reload is required for this change to take effect. Reload now?"] = "Se requiere recargar la interfaz para que este cambio surta efecto. ¿Recargar ahora?"
 L["Reload"] = "Recargar"
 L["Cancel"] = "Cancelar"
+
+-- Bag Sort
+L["Sort Bags"] = "Ordenar Bolsas"
+L["Sort Bank"] = "Ordenar Banco"
+L["Sort Items"] = "Ordenar Objetos"
+L["Click to sort items by type, rarity, and name."] = "Clic para ordenar objetos por tipo, rareza y nombre."

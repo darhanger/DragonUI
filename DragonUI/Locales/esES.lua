@@ -193,3 +193,9 @@ L["Boss4Frame"] = "Marcos de Jefe"
 L["Changing this setting requires a UI reload to apply correctly."] = "Cambiar esta opción requiere recargar la interfaz para aplicarse correctamente."
 L["Reload UI"] = "Recargar Interfaz"
 L["Not Now"] = "Ahora No"
+
+-- Bag Sort
+L["Sort Bags"] = "Ordenar Bolsas"
+L["Sort Bank"] = "Ordenar Banco"
+L["Sort Items"] = "Ordenar Objetos"
+L["Click to sort items by type, rarity, and name."] = "Clic para ordenar objetos por tipo, rareza y nombre."

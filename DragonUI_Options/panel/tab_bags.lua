@@ -145,6 +145,27 @@ local function BuildBagsTab(scroll)
     })
 
     -- ====================================================================
+    -- BAG SORT
+    -- ====================================================================
+    local sortSection = C:AddSection(scroll, LO["Bag Sort"] or "Bag Sort")
+    C:AddDescription(sortSection, LO["Sort buttons for bags and bank. Sorts items by type, rarity, level, and name."] or "Sort buttons for bags and bank. Sorts items by type, rarity, level, and name.")
+
+    C:AddToggle(sortSection, {
+        label = LO["Enable Bag Sort"] or "Enable Bag Sort",
+        desc = LO["Add sort buttons to bag and bank frames. Also enables /sort and /sortbank slash commands."] or "Add sort buttons to bag and bank frames. Also enables /sort and /sortbank slash commands.",
+        getFunc = function()
+            local mc = addon.db.profile.modules and addon.db.profile.modules.bagsort
+            return mc and mc.enabled
+        end,
+        setFunc = function(val)
+            if not addon.db.profile.modules then addon.db.profile.modules = {} end
+            if not addon.db.profile.modules.bagsort then addon.db.profile.modules.bagsort = {} end
+            addon.db.profile.modules.bagsort.enabled = val
+        end,
+        requiresReload = true,
+    })
+
+    -- ====================================================================
     -- INVENTORY CATEGORY TABS
     -- ====================================================================
     local tabSection = C:AddSection(scroll, LO["Inventory Tabs"])

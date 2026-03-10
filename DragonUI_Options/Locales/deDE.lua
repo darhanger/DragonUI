@@ -197,6 +197,12 @@ L["Combuctor"] = "Combuctor"
 L["Enable Combuctor"] = "Combuctor aktivieren"
 L["All-in-one bag replacement with item filtering, search, quality indicators, and bank integration."] = "Komplett-Taschenersatz mit Gegenstandsfilterung, Suche, Qualitätsindikatoren und Bankintegration."
 
+-- Taschen sortieren (Bag Sort)
+L["Bag Sort"] = "Taschen sortieren"
+L["Enable Bag Sort"] = "Taschen sortieren aktivieren"
+L["Sort buttons for bags and bank. Sorts items by type, rarity, level, and name."] = "Sortier-Buttons für Taschen und Bank. Sortiert Gegenstände nach Typ, Seltenheit, Stufe und Name."
+L["Add sort buttons to bag and bank frames. Also enables /sort and /sortbank slash commands."] = "Fügt Sortier-Buttons zu Taschen- und Bankfenstern hinzu. Aktiviert auch die Befehle /sort und /sortbank."
+
 -- Advanced modules - Fallback display names
 L["Main Bars"] = "Hauptleisten"
 L["Vehicle"] = "Fahrzeug"

@@ -159,3 +159,9 @@ L["Boss4Frame"] = "보스 프레임"
 L["Changing this setting requires a UI reload to apply correctly."] = "이 설정을 올바르게 적용하려면 UI를 재설정해야 합니다."
 L["Reload UI"] = "UI 재설정"
 L["Not Now"] = "나중에"
+
+-- 가방 정렬 (Bag Sort)
+L["Sort Bags"] = "가방 정렬"
+L["Sort Bank"] = "은행 정렬"
+L["Sort Items"] = "아이템 정렬"
+L["Click to sort items by type, rarity, and name."] = "유형, 희귀도, 이름순으로 아이템을 정렬하려면 클릭하세요."

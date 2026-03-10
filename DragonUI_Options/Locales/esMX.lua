@@ -213,6 +213,12 @@ L["Combuctor"] = "Combuctor"
 L["Enable Combuctor"] = "Activar Combuctor"
 L["All-in-one bag replacement with item filtering, search, quality indicators, and bank integration."] = "Reemplazo de bolsas todo-en-uno con filtrado de objetos, búsqueda, indicadores de calidad e integración con el banco."
 L["Combuctor Settings"] = "Opciones de Combuctor"
+
+-- Bag Sort
+L["Bag Sort"] = "Ordenar Bolsas"
+L["Enable Bag Sort"] = "Activar Ordenar Bolsas"
+L["Sort buttons for bags and bank. Sorts items by type, rarity, level, and name."] = "Botones para ordenar bolsas y banco. Ordena objetos por tipo, rareza, nivel y nombre."
+L["Add sort buttons to bag and bank frames. Also enables /sort and /sortbank slash commands."] = "Añade botones de ordenar a las bolsas y al banco. También habilita los comandos /sort y /sortbank."
 L["Show 'All' Tab"] = "Mostrar pestaña 'Todo'"
 L["Show the 'All' category tab that displays all items without filtering."] = "Mostrar la pestaña de categoría 'Todo' que muestra todos los objetos sin filtrar."
 L["Show Equipment Tab"] = "Mostrar pestaña Equipamiento"

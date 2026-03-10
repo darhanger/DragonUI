@@ -201,6 +201,12 @@ L["Combuctor"] = "콤벅터"
 L["Enable Combuctor"] = "콤벅터 활성화"
 L["All-in-one bag replacement with item filtering, search, quality indicators, and bank integration."] = "아이템 필터링, 검색, 품질 표시 및 은행 통합 기능을 갖춘 올인원 가방 대체."
 
+-- 가방 정렬 (Bag Sort)
+L["Bag Sort"] = "가방 정렬"
+L["Enable Bag Sort"] = "가방 정렬 활성화"
+L["Sort buttons for bags and bank. Sorts items by type, rarity, level, and name."] = "가방과 은행에 정렬 버튼을 추가합니다. 유형, 희귀도, 레벨, 이름순으로 정렬합니다."
+L["Add sort buttons to bag and bank frames. Also enables /sort and /sortbank slash commands."] = "가방과 은행 창에 정렬 버튼을 추가합니다. /sort 및 /sortbank 명령어도 활성화됩니다."
+
 -- 고급 모듈 - 대체 표시 이름 (Advanced modules - Fallback display names)
 L["Main Bars"] = "주 단축바"
 L["Vehicle"] = "탈것"

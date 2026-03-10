@@ -616,7 +616,10 @@ local defaults = {
                 editbox = "top" -- Editbox position: "top", "bottom", or "middle"
             },
             combuctor = {
-                enabled = true -- All-in-one bag replacement with filtering and search
+                enabled = false -- All-in-one bag replacement with filtering and search
+            },
+            bagsort = {
+                enabled = true -- Sort bags and bank items with buttons
             }
         }
     }

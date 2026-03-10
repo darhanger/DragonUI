@@ -901,6 +901,7 @@ do
         item:SetScript("OnShow", self.OnShow)
         item:SetScript("OnHide", self.OnHide)
         item:RegisterForClicks("anyUp")
+        item.UpdateTooltip = nil
 
         -- Quality border
         local border = item:CreateTexture(nil, "OVERLAY")
@@ -957,10 +958,15 @@ do
             dummySlot:Show()
         else
             dummySlot:Hide()
-            if self:IsBank() then
+            if self:IsBankSlot() then
                 if self:GetItem() then
                     self:AnchorTooltip()
-                    GameTooltip:SetInventoryItem("player", BankButtonIDToInvSlotID(self:GetID()))
+                    local bag = self:GetBag()
+                    if bag == BANK_CONTAINER then
+                        GameTooltip:SetInventoryItem("player", BankButtonIDToInvSlotID(self:GetID()))
+                    else
+                        GameTooltip:SetBagItem(bag, self:GetID())
+                    end
                     GameTooltip:Show()
                     CursorUpdate(self)
                 end
@@ -1100,7 +1106,9 @@ do
         end
     end
 
-    ItemSlot.UpdateTooltip = ItemSlot.OnEnter
+    -- UpdateTooltip is set to nil per-instance in Create() to prevent
+    -- Update() from re-triggering OnEnter and clearing bank tooltips.
+    ItemSlot.UpdateTooltip = nil
 
     function ItemSlot:AnchorTooltip()
         if self:GetRight() >= (GetScreenWidth() / 2) then

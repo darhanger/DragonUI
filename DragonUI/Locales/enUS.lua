@@ -204,3 +204,9 @@ L["Loaded addons:"] = true
 L["Changing this setting requires a UI reload to apply correctly."] = true
 L["Reload UI"] = true
 L["Not Now"] = true
+
+-- Bag Sort
+L["Sort Bags"] = true
+L["Sort Bank"] = true
+L["Sort Items"] = true
+L["Click to sort items by type, rarity, and name."] = true

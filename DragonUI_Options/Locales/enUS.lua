@@ -221,6 +221,13 @@ L["Combuctor"] = true
 L["Enable Combuctor"] = true
 L["All-in-one bag replacement with item filtering, search, quality indicators, and bank integration."] = true
 L["Combuctor Settings"] = true
+
+-- Bag Sort
+L["Bag Sort"] = true
+L["Enable Bag Sort"] = true
+L["Sort buttons for bags and bank. Sorts items by type, rarity, level, and name."] = true
+L["Add sort buttons to bag and bank frames. Also enables /sort and /sortbank slash commands."] = true
+
 L["Show 'All' Tab"] = true
 L["Show the 'All' category tab that displays all items without filtering."] = true
 L["Show Equipment Tab"] = true
