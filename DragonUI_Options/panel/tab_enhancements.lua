@@ -166,12 +166,12 @@ local function BuildEnhancementsTab(scroll)
     C:AddDropdown(iqSection, {
         label = LO["Minimum Quality"],
         values = {
-            [0] = "|cff9d9d9dPoor|r",
-            [1] = "|cffffffffCommon|r",
-            [2] = "|cff1eff00Uncommon|r",
-            [3] = "|cff0070ddRare|r",
-            [4] = "|cffa335eeEpic|r",
-            [5] = "|cffff8000Legendary|r",
+            [0] = LO["|cff9d9d9dPoor|r"],
+            [1] = LO["|cffffffffCommon|r"],
+            [2] = LO["|cff1eff00Uncommon|r"],
+            [3] = LO["|cff0070ddRare|r"],
+            [4] = LO["|cffa335eeEpic|r"],
+            [5] = LO["|cffff8000Legendary|r"],
         },
         getFunc = function()
             return GetModuleField("itemquality", "min_quality") or 2
