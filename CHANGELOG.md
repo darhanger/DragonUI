@@ -2,6 +2,18 @@
 
 > **⚠️ Experimental Branch** - All changes below still need further in-game testing and may contain bugs or incomplete features. If you run into any problems, feel free to let me know [here](https://github.com/NeticSoul/DragonUI/issues/141) - any feedback helps!
 
+## 📅 2026-03-15
+
+### Fixed
+- **Target/Focus elite dragon overlap** - Fixed a bug where the Target/Focus frame border was positioned in front of the elite dragon decoration.
+- **Minimap rotation style** - Fixed minimap styling issues when rotation is enabled.
+- **Minimap indoors** - Added an indoor fix for rotation mode to prevent the minimap style from breaking indoors.
+- **Party frame recovery (experimental)** - Added an experimental patch to reduce party frames disappearing after reloads/party changes.
+- **Target/Focus mana text alignment** - Mana text is now better centered and easier to read.
+
+### Changed
+- **Unit Frame Layers options cleanup** - Removed the old experimental Builder/Spender toggle from the Unit Frame Layers options because it was not working correctly and could cause errors.
+
 ## 📅 2026-03-14
 
 ### Added
