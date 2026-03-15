@@ -7,21 +7,28 @@ local L = addon.L
 -- ============================================================================
 
 local CreateFrame = CreateFrame
-local GameMenuFrame = GameMenuFrame
 local HideUIPanel = HideUIPanel
+
+local function GetGameMenuFrame()
+    return _G and _G.GameMenuFrame
+end
 
 local dragonUIButton = nil
 local buttonAdded = false
-local buttonPositioned = false -- set once to prevent repeated SetPoint calls
+local heightAdjustedHost = nil
+local hookInstalled = false
+local updateHookInstalled = false
+local onShowHookInstalled = false
+local ascensionHookInstalled = false
+local CreateDragonUIButton
 
--- Fallback priority order for finding an anchor: Continue > Quit > Logout.
--- Only used by FindInsertPosition; not iterated at runtime.
-local GAME_MENU_BUTTONS = {
+local KNOWN_MENU_BUTTON_NAMES = {
+    "EscapeMenuButton1", -- Ascension custom: Close
     "GameMenuButtonHelp",
-    "GameMenuButtonWhatsNew", 
+    "GameMenuButtonWhatsNew",
     "GameMenuButtonStore",
     "GameMenuButtonOptions",
-    "GameMenuButtonUIOptions", 
+    "GameMenuButtonUIOptions",
     "GameMenuButtonKeybindings",
     "GameMenuButtonMacros",
     "GameMenuButtonAddons",
@@ -30,45 +37,192 @@ local GAME_MENU_BUTTONS = {
     "GameMenuButtonContinue"
 }
 
--- Tries Continue first, then Quit, then Logout as the anchor for our button.
-local function FindInsertPosition()
-    local afterButton = _G["GameMenuButtonContinue"]
-    if not afterButton then afterButton = _G["GameMenuButtonQuit"] end
-    if not afterButton then afterButton = _G["GameMenuButtonLogout"] end
-    return afterButton, nil
+local function IsDescendantOf(frame, parent)
+    if not frame or not parent then return false end
+    local current = frame
+    while current do
+        if current == parent then return true end
+        current = current:GetParent()
+    end
+    return false
+end
+
+local function IsAscensionMenuEnvironment()
+    if not _G then return false end
+
+    if _G.EscapeMenu and _G.EscapeMenu.IsShown and _G.EscapeMenu:IsShown() then
+        return true
+    end
+
+    if _G.EscapeMenuButton1 and _G.EscapeMenuButton1.IsShown and _G.EscapeMenuButton1:IsShown() then
+        return true
+    end
+
+    return false
+end
+
+local function DetectCustomMenuHostFrame()
+    if not IsAscensionMenuEnvironment() then return nil end
+
+    -- Ascension custom menu host found via fstack.
+    if _G.EscapeMenu and _G.EscapeMenu.IsShown and _G.EscapeMenu:IsShown() then
+        return _G.EscapeMenu
+    end
+
+    if _G.EscapeMenuButton1 then
+        local p = _G.EscapeMenuButton1:GetParent()
+        if p then return p end
+    end
+
+    return nil
+end
+
+local function GetMenuHostFrame()
+    if IsAscensionMenuEnvironment() then
+        local custom = DetectCustomMenuHostFrame()
+        if custom then return custom end
+    end
+    return GetGameMenuFrame()
+end
+
+local function FindClassicInsertButton(menuHost)
+    local candidates = {
+        -- Prefer bottom-area insertion on classic clients.
+        "GameMenuButtonContinue",
+        "GameMenuButtonQuit",
+        "GameMenuButtonLogout",
+        "GameMenuButtonAddons",
+        "GameMenuButtonMacros",
+        "GameMenuButtonKeybindings",
+        "GameMenuButtonUIOptions",
+        "GameMenuButtonOptions"
+    }
+
+    for _, name in ipairs(candidates) do
+        local btn = _G[name]
+        if btn and btn.IsShown and btn:IsShown() and IsDescendantOf(btn, menuHost) then
+            return btn
+        end
+    end
+    return nil
+end
+
+local function FindBottomButtons(menuHost)
+    local closeButton = _G["EscapeMenuButton1"] or _G["GameMenuButtonContinue"]
+    if closeButton and menuHost and (not IsDescendantOf(closeButton, menuHost)) then
+        closeButton = nil
+    end
+
+    local bottomMost = nil
+
+    local function considerButton(btn)
+        if not btn or btn == dragonUIButton then return end
+        if not (btn.IsShown and btn:IsShown()) then return end
+        if not (btn.IsObjectType and btn:IsObjectType("Button")) then return end
+        if not IsDescendantOf(btn, menuHost) then return end
+
+        -- Menu buttons in this frame are usually centered and wide.
+        local hostCenterX = menuHost:GetCenter()
+        local btnCenterX = btn:GetCenter()
+        local btnWidth = btn:GetWidth() or 0
+        if hostCenterX and btnCenterX and math.abs(btnCenterX - hostCenterX) > 80 then return end
+        if btnWidth < 120 then return end
+
+        if (not bottomMost) or ((btn:GetTop() or 0) < (bottomMost:GetTop() or 0)) then
+            bottomMost = btn
+        end
+    end
+
+    for _, name in ipairs(KNOWN_MENU_BUTTON_NAMES) do
+        considerButton(_G[name])
+    end
+
+    return closeButton, bottomMost
 end
 
 -- Anchors the button below its reference and extends GameMenuFrame height once.
--- The guard prevents this running again on subsequent GameMenuFrame:Show() calls,
--- which would accumulate offsets and keep growing the frame height.
 local function PositionDragonUIButton()
+    local menuHost = GetMenuHostFrame()
+    if not menuHost then return end
     if not dragonUIButton then return end
-    if buttonPositioned then return end
 
-    local afterButton, beforeButton = FindInsertPosition()
+    dragonUIButton:SetParent(menuHost)
+    dragonUIButton:SetFrameStrata(menuHost:GetFrameStrata())
+    dragonUIButton:SetFrameLevel((menuHost:GetFrameLevel() or 1) + 20)
 
-    if not afterButton then
-        -- No known anchor found; fall back to a fixed offset from the top.
+    if IsAscensionMenuEnvironment() then
+        local closeButton, bottomMost = FindBottomButtons(menuHost)
+
+        -- Ascension: keep DragonUI near the bottom around Close.
+        if closeButton and closeButton:IsShown() then
+            dragonUIButton:ClearAllPoints()
+            dragonUIButton:SetPoint("BOTTOM", closeButton, "TOP", 0, -2)
+        elseif bottomMost then
+            dragonUIButton:ClearAllPoints()
+            dragonUIButton:SetPoint("TOP", bottomMost, "BOTTOM", 0, -2)
+        else
+            dragonUIButton:ClearAllPoints()
+            dragonUIButton:SetPoint("TOP", menuHost, "TOP", 0, -200)
+        end
+    else
+        -- Classic clients: use original-style insertion anchor.
+        local afterButton = FindClassicInsertButton(menuHost)
         dragonUIButton:ClearAllPoints()
-        dragonUIButton:SetPoint("TOP", GameMenuFrame, "TOP", 0, -200)
-        buttonPositioned = true
-        return
+        if afterButton then
+            dragonUIButton:SetPoint("TOP", afterButton, "BOTTOM", 0, -2)
+        else
+            dragonUIButton:SetPoint("TOP", menuHost, "TOP", 0, -200)
+        end
     end
 
-    dragonUIButton:ClearAllPoints()
-    dragonUIButton:SetPoint("TOP", afterButton, "BOTTOM", 0, -2)
-
     -- Grow the frame to accommodate the new button (runs exactly once).
-    local buttonHeight = dragonUIButton:GetHeight() or 16
-    local spacing = 1
-    local currentHeight = GameMenuFrame:GetHeight()
-    GameMenuFrame:SetHeight(currentHeight + buttonHeight + spacing)
+    if heightAdjustedHost ~= menuHost then
+        local buttonHeight = dragonUIButton:GetHeight() or 16
+        local spacing = 1
+        local currentHeight = menuHost:GetHeight()
+        menuHost:SetHeight(currentHeight + buttonHeight + spacing)
+        heightAdjustedHost = menuHost
+    end
 
-    buttonPositioned = true
+    -- Custom servers can reset frame height after layout updates.
+    -- Ensure our injected button remains inside visible bounds.
+    local frameBottom = menuHost:GetBottom()
+    local buttonBottom = dragonUIButton:GetBottom()
+    local bottomPadding = 10
+    if frameBottom and buttonBottom and buttonBottom < (frameBottom + bottomPadding) then
+        local deficit = (frameBottom + bottomPadding) - buttonBottom
+        menuHost:SetHeight(menuHost:GetHeight() + deficit + 2)
+    end
+end
+
+local function EnsureDragonUIButton()
+    if not buttonAdded then
+        CreateDragonUIButton()
+    elseif dragonUIButton then
+        dragonUIButton:Show()
+        PositionDragonUIButton()
+    end
+end
+
+local function QueueEnsureAfterShow()
+    -- Some custom clients re-skin/re-layout asynchronously after opening menu.
+    -- Re-apply our button a few times shortly after show.
+    local delays = { 0, 0.05, 0.15, 0.35, 0.7 }
+    for _, delay in ipairs(delays) do
+        addon:After(delay, function()
+            local menuHost = GetMenuHostFrame()
+            if menuHost and menuHost:IsShown() then
+                EnsureDragonUIButton()
+            end
+        end)
+    end
 end
 
 local function OpenDragonUIConfig()
-    HideUIPanel(GameMenuFrame)
+    local menuHost = GetMenuHostFrame()
+    if menuHost then
+        HideUIPanel(menuHost)
+    end
 
     if addon and addon.ToggleOptionsUI then
         addon:ToggleOptionsUI()
@@ -88,9 +242,10 @@ end
 -- BUTTON CREATION
 -- ============================================================================
 
-local function CreateDragonUIButton()
+CreateDragonUIButton = function()
     if dragonUIButton or buttonAdded then return true end
-    if not GameMenuFrame then return false end
+    local menuHost = GetMenuHostFrame()
+    if not menuHost then return false end
 
     -- Swap to nil to disable and fall back to the solid-color path.
     local TEX_CUSTOM_NORMAL = addon._dir .. "gamemenu_btn.tga"
@@ -101,7 +256,7 @@ local function CreateDragonUIButton()
     local FONT_SIZE = 12
 
     -- GameMenuButtonTemplate sets the correct hit rect and default sizing.
-    dragonUIButton = CreateFrame("Button", "DragonUIGameMenuButton", GameMenuFrame, "GameMenuButtonTemplate")
+    dragonUIButton = CreateFrame("Button", "DragonUIGameMenuButton", menuHost, "GameMenuButtonTemplate")
     dragonUIButton:SetWidth(144)
 
     local useCustom = TEX_CUSTOM_NORMAL ~= nil
@@ -220,6 +375,52 @@ local function CreateDragonUIButton()
     return true
 end
 
+local function InstallGameMenuHook()
+    if hookInstalled then return true end
+    local gameMenuFrame = GetGameMenuFrame()
+    if not gameMenuFrame then return false end
+
+    -- Hook Show instead of overriding it to avoid UI taint on the secure frame.
+    hooksecurefunc(gameMenuFrame, "Show", function(self)
+        EnsureDragonUIButton()
+        QueueEnsureAfterShow()
+    end)
+
+    if not onShowHookInstalled then
+        gameMenuFrame:HookScript("OnShow", function(self)
+            EnsureDragonUIButton()
+            QueueEnsureAfterShow()
+        end)
+        onShowHookInstalled = true
+    end
+
+    -- Many custom clients rebuild button layout every time the menu is shown.
+    -- Hook the update routine so our button is re-shown/repositioned afterwards.
+    if not updateHookInstalled and _G.GameMenuFrame_UpdateVisibleButtons then
+        hooksecurefunc("GameMenuFrame_UpdateVisibleButtons", function()
+            EnsureDragonUIButton()
+        end)
+        updateHookInstalled = true
+    end
+
+    if ToggleGameMenu then
+        hooksecurefunc("ToggleGameMenu", function()
+            QueueEnsureAfterShow()
+        end)
+    end
+
+    if IsAscensionMenuEnvironment() and (not ascensionHookInstalled) and _G.EscapeMenu and _G.EscapeMenu.HookScript then
+        _G.EscapeMenu:HookScript("OnShow", function(self)
+            EnsureDragonUIButton()
+            QueueEnsureAfterShow()
+        end)
+        ascensionHookInstalled = true
+    end
+
+    hookInstalled = true
+    return true
+end
+
 -- ============================================================================
 -- INITIALIZATION
 -- ============================================================================
@@ -227,11 +428,15 @@ end
 -- Retries up to maxAttempts times in case GameMenuFrame isn't ready yet.
 local function TryCreateButton()
     local attempts = 0
-    local maxAttempts = 5
+    local maxAttempts = 20
 
     local function attempt()
         attempts = attempts + 1
-        if CreateDragonUIButton() then return end
+        InstallGameMenuHook()
+        if CreateDragonUIButton() then
+            QueueEnsureAfterShow()
+            return
+        end
         if attempts < maxAttempts then
             addon:After(0.5, attempt)
         end
@@ -246,25 +451,16 @@ eventFrame:RegisterEvent("PLAYER_LOGIN")
 
 eventFrame:SetScript("OnEvent", function(self, event, arg1)
     if event == "ADDON_LOADED" and arg1 == "DragonUI" then
+        InstallGameMenuHook()
         TryCreateButton()
 
     elseif event == "PLAYER_LOGIN" then
         -- Second attempt in case the first ran before GameMenuFrame existed.
         addon:After(1.0, function()
+            InstallGameMenuHook()
             if not buttonAdded then TryCreateButton() end
         end)
         self:UnregisterEvent("PLAYER_LOGIN")
-    end
-end)
-
--- Hook Show instead of overriding it to avoid UI taint on the secure frame.
-hooksecurefunc(GameMenuFrame, "Show", function(self)
-    if not buttonAdded then
-        CreateDragonUIButton()
-    elseif dragonUIButton then
-        dragonUIButton:Show()
-        -- PositionDragonUIButton is intentionally NOT called here;
-        -- calling it on every Show would accumulate height additions.
     end
 end)
 

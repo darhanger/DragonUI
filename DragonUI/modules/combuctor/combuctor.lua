@@ -1000,7 +1000,7 @@ do
         self:SetBorderQuality(quality)
         self:UpdateCooldown()
         self:UpdateSlotColor()
-        if GameTooltip:IsOwned(self) then
+        if GameTooltip:IsOwned(self) and self.UpdateTooltip then
             self:UpdateTooltip()
         end
     end

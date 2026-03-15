@@ -39,6 +39,10 @@ local function IsCombuctorEnabled()
     return addon:IsModuleEnabled("combuctor")
 end
 
+local function T(key, fallback)
+    return (L and L[key]) or fallback or key
+end
+
 -- ============================================================================
 -- SORTING ENGINE
 -- ============================================================================
@@ -67,6 +71,9 @@ local item_cache = {}  -- keyed by itemID, stores GetItemInfo results
 local moves = {}
 local running = false
 local bank_open = false
+local clickHooksInstalled = false
+local hookedSlotButtons = {}
+local lockVisualFrame
 
 -- Forward declarations
 local StopSorting
@@ -84,6 +91,258 @@ local function decode_move(move)
 end
 local function link_to_id(link)
     return link and tonumber(string.match(link, "item:(%d+)"))
+end
+
+local function GetLockedSlotsTable()
+    local cfg = GetModuleConfig()
+    if not cfg then return nil end
+    if type(cfg.lockedSlots) ~= "table" then
+        cfg.lockedSlots = {}
+    end
+    return cfg.lockedSlots
+end
+
+local function MakeSlotKey(bag, slot)
+    return tostring(bag) .. ":" .. tostring(slot)
+end
+
+local function IsSlotLocked(bag, slot)
+    local locks = GetLockedSlotsTable()
+    if not locks then return false end
+    return locks[MakeSlotKey(bag, slot)] == true
+end
+
+local function SetSlotLocked(bag, slot, locked)
+    local locks = GetLockedSlotsTable()
+    if not locks then return false end
+    local key = MakeSlotKey(bag, slot)
+    if locked then
+        locks[key] = true
+    else
+        locks[key] = nil
+    end
+    return true
+end
+
+local GetBagSlotFromButton
+
+local function EnsureLockMarker(button)
+    if not button or button._dragonUISortLockMarker then return end
+    local marker = button:CreateTexture(nil, "OVERLAY")
+    marker:SetTexture("Interface\\Buttons\\WHITE8X8")
+    marker:SetSize(7, 7)
+    marker:SetPoint("TOPLEFT", button, "TOPLEFT", 2, -2)
+    marker:SetVertexColor(0.15, 0.80, 1.00, 0.95)
+    marker:Hide()
+    button._dragonUISortLockMarker = marker
+end
+
+local function UpdateButtonLockMarker(button)
+    if not button then return end
+    EnsureLockMarker(button)
+
+    local marker = button._dragonUISortLockMarker
+    if not marker then return end
+
+    local bag, slot = GetBagSlotFromButton(button)
+    if bag and slot and IsSlotLocked(bag, slot) then
+        marker:Show()
+    else
+        marker:Hide()
+    end
+end
+
+local function RefreshAllLockMarkers()
+    for button, _ in pairs(hookedSlotButtons) do
+        UpdateButtonLockMarker(button)
+    end
+end
+
+local function ToggleSlotLockByBagSlot(bag, slot)
+    local newState = not IsSlotLocked(bag, slot)
+    SetSlotLocked(bag, slot, newState)
+    if newState then
+        DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00cc66DragonUI:|r " .. T("Slot locked (bag %d, slot %d).", "Slot locked (bag %d, slot %d)."), bag, slot), 0.4, 1, 0.4)
+    else
+        DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00cc66DragonUI:|r " .. T("Slot unlocked (bag %d, slot %d).", "Slot unlocked (bag %d, slot %d)."), bag, slot), 0.4, 1, 0.4)
+    end
+
+    RefreshAllLockMarkers()
+end
+
+GetBagSlotFromButton = function(btn)
+    if not btn then return nil, nil end
+
+    local bag, slot
+
+    -- Combuctor item buttons expose GetBag/GetID.
+    if btn.GetBag and btn.GetID then
+        bag = btn:GetBag()
+        slot = btn:GetID()
+    end
+
+    -- Vanilla container item buttons: bag id comes from parent frame.
+    if (not bag) and btn.GetParent and btn.GetID then
+        local parent = btn:GetParent()
+        if parent and parent.GetID then
+            bag = parent:GetID()
+            slot = btn:GetID()
+        end
+    end
+
+    -- Vanilla bank generic slots (BankFrameItem1..N).
+    if (not bag) and btn.GetName then
+        local name = btn:GetName()
+        if name then
+            local bankSlot = tonumber(string.match(name, "^BankFrameItem(%d+)$"))
+            if bankSlot then
+                bag = BANK_CONTAINER
+                slot = bankSlot
+            end
+        end
+    end
+
+    if bag == nil or slot == nil then return nil, nil end
+    if type(slot) ~= "number" or slot < 1 then return nil, nil end
+    return bag, slot
+end
+
+local function GetHoveredBagSlot()
+    if not GameTooltip or not GameTooltip:IsShown() then return nil, nil end
+    local owner = GameTooltip:GetOwner()
+    if not owner then return nil, nil end
+
+    local bag, slot
+
+    -- Combuctor item buttons expose GetBag/GetID.
+    if owner.GetBag and owner.GetID then
+        bag = owner:GetBag()
+        slot = owner:GetID()
+    end
+
+    -- Vanilla container item buttons: bag id is on parent frame.
+    if (not bag) and owner.GetParent and owner.GetID then
+        local parent = owner:GetParent()
+        if parent and parent.GetID then
+            bag = parent:GetID()
+            slot = owner:GetID()
+        end
+    end
+
+    -- Vanilla bank generic slots (BankFrameItem1..N) do not live in a bag frame.
+    if (not bag) and owner.GetName then
+        local name = owner:GetName()
+        if name then
+            local bankSlot = tonumber(string.match(name, "^BankFrameItem(%d+)$"))
+            if bankSlot then
+                bag = BANK_CONTAINER
+                slot = bankSlot
+            end
+        end
+    end
+
+    if bag == nil or slot == nil then return nil, nil end
+    if type(slot) ~= "number" or slot < 1 then return nil, nil end
+    return bag, slot
+end
+
+local function ToggleHoveredSlotLock()
+    local bag, slot = GetHoveredBagSlot()
+    if not bag or not slot then
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00cc66DragonUI:|r " .. T("Hover an item or slot, then type /sortlock.", "Hover an item or slot, then type /sortlock."), 1, 0.8, 0)
+        return
+    end
+
+    ToggleSlotLockByBagSlot(bag, slot)
+end
+
+local function InstallAltClickHooks()
+    if clickHooksInstalled then return end
+    clickHooksInstalled = true
+
+    local function HookSlotButton(button)
+        if not button or button._dragonUISortLockHooked then return end
+        button._dragonUISortLockHooked = true
+        hookedSlotButtons[button] = true
+        EnsureLockMarker(button)
+
+        button:HookScript("OnShow", function(self)
+            UpdateButtonLockMarker(self)
+        end)
+
+        button:HookScript("OnHide", function(self)
+            if self._dragonUISortLockMarker then
+                self._dragonUISortLockMarker:Hide()
+            end
+        end)
+
+        button:HookScript("OnClick", function(self, mouseButton)
+            if not BagSortModule.applied then return end
+            if mouseButton ~= "LeftButton" or not IsAltKeyDown() then return end
+
+            local bag, slot = GetBagSlotFromButton(self)
+            if not bag or not slot then return end
+
+            ToggleSlotLockByBagSlot(bag, slot)
+
+            -- Cancel pickup side effect from default click handlers.
+            if CursorHasItem() then
+                PickupContainerItem(bag, slot)
+                if CursorHasItem() then
+                    ClearCursor()
+                end
+            end
+        end)
+
+        UpdateButtonLockMarker(button)
+    end
+
+    local function HookKnownSlotButtons()
+        -- Vanilla container bag items
+        for frameIndex = 1, NUM_CONTAINER_FRAMES do
+            for slot = 1, 36 do
+                local btn = _G["ContainerFrame" .. frameIndex .. "Item" .. slot]
+                if btn then HookSlotButton(btn) end
+            end
+        end
+
+        -- Vanilla bank main container slots
+        for slot = 1, (NUM_BANKGENERIC_SLOTS or 28) do
+            local btn = _G["BankFrameItem" .. slot]
+            if btn then HookSlotButton(btn) end
+        end
+
+        -- Combuctor item slots
+        for idx = 1, 400 do
+            local btn = _G["DragonUI_CombuctorItem" .. idx]
+            if btn then HookSlotButton(btn) end
+        end
+    end
+
+    HookKnownSlotButtons()
+    RefreshAllLockMarkers()
+
+    lockVisualFrame = CreateFrame("Frame")
+    local elapsed = 0
+    lockVisualFrame:SetScript("OnUpdate", function(self, dt)
+        if not BagSortModule.applied then return end
+        elapsed = elapsed + dt
+        if elapsed < 0.4 then return end
+        elapsed = 0
+        HookKnownSlotButtons()
+        RefreshAllLockMarkers()
+    end)
+end
+
+local function ClearAllLockedSlots()
+    local locks = GetLockedSlotsTable()
+    if not locks then
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00cc66DragonUI:|r " .. T("Could not clear locks (config not ready).", "Could not clear locks (config not ready)."), 1, 0.4, 0.4)
+        return
+    end
+    wipe(locks)
+    DEFAULT_CHAT_FRAME:AddMessage("|cff00cc66DragonUI:|r " .. T("Cleared all sort-locked slots.", "Cleared all sort-locked slots."), 0.4, 1, 0.4)
+    RefreshAllLockMarkers()
 end
 
 
@@ -295,6 +554,7 @@ local function CompressStacks(bags)
 
     -- Model the target bags: find partial stacks
     for bag, slot, bagslot in IterateBags(bags) do
+        if not IsSlotLocked(bag, slot) then
         local itemid = bag_ids[bagslot]
         if itemid and bag_stacks[bagslot] and bag_maxstacks[bagslot] and (bag_stacks[bagslot] ~= bag_maxstacks[bagslot]) then
             -- is_partial filter: (maxstack - count) > 0
@@ -303,12 +563,15 @@ local function CompressStacks(bags)
                 tinsert(target_slots, bagslot)
             end
         end
+        end
     end
 
     -- Go through source bags in reverse (matching BankStack)
     local all_slots = {}
     for bag, slot, bagslot in IterateBags(bags) do
-        tinsert(all_slots, { bag = bag, slot = slot, bagslot = bagslot })
+        if not IsSlotLocked(bag, slot) then
+            tinsert(all_slots, { bag = bag, slot = slot, bagslot = bagslot })
+        end
     end
     for si = #all_slots, 1, -1 do
         local source_slot = all_slots[si].bagslot
@@ -342,6 +605,9 @@ end
 local function ShouldActuallyMove(source, destination)
     if destination == source then return end
     if not bag_ids[source] then return end
+    local sBag, sSlot = decode_bagslot(source)
+    local dBag, dSlot = decode_bagslot(destination)
+    if IsSlotLocked(sBag, sSlot) or IsSlotLocked(dBag, dSlot) then return end
     if bag_ids[source] == bag_ids[destination] and bag_stacks[source] == bag_stacks[destination] then return end
     return true
 end
@@ -361,31 +627,35 @@ end
 local function SortItems(bags)
     if not item_types then BuildSortOrder() end
 
-    local sorted = {}
+    -- Sort only unlocked slots; locked slots remain in-place and are never moved.
+    local sources = {}
+    local destinations = {}
     for bag, slot, bagslot in IterateBags(bags) do
-        tinsert(sorted, bagslot)
+        if not IsSlotLocked(bag, slot) then
+            tinsert(sources, bagslot)
+            tinsert(destinations, bagslot)
+        end
     end
 
-    table.sort(sorted, DefaultSorter)
+    table.sort(sources, DefaultSorter)
 
     local bag_locked = {}
     local another_pass = true
     while another_pass do
         another_pass = false
-        local i = 1
-        for bag, slot, destination in IterateBags(bags) do
-            local source = sorted[i]
+        for i = 1, #destinations do
+            local destination = destinations[i]
+            local source = sources[i]
             if ShouldActuallyMove(source, destination) then
                 if not (bag_locked[source] or bag_locked[destination]) then
                     AddMove(source, destination)
-                    UpdateSorted(sorted, source, destination)
+                    UpdateSorted(sources, source, destination)
                     bag_locked[source] = true
                     bag_locked[destination] = true
                 else
                     another_pass = true
                 end
             end
-            i = i + 1
         end
         wipe(bag_locked)
     end
@@ -559,11 +829,20 @@ local function SortBankBags()
     end
 end
 
+local function HandleSortLockCommand(msg)
+    local command = msg and string.lower(string.gsub(msg, "^%s*(.-)%s*$", "%1")) or ""
+    if command == "clear" or command == "reset" then
+        ClearAllLockedSlots()
+        return
+    end
+    ToggleHoveredSlotLock()
+end
+
 -- ============================================================================
 -- BUTTON CREATION HELPERS
 -- ============================================================================
 
-local function CreateSortButton(name, parent, onClick, tooltipText, scale)
+local function CreateActionButton(name, parent, onClick, tooltipTitle, scale, iconPath, tooltipLines)
     scale = scale or 1.0
     local size = 32 * scale
     local btn = CreateFrame("Button", name, parent)
@@ -574,7 +853,7 @@ local function CreateSortButton(name, parent, onClick, tooltipText, scale)
     -- Icon fills the button
     local icon = btn:CreateTexture(name .. "Icon", "ARTWORK")
     icon:SetAllPoints()
-    icon:SetTexture("Interface\\Icons\\INV_Enchant_EssenceCosmicGreater")
+    icon:SetTexture(iconPath or "Interface\\Icons\\INV_Enchant_EssenceCosmicGreater")
     icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     btn.icon = icon
 
@@ -602,8 +881,12 @@ local function CreateSortButton(name, parent, onClick, tooltipText, scale)
     -- Tooltip
     btn:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(tooltipText or (L and L["Sort Items"] or "Sort Items"))
-        GameTooltip:AddLine(L and L["Click to sort items by type, rarity, and name."] or "Click to sort items by type, rarity, and name.", 1, 1, 1, true)
+        GameTooltip:SetText(tooltipTitle or T("Sort Items", "Sort Items"))
+        if tooltipLines then
+            for _, line in ipairs(tooltipLines) do
+                GameTooltip:AddLine(line, 1, 1, 1, true)
+            end
+        end
         GameTooltip:Show()
     end)
     btn:SetScript("OnLeave", function()
@@ -618,18 +901,50 @@ local function CreateSortButton(name, parent, onClick, tooltipText, scale)
     return btn
 end
 
+local function CreateSortButton(name, parent, onClick, tooltipText, scale)
+    return CreateActionButton(
+        name,
+        parent,
+        onClick,
+        tooltipText,
+        scale,
+        "Interface\\Icons\\INV_Enchant_EssenceCosmicGreater",
+        {
+            T("Click to sort items by type, rarity, and name.", "Click to sort items by type, rarity, and name."),
+            T("Alt+LeftClick any bag slot (item or empty) to lock or unlock it.", "Alt+LeftClick any bag slot (item or empty) to lock or unlock it."),
+            T("Click the lock-clear button to remove all locked slots.", "Click the lock-clear button to remove all locked slots.")
+        }
+    )
+end
+
+local function CreateClearLocksButton(name, parent, scale)
+    return CreateActionButton(
+        name,
+        parent,
+        ClearAllLockedSlots,
+        T("Clear Locked Slots", "Clear Locked Slots"),
+        scale,
+        "Interface\\Icons\\INV_Misc_Key_14",
+        {
+            T("Click to clear all locked bag slots.", "Click to clear all locked bag slots."),
+            T("Alt+LeftClick any bag slot (item or empty) to lock or unlock it.", "Alt+LeftClick any bag slot (item or empty) to lock or unlock it.")
+        }
+    )
+end
+
 -- ============================================================================
 -- COMBUSTOR BUTTON INTEGRATION
 -- ============================================================================
 
 local combustorBagSortBtn, combustorBankSortBtn
+local combustorBagClearBtn, combustorBankClearBtn
 
 local function GetCombuctorFrame(index)
     return _G["DragonUI_CombuctorFrame" .. index]
 end
 
-local function AttachCombuctorButton(frame, buttonRef, sortFunc, btnName, tooltipText)
-    if buttonRef then return buttonRef end
+local function AttachCombuctorButtons(frame, sortRef, clearRef, sortFunc, sortBtnName, clearBtnName, tooltipText)
+    if sortRef and clearRef then return sortRef, clearRef end
 
     local frameName = frame:GetName()
     local searchBox = _G[frameName .. "Search"]
@@ -640,46 +955,53 @@ local function AttachCombuctorButton(frame, buttonRef, sortFunc, btnName, toolti
     if searchBox then
         searchBox:ClearAllPoints()
         searchBox:SetPoint("TOPLEFT", frame, "TOPLEFT", 84, -44)
-        searchBox:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -148, -44)
+        -- Reserve extra room for sort + clear-locks buttons.
+        searchBox:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -176, -44)
     end
 
-    local btn = CreateSortButton(btnName, frame, sortFunc, tooltipText, 0.70)
+    local sortBtn = sortRef or CreateSortButton(sortBtnName, frame, sortFunc, tooltipText, 0.70)
+    local clearBtn = clearRef or CreateClearLocksButton(clearBtnName, frame, 0.70)
 
     -- Insert between Reset and BagToggle in the anchor chain
     if resetBtn then
-        btn:SetPoint("LEFT", resetBtn, "RIGHT", -6, 2)
+        sortBtn:SetPoint("LEFT", resetBtn, "RIGHT", -6, 2)
+        clearBtn:SetPoint("RIGHT", sortBtn, "LEFT", -2, 0)
     else
-        btn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -36, -42)
+        sortBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -36, -42)
+        clearBtn:SetPoint("RIGHT", sortBtn, "LEFT", -2, 0)
     end
 
     -- Re-anchor BagToggle to the right of our sort button
     if bagToggle then
         bagToggle:ClearAllPoints()
-        bagToggle:SetPoint("LEFT", btn, "RIGHT", 0, 0)
+        bagToggle:SetPoint("LEFT", sortBtn, "RIGHT", 0, 0)
     end
 
-    btn:Show()
-    return btn
+    sortBtn:Show()
+    clearBtn:Show()
+    return sortBtn, clearBtn
 end
 
 local function CreateCombuctorSortButtons()
     local inventoryFrame = GetCombuctorFrame(1)
     local bankFrame = GetCombuctorFrame(2)
 
-    if inventoryFrame and not combustorBagSortBtn then
-        combustorBagSortBtn = AttachCombuctorButton(
-            inventoryFrame, combustorBagSortBtn,
-            SortPlayerBags, "DragonUI_CombuctorBagSortBtn", L and L["Sort Bags"] or "Sort Bags"
+    if inventoryFrame and (not combustorBagSortBtn or not combustorBagClearBtn) then
+        combustorBagSortBtn, combustorBagClearBtn = AttachCombuctorButtons(
+            inventoryFrame, combustorBagSortBtn, combustorBagClearBtn,
+            SortPlayerBags, "DragonUI_CombuctorBagSortBtn", "DragonUI_CombuctorBagClearBtn", T("Sort Bags", "Sort Bags")
         )
         BagSortModule.frames.combustorBagSortBtn = combustorBagSortBtn
+        BagSortModule.frames.combustorBagClearBtn = combustorBagClearBtn
     end
 
-    if bankFrame and not combustorBankSortBtn then
-        combustorBankSortBtn = AttachCombuctorButton(
-            bankFrame, combustorBankSortBtn,
-            SortBankBags, "DragonUI_CombuctorBankSortBtn", L and L["Sort Bank"] or "Sort Bank"
+    if bankFrame and (not combustorBankSortBtn or not combustorBankClearBtn) then
+        combustorBankSortBtn, combustorBankClearBtn = AttachCombuctorButtons(
+            bankFrame, combustorBankSortBtn, combustorBankClearBtn,
+            SortBankBags, "DragonUI_CombuctorBankSortBtn", "DragonUI_CombuctorBankClearBtn", T("Sort Bank", "Sort Bank")
         )
         BagSortModule.frames.combustorBankSortBtn = combustorBankSortBtn
+        BagSortModule.frames.combustorBankClearBtn = combustorBankClearBtn
     end
 end
 
@@ -688,6 +1010,7 @@ end
 -- ============================================================================
 
 local vanillaBagSortBtn, vanillaBankSortBtn
+local vanillaBagClearBtn, vanillaBankClearBtn
 
 local function CreateVanillaBagSortButton()
     if vanillaBagSortBtn then return end
@@ -696,11 +1019,14 @@ local function CreateVanillaBagSortButton()
         "DragonUI_VanillaBagSortBtn",
         UIParent,
         SortPlayerBags,
-        L and L["Sort Bags"] or "Sort Bags",
+        T("Sort Bags", "Sort Bags"),
         0.53
     )
+    vanillaBagClearBtn = CreateClearLocksButton("DragonUI_VanillaBagClearBtn", UIParent, 0.53)
     vanillaBagSortBtn:Hide()
+    vanillaBagClearBtn:Hide()
     BagSortModule.frames.vanillaBagSortBtn = vanillaBagSortBtn
+    BagSortModule.frames.vanillaBagClearBtn = vanillaBagClearBtn
 end
 
 -- Find which ContainerFrame is currently showing bag 0 (backpack)
@@ -714,21 +1040,27 @@ local function GetBackpackFrame()
 end
 
 local function UpdateVanillaBagSortButton()
-    if not vanillaBagSortBtn then return end
+    if not vanillaBagSortBtn or not vanillaBagClearBtn then return end
     local backpack = GetBackpackFrame()
     if backpack then
         vanillaBagSortBtn:SetParent(backpack)
+        vanillaBagClearBtn:SetParent(backpack)
         vanillaBagSortBtn:ClearAllPoints()
+        vanillaBagClearBtn:ClearAllPoints()
         local titleText = _G[backpack:GetName() .. "Name"]
         if titleText then
             vanillaBagSortBtn:SetPoint("TOP", titleText, "BOTTOM", 70, -8)
         else
             vanillaBagSortBtn:SetPoint("TOP", backpack, "TOP", 0, -28)
         end
+        vanillaBagClearBtn:SetPoint("RIGHT", vanillaBagSortBtn, "LEFT", -2, 0)
         vanillaBagSortBtn:SetFrameLevel(backpack:GetFrameLevel() + 10)
+        vanillaBagClearBtn:SetFrameLevel(backpack:GetFrameLevel() + 10)
         vanillaBagSortBtn:Show()
+        vanillaBagClearBtn:Show()
     else
         vanillaBagSortBtn:Hide()
+        vanillaBagClearBtn:Hide()
     end
 end
 
@@ -742,18 +1074,23 @@ local function CreateVanillaBankSortButton()
         "DragonUI_VanillaBankSortBtn",
         bankFrameUI,
         SortBankBags,
-        L and L["Sort Bank"] or "Sort Bank",
+        T("Sort Bank", "Sort Bank"),
         0.70
     )
+    vanillaBankClearBtn = CreateClearLocksButton("DragonUI_VanillaBankClearBtn", bankFrameUI, 0.70)
     -- Position near top-right, to the left of the close button
     local closeBtn = _G["BankCloseButton"]
     if closeBtn then
         vanillaBankSortBtn:SetPoint("RIGHT", closeBtn, "LEFT", 1, -33)
+        vanillaBankClearBtn:SetPoint("RIGHT", vanillaBankSortBtn, "LEFT", -2, 0)
     else
         vanillaBankSortBtn:SetPoint("TOPRIGHT", bankFrameUI, "TOPRIGHT", -60, -8)
+        vanillaBankClearBtn:SetPoint("RIGHT", vanillaBankSortBtn, "LEFT", -2, 0)
     end
     vanillaBankSortBtn:Show()
+    vanillaBankClearBtn:Show()
     BagSortModule.frames.vanillaBankSortBtn = vanillaBankSortBtn
+    BagSortModule.frames.vanillaBankClearBtn = vanillaBankClearBtn
 end
 
 -- ============================================================================
@@ -767,16 +1104,23 @@ local function UpdateButtonVisibility()
     if combuctorActive and combuctorApplied then
         CreateCombuctorSortButtons()
         if combustorBagSortBtn then combustorBagSortBtn:Show() end
+        if combustorBagClearBtn then combustorBagClearBtn:Show() end
         if combustorBankSortBtn then combustorBankSortBtn:Show() end
+        if combustorBankClearBtn then combustorBankClearBtn:Show() end
         if vanillaBagSortBtn then vanillaBagSortBtn:Hide() end
+        if vanillaBagClearBtn then vanillaBagClearBtn:Hide() end
         if vanillaBankSortBtn then vanillaBankSortBtn:Hide() end
+        if vanillaBankClearBtn then vanillaBankClearBtn:Hide() end
     else
         CreateVanillaBagSortButton()
         CreateVanillaBankSortButton()
         UpdateVanillaBagSortButton()
         if vanillaBankSortBtn then vanillaBankSortBtn:Show() end
+        if vanillaBankClearBtn then vanillaBankClearBtn:Show() end
         if combustorBagSortBtn then combustorBagSortBtn:Hide() end
+        if combustorBagClearBtn then combustorBagClearBtn:Hide() end
         if combustorBankSortBtn then combustorBankSortBtn:Hide() end
+        if combustorBankClearBtn then combustorBankClearBtn:Hide() end
     end
 end
 
@@ -867,6 +1211,10 @@ ApplyBagSortSystem = function()
     SlashCmdList["DRAGONUI_SORTBANK"] = SortBankBags
     SLASH_DRAGONUI_SORTBANK1 = "/sortbank"
 
+    SlashCmdList["DRAGONUI_SORTLOCK"] = HandleSortLockCommand
+    SLASH_DRAGONUI_SORTLOCK1 = "/sortlock"
+    SLASH_DRAGONUI_SORTLOCK2 = "/sortignore"
+
     SlashCmdList["DRAGONUI_SORTDEBUG"] = function()
         sort_debug = not sort_debug
         DEFAULT_CHAT_FRAME:AddMessage("|cff00cc66DragonUI:|r Sort debug " .. (sort_debug and "ON" or "OFF"), 1, 1, 0)
@@ -874,6 +1222,8 @@ ApplyBagSortSystem = function()
     SLASH_DRAGONUI_SORTDEBUG1 = "/sortdebug"
 
     -- Delay button creation to ensure combustor frames are ready, then install hooks
+    InstallAltClickHooks()
+
     if addon.After then
         addon:After(0.5, function()
             if BagSortModule.applied then
@@ -902,13 +1252,30 @@ local function RestoreBagSortSystem()
 
     -- Hide and clean up buttons
     if combustorBagSortBtn then combustorBagSortBtn:Hide() end
+    if combustorBagClearBtn then combustorBagClearBtn:Hide() end
     if combustorBankSortBtn then combustorBankSortBtn:Hide() end
+    if combustorBankClearBtn then combustorBankClearBtn:Hide() end
     if vanillaBagSortBtn then vanillaBagSortBtn:Hide() end
+    if vanillaBagClearBtn then vanillaBagClearBtn:Hide() end
     if vanillaBankSortBtn then vanillaBankSortBtn:Hide() end
+    if vanillaBankClearBtn then vanillaBankClearBtn:Hide() end
 
     -- Remove slash commands
     SlashCmdList["DRAGONUI_SORT"] = nil
     SlashCmdList["DRAGONUI_SORTBANK"] = nil
+    SlashCmdList["DRAGONUI_SORTLOCK"] = nil
+
+    if lockVisualFrame then
+        lockVisualFrame:SetScript("OnUpdate", nil)
+        lockVisualFrame:Hide()
+        lockVisualFrame = nil
+    end
+
+    for button, _ in pairs(hookedSlotButtons) do
+        if button and button._dragonUISortLockMarker then
+            button._dragonUISortLockMarker:Hide()
+        end
+    end
 
     BagSortModule.applied = false
 end

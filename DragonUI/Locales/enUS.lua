@@ -223,6 +223,15 @@ L["Sort Bags"] = true
 L["Sort Bank"] = true
 L["Sort Items"] = true
 L["Click to sort items by type, rarity, and name."] = true
+L["Clear Locked Slots"] = true
+L["Click to clear all locked bag slots."] = true
+L["Alt+LeftClick any bag slot (item or empty) to lock or unlock it."] = true
+L["Click the lock-clear button to remove all locked slots."] = true
+L["Hover an item or slot, then type /sortlock."] = true
+L["Slot locked (bag %d, slot %d)."] = true
+L["Slot unlocked (bag %d, slot %d)."] = true
+L["Could not clear locks (config not ready)."] = true
+L["Cleared all sort-locked slots."] = true
 
 -- Micromenu Latency
 L["Network"] = true

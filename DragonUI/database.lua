@@ -624,7 +624,8 @@ local defaults = {
                 enabled = false -- All-in-one bag replacement with filtering and search
             },
             bagsort = {
-                enabled = true -- Sort bags and bank items with buttons
+                enabled = true, -- Sort bags and bank items with buttons
+                lockedSlots = {} -- Slots excluded from sorting (key format: "bag:slot")
             },
             unitframe_layers = {
                 enabled = false, -- Heal prediction, absorb shields, animated health loss overlays on unit frames
