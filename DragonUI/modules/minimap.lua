@@ -48,8 +48,6 @@ local blipScale = 1.12
 local BORDER_SIZE = 71 * 2 * 2 ^ 1
 local BORDER_TO_MAP_RATIO = BORDER_SIZE / (DEFAULT_MINIMAP_WIDTH / blipScale)
 local DRAGONUI_MINIMAP_MASK = "Interface\\AddOns\\DragonUI\\assets\\uiminimapmask.tga"
-local RETAIL_INDOOR_ROTATE_SCALE_FACTOR = 175 / DEFAULT_MINIMAP_WIDTH
-local INDOOR_ROTATE_BORDER_SCALE_FACTOR = 1.09
 
 local ADDON_ORBIT_RADIUS = 15
 
@@ -96,11 +94,7 @@ local function UpdateMinimapCircleSize()
     local mapSize = math.max(Minimap:GetWidth(), Minimap:GetHeight())
     if not mapSize or mapSize <= 0 then return end
 
-    local rotateEnabled = GetCVar("rotateMinimap") == "1"
-    local isIndoor = IsIndoors and IsIndoors()
-    local sizeFactor = (rotateEnabled and isIndoor) and INDOOR_ROTATE_BORDER_SCALE_FACTOR or 1
-
-    local borderSize = mapSize * BORDER_TO_MAP_RATIO * sizeFactor
+    local borderSize = mapSize * BORDER_TO_MAP_RATIO
     if MinimapModule.activeCircleSize ~= borderSize then
         Minimap.Circle:SetSize(borderSize, borderSize)
         Minimap.Circle:ClearAllPoints()
@@ -112,46 +106,128 @@ end
 local function UpdateMinimapMaskForRotation()
     if not Minimap then return end
 
+    local isHybridMode = MinimapModule.sexyMapHybridMode
+        or MinimapModule._allowExternalMask
+        or (addon.db and addon.db.profile and addon.db.profile.modules
+            and addon.db.profile.modules.minimap
+            and addon.db.profile.modules.minimap.sexymap_mode == "hybrid")
+
+    -- In hybrid mode, SexyMap owns the minimap shape/mask.
+    if isHybridMode then
+        MinimapModule.activeMask = nil
+        return
+    end
+
     if MinimapModule.activeMask ~= DRAGONUI_MINIMAP_MASK then
         Minimap:SetMaskTexture(DRAGONUI_MINIMAP_MASK)
         MinimapModule.activeMask = DRAGONUI_MINIMAP_MASK
     end
 end
 
+local function IsHybridMinimapModeActive()
+    return MinimapModule.sexyMapHybridMode
+        or MinimapModule._allowExternalMask
+        or (addon.db and addon.db.profile and addon.db.profile.modules
+            and addon.db.profile.modules.minimap
+            and addon.db.profile.modules.minimap.sexymap_mode == "hybrid")
+end
+
+local function GetStoredRotatePreference()
+    local minimapConfig = addon and addon.db and addon.db.profile and addon.db.profile.minimap
+    if minimapConfig and (minimapConfig.indoorRotatePreference == "0" or minimapConfig.indoorRotatePreference == "1") then
+        return minimapConfig.indoorRotatePreference
+    end
+    return nil
+end
+
+local function SetStoredRotatePreference(value)
+    if value ~= "0" and value ~= "1" then return end
+    local minimapConfig = addon and addon.db and addon.db.profile and addon.db.profile.minimap
+    if minimapConfig then
+        minimapConfig.indoorRotatePreference = value
+    end
+end
+
+local function SyncStoredRotatePreference(currentRotate, isIndoor, isForced)
+    if currentRotate ~= "0" and currentRotate ~= "1" then return end
+
+    -- Always persist explicit ON preference.
+    if currentRotate == "1" then
+        SetStoredRotatePreference("1")
+        return
+    end
+
+    -- For OFF, only persist when in stable outdoor non-forced context.
+    local inInstance = IsInInstance and IsInInstance()
+    if not isIndoor and not isForced and not inInstance then
+        SetStoredRotatePreference("0")
+    end
+end
+
+local function ApplyRotateCVar(value)
+    if value ~= "0" and value ~= "1" then return end
+    if GetCVar("rotateMinimap") == value then return end
+
+    MinimapModule._rotationPolicyUpdating = true
+    SetCVar("rotateMinimap", value)
+    if MinimapModule.UpdateRotation then
+        MinimapModule.UpdateRotation()
+    end
+    MinimapModule._rotationPolicyUpdating = false
+end
+
 local function UpdateIndoorRotationPolicy()
     if not Minimap then return end
+    if MinimapModule._rotationPolicyUpdating then return end
+
+    -- In SexyMap hybrid mode, DragonUI must not control rotateMinimap.
+    if IsHybridMinimapModeActive() then
+        if MinimapModule.forcingIndoorRotation then
+            MinimapModule.forcingIndoorRotation = false
+            local restoreRotate = GetStoredRotatePreference() or MinimapModule.userRotatePreference
+            if restoreRotate == "0" or restoreRotate == "1" then
+                ApplyRotateCVar(restoreRotate)
+            end
+        else
+            local current = GetCVar("rotateMinimap")
+            MinimapModule.userRotatePreference = current
+            SyncStoredRotatePreference(current, IsIndoors and IsIndoors(), false)
+        end
+        return
+    end
 
     local isIndoor = IsIndoors and IsIndoors()
+    local shouldForceIndoorDisable = isIndoor
     local currentRotate = GetCVar("rotateMinimap")
+    local preferredRotate = GetStoredRotatePreference() or MinimapModule.userRotatePreference or currentRotate
 
-    -- While indoors, force rotateMinimap off if user had it on.
-    if isIndoor then
+    -- While in instance interiors, force rotateMinimap off if preferred/outdoor setting is ON.
+    if shouldForceIndoorDisable then
         if currentRotate == "1" then
+            preferredRotate = "1"
             MinimapModule.userRotatePreference = "1"
+            SetStoredRotatePreference("1")
+        end
+
+        if preferredRotate == "1" then
             MinimapModule.forcingIndoorRotation = true
-            SetCVar("rotateMinimap", "0")
-            if MinimapModule.UpdateRotation then
-                MinimapModule.UpdateRotation()
-            end
-            return
+            ApplyRotateCVar("0")
+        else
+            MinimapModule.forcingIndoorRotation = false
         end
         return
     end
 
     -- Outdoors, restore user preference after indoor force-disable.
     if MinimapModule.forcingIndoorRotation then
+        local restoreRotate = preferredRotate or "1"
         MinimapModule.forcingIndoorRotation = false
-        local restoreRotate = MinimapModule.userRotatePreference or "1"
-        if GetCVar("rotateMinimap") ~= restoreRotate then
-            SetCVar("rotateMinimap", restoreRotate)
-            if MinimapModule.UpdateRotation then
-                MinimapModule.UpdateRotation()
-            end
-            return
-        end
+        ApplyRotateCVar(restoreRotate)
     end
 
+    -- Outdoors without force: treat current CVar as the user's chosen preference.
     MinimapModule.userRotatePreference = currentRotate
+    SyncStoredRotatePreference(currentRotate, shouldForceIndoorDisable, MinimapModule.forcingIndoorRotation)
 end
 
 local function UpdateMinimapBackdropAlignment(force)
@@ -171,13 +247,7 @@ end
 local function UpdateIndoorRotateScale()
     if not Minimap then return end
 
-    local rotateEnabled = GetCVar("rotateMinimap") == "1"
-    local isIndoor = IsIndoors and IsIndoors()
     local desiredScale = blipScale
-
-    if rotateEnabled and isIndoor then
-        desiredScale = blipScale * RETAIL_INDOOR_ROTATE_SCALE_FACTOR
-    end
 
     if MinimapModule.activeMinimapScale ~= desiredScale then
         Minimap:SetScale(desiredScale)

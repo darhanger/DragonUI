@@ -6,13 +6,13 @@
 
 ### Fixed
 - **Target/Focus elite dragon overlap** - Fixed a bug where the Target/Focus frame border was positioned in front of the elite dragon decoration.
-- **Minimap rotation style** - Fixed minimap styling issues when rotation is enabled.
-- **Minimap indoors** - Added an indoor fix for rotation mode to prevent the minimap style from breaking indoors.
+- **Minimap rotation stability** - Rotation now behaves correctly in indoor/outdoor transitions, including reload/relog and dungeon doors.
+- **SexyMap Hybrid Mode** - DragonUI no longer overrides mask/rotation state in Hybrid mode, so the minimap displays correctly as it should.
 - **Party frame recovery (experimental)** - Added an experimental patch to reduce party frames disappearing after reloads/party changes.
 - **Target/Focus mana text alignment** - Mana text is now better centered and easier to read.
 
 ### Changed
-- **Unit Frame Layers options cleanup** - Removed the old experimental Builder/Spender toggle from the Unit Frame Layers options because it was not working correctly and could cause errors.
+- **Unit Frame Layers options cleanup** - Removed the experimental Builder/Spender toggle from Unit Frame Layers options.
 
 ## 📅 2026-03-14
 
