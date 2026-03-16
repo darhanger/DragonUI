@@ -9,7 +9,7 @@
 - **Quick lock controls** - Added `Alt + LeftClick` slot locking and a clear button to remove all locked slots.
 
 ### Fixed
-- **Target/Focus PvP icon overlap** - The PvP flag icon now renders in front of the elite/worldboss dragon decoration.
+- **Target PvP icon overlap** - The PvP flag icon now renders in front of the elite dragon decoration.
 - **Bank slot locking** - Slot locks now work correctly on main bank slots (previously locks were stored under the wrong bag ID and ignored during sorting).
 
 ### Changed
