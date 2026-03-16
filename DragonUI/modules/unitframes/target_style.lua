@@ -460,6 +460,11 @@ function UF.TargetStyle.Create(opts)
             raidTargetIcon:SetDrawLayer("OVERLAY", 7)
         end
 
+        local pvpIcon = _G[namePrefix .. "FrameTextureFramePVPIcon"]
+        if pvpIcon and pvpIcon.SetDrawLayer then
+            pvpIcon:SetDrawLayer("OVERLAY", 7)
+        end
+
         if not UnitExists(unitToken) or not frameElements.elite then
             if frameElements.elite then frameElements.elite:Hide() end
             return
@@ -655,6 +660,11 @@ function UF.TargetStyle.Create(opts)
         local raidTargetIcon = _G[namePrefix .. "FrameTextureFrameRaidTargetIcon"]
         if raidTargetIcon and raidTargetIcon.SetDrawLayer then
             raidTargetIcon:SetDrawLayer("OVERLAY", 7)
+        end
+
+        local pvpIcon = _G[namePrefix .. "FrameTextureFramePVPIcon"]
+        if pvpIcon and pvpIcon.SetDrawLayer then
+            pvpIcon:SetDrawLayer("OVERLAY", 7)
         end
 
         -- ---- Create threat numeric indicator ----
