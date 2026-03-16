@@ -88,6 +88,47 @@ local function UpdatePartyAnchorSize()
     end
 end
 
+local function IsCompactRaidFrameAddonLoaded()
+    if IsAddOnLoaded then
+        return IsAddOnLoaded("CompactRaidFrame")
+    end
+
+    -- Fallback for environments where addon name differs but frame manager exists.
+    return CompactRaidFrameManager ~= nil
+end
+
+local function GetDefaultPartyPosX()
+    return 10
+end
+
+local function GetCompactRaidPartyOffsetX()
+    -- Runtime-only offset: avoids persisting shifted positions in the profile.
+    if IsCompactRaidFrameAddonLoaded() then
+        return 15
+    end
+    return 0
+end
+
+local function NormalizeCompactRaidPartyPosX(posX)
+    local basePosX = posX or GetDefaultPartyPosX()
+
+    -- Backward compatibility: old migrated defaults should fall back to base when
+    -- CompactRaidFrames is not active.
+    if not IsCompactRaidFrameAddonLoaded() then
+        if basePosX == 19 or basePosX == 25 or basePosX == 30 then
+            return GetDefaultPartyPosX()
+        end
+        return basePosX
+    end
+
+    -- Apply offset only for default-like positions, keep custom positions intact.
+    if basePosX == 10 or basePosX == 19 or basePosX == 25 or basePosX == 30 then
+        return GetDefaultPartyPosX() + GetCompactRaidPartyOffsetX()
+    end
+
+    return basePosX
+end
+
 -- Function to apply position from widgets (similar to target.lua)
 local function ApplyWidgetPosition()
     if not PartyFrames.anchor then
@@ -108,21 +149,26 @@ local function ApplyWidgetPosition()
     local widgetConfig = addon.db.profile.widgets.party
 
     if widgetConfig and widgetConfig.posX and widgetConfig.posY then
+        local normalizedPosX = NormalizeCompactRaidPartyPosX(widgetConfig.posX)
+        if normalizedPosX ~= widgetConfig.posX then
+            widgetConfig.posX = normalizedPosX
+        end
+
         -- Use saved anchor, not always TOPLEFT
         local anchor = widgetConfig.anchor or "TOPLEFT"
         PartyFrames.anchor:ClearAllPoints()
-        PartyFrames.anchor:SetPoint(anchor, UIParent, anchor, widgetConfig.posX, widgetConfig.posY)
+        PartyFrames.anchor:SetPoint(anchor, UIParent, anchor, normalizedPosX, widgetConfig.posY)
     else
         -- Create default configuration if it doesn't exist
         if not addon.db.profile.widgets.party then
             addon.db.profile.widgets.party = {
                 anchor = "TOPLEFT",
-                posX = 10,
+                posX = GetDefaultPartyPosX(),
                 posY = -200
             }
         end
         PartyFrames.anchor:ClearAllPoints()
-        PartyFrames.anchor:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 10, -200)
+        PartyFrames.anchor:SetPoint("TOPLEFT", UIParent, "TOPLEFT", GetDefaultPartyPosX(), -200)
     end
 end
 
@@ -136,7 +182,7 @@ function PartyFrames:LoadDefaultSettings()
     if not addon.db.profile.widgets.party then
         addon.db.profile.widgets.party = {
             anchor = "TOPLEFT",
-            posX = 10,
+            posX = GetDefaultPartyPosX(),
             posY = -200
         }
     end
@@ -161,7 +207,7 @@ function PartyFrames:LoadDefaultSettings()
             override = false,
             anchor = 'TOPLEFT',
             anchorParent = 'TOPLEFT',
-            x = 10,
+            x = GetDefaultPartyPosX(),
             y = -200
         }
     end
@@ -190,8 +236,12 @@ function PartyFrames:UpdateWidgets()
 end
 
 -- Function to check if party frames should be visible
+local function IsCompactPartyFramesEnabled()
+    return GetCVar and GetCVar("useCompactPartyFrames") == "1"
+end
+
 local function ShouldPartyFramesBeVisible()
-    return GetNumPartyMembers() > 0
+    return GetNumPartyMembers() > 0 and not IsCompactPartyFramesEnabled()
 end
 
 -- Test functions for the editor
@@ -264,7 +314,7 @@ local function GetSettings()
             override = false,
             anchor = 'TOPLEFT',
             anchorParent = 'TOPLEFT',
-            x = 10,
+            x = GetDefaultPartyPosX(),
             y = -200
         }
         settings = addon.db.profile.unitframe.party
@@ -1235,6 +1285,27 @@ local function UpdateDisconnectedState(frame)
 
     local unit = "party" .. frame:GetID()
     if not UnitExists(unit) then
+        -- Member left or slot is empty: clear stale disconnected state.
+        frame.DragonUI_Disconnected = false
+
+        local healthbar = _G[frame:GetName() .. 'HealthBar']
+        local manabar = _G[frame:GetName() .. 'ManaBar']
+        local portrait = _G[frame:GetName() .. 'Portrait']
+        local name = _G[frame:GetName() .. 'Name']
+
+        if healthbar then
+            healthbar:SetAlpha(1.0)
+        end
+        if manabar then
+            manabar:SetAlpha(1.0)
+        end
+        if portrait then
+            portrait:SetVertexColor(1, 1, 1, 1)
+        end
+        if name then
+            name:SetTextColor(1, 0.82, 0, 1)
+        end
+
         return
     end
 
@@ -1337,6 +1408,35 @@ local function UpdateDisconnectedState(frame)
     end
 end
 
+local function ShouldShowDragonUIPartySlot(index)
+    if IsCompactPartyFramesEnabled() then
+        return false
+    end
+    return UnitExists("party" .. index)
+end
+
+local function RefreshSinglePartyFrameVisibility(index)
+    local frame = _G['PartyMemberFrame' .. index]
+    if not frame then
+        return
+    end
+
+    -- Keep disconnect visuals in sync before deciding visibility.
+    UpdateDisconnectedState(frame)
+
+    if ShouldShowDragonUIPartySlot(index) then
+        frame:Show()
+    else
+        frame:Hide()
+    end
+end
+
+local function RefreshAllPartyFrameVisibility()
+    for i = 1, MAX_PARTY_MEMBERS do
+        RefreshSinglePartyFrameVisibility(i)
+    end
+end
+
 
 
 
@@ -1351,7 +1451,8 @@ local function SetupPartyHooks()
             local frameIndex = frame:GetID()
             local unit = frameIndex and ("party" .. frameIndex)
 
-            if unit and UnitExists(unit) and not frame:IsShown() and not InCombatLockdown() then
+            if unit and UnitExists(unit) and not frame:IsShown() and not InCombatLockdown()
+                and not IsCompactPartyFramesEnabled() then
                 frame:Show()
             end
 
@@ -1629,6 +1730,9 @@ function PartyFrames:UpdateSettings()
             UpdateDisconnectedState(frame)
         end
     end
+
+    -- Single source of truth for Show/Hide decisions.
+    RefreshAllPartyFrameVisibility()
 end
 
 -- ===============================================================
@@ -1737,6 +1841,7 @@ readyFrame:SetScript("OnEvent", function(self, event, addonName)
         if PartyFrames and PartyFrames.UpdateSettings then
             PartyFrames:UpdateSettings()
         end
+        RefreshAllPartyFrameVisibility()
         self:UnregisterEvent("ADDON_LOADED")
     end
 end)
@@ -1747,7 +1852,7 @@ connectionFrame:RegisterEvent("PARTY_MEMBER_ENABLE")
 connectionFrame:SetScript("OnEvent", function(self, event)
     for i = 1, MAX_PARTY_MEMBERS do
         local frame = _G['PartyMemberFrame' .. i]
-        if frame and UnitExists("party" .. i) then
+        if frame then
             -- Set the flag FIRST so hooks respect it
             UpdateDisconnectedState(frame)
             -- Force bars to re-run their SetValue hooks with the new flag
@@ -1790,12 +1895,7 @@ recoveryFrame:SetScript("OnEvent", function(self, event, unit)
                     return
                 end
                 StylePartyFrames()
-                for i = 1, MAX_PARTY_MEMBERS do
-                    local frame = _G['PartyMemberFrame' .. i]
-                    if frame and UnitExists("party" .. i) then
-                        frame:Show()
-                    end
-                end
+                RefreshAllPartyFrameVisibility()
             end
         end)
         return
@@ -1805,16 +1905,7 @@ recoveryFrame:SetScript("OnEvent", function(self, event, unit)
     -- Uses CombatQueue to defer in combat (Show/Hide on secure frames causes taint).
     if event == "PARTY_MEMBERS_CHANGED" then
         local function RefreshPartyFrames()
-            for i = 1, MAX_PARTY_MEMBERS do
-                local frame = _G['PartyMemberFrame' .. i]
-                if frame then
-                    if UnitExists("party" .. i) then
-                        frame:Show()
-                    else
-                        frame:Hide()
-                    end
-                end
-            end
+            RefreshAllPartyFrameVisibility()
         end
         
         if InCombatLockdown() then

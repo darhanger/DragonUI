@@ -19,6 +19,8 @@ local CONFIG = {
     scanDelay = 0.1
 }
 
+local ADDON_REGISTRY
+
 -- ============================================================================
 -- OPTIMIZED SYSTEMS
 -- ============================================================================
@@ -35,6 +37,41 @@ local function IsAddonLoadedCached(addonName)
         addonLoadCache[addonName] = IsAddOnLoaded(addonName)
     end
     return addonLoadCache[addonName]
+end
+
+local function ResolveRegistryKey(addonName)
+    if not addonName then return nil end
+    if ADDON_REGISTRY and ADDON_REGISTRY[addonName] then
+        return addonName
+    end
+
+    local lowered = string.lower(addonName)
+    if ADDON_REGISTRY and ADDON_REGISTRY[lowered] then
+        return lowered
+    end
+
+    -- Compact raid frame addon can appear with different names/casing.
+    if lowered == "compactraidframes" or lowered == "blizzard_compactraidframes" then
+        return "compactraidframe"
+    end
+
+    return nil
+end
+
+local function IsRegistryAddonLoaded(addonName)
+    if IsAddonLoadedCached(addonName) then
+        return true
+    end
+
+    if addonName == "compactraidframe" then
+        return IsAddonLoadedCached("compactraidframes")
+            or IsAddonLoadedCached("CompactRaidFrame")
+            or IsAddonLoadedCached("CompactRaidFrames")
+            or IsAddonLoadedCached("Blizzard_CompactRaidFrames")
+            or _G.CompactRaidFrameManager ~= nil
+    end
+
+    return false
 end
 
 -- ============================================================================
@@ -123,63 +160,17 @@ behaviors.CompactRaidFrameFix = function(addonName, addonInfo)
     
     -- Simple cleanup system for party frames
     local function CleanPartyFrames()
-        -- Only cleanup - don't try to recreate
+        -- Non-destructive cleanup: only reconcile visibility and request refresh.
         for i = 1, 4 do
             local frameName = 'PartyMemberFrame' .. i
             local frame = _G[frameName]
             
             if frame then
-                -- Hide and clear all events
-                frame:Hide()
-                frame:UnregisterAllEvents()
-                
-                -- Clear unit assignment
-                frame.unit = nil
-                frame.id = nil
-                
-                -- Reset health bar
-                local healthBar = _G[frameName .. 'HealthBar']
-                if healthBar then
-                    healthBar:UnregisterAllEvents()
-                    healthBar:SetMinMaxValues(0, 100)
-                    healthBar:SetValue(0)
-                end
-                
-                -- Reset mana bar  
-                local manaBar = _G[frameName .. 'ManaBar']
-                if manaBar then
-                    manaBar:UnregisterAllEvents()
-                    manaBar:SetMinMaxValues(0, 100)
-                    manaBar:SetValue(0)
-                end
-                
-                -- Clear portrait
-                local portrait = _G[frameName .. 'Portrait']
-                if portrait then
-                    portrait:SetTexture(nil)
-                end
-                
-                -- Reset name text
-                local nameText = _G[frameName .. 'Name']
-                if nameText then
-                    nameText:SetText("")
-                end
-                
-                -- Clear all DragonUI custom elements
-                if frame.DragonUI_CustomTexts then
-                    frame.DragonUI_CustomTexts = nil
-                end
-                if frame.DragonUI_HealthText then
-                    frame.DragonUI_HealthText:Hide()
-                    frame.DragonUI_HealthText = nil
-                end
-                if frame.DragonUI_ManaText then
-                    frame.DragonUI_ManaText:Hide()
-                    frame.DragonUI_ManaText = nil
-                end
-                if frame.DragonUI_TextFrame then
-                    frame.DragonUI_TextFrame:Hide()
-                    frame.DragonUI_TextFrame = nil
+                local unit = "party" .. i
+                if UnitExists(unit) then
+                    frame:Show()
+                else
+                    frame:Hide()
                 end
             end
         end
@@ -606,7 +597,7 @@ function compatibility:ResetSexyMapMode()
     end
 end
 
-local ADDON_REGISTRY = {
+ADDON_REGISTRY = {
     ["unitframelayers"] = {
         name = "UnitFrameLayers",
         reason = L["Conflicts with DragonUI's custom unit frame textures and power bar system."],
@@ -719,7 +710,7 @@ local function ScanForRegisteredAddons()
     local foundAddons = {}
     
     for addonName, addonInfo in pairs(ADDON_REGISTRY) do
-        if IsAddonLoadedCached(addonName) then
+        if IsRegistryAddonLoaded(addonName) then
             foundAddons[addonName] = addonInfo
         end
     end
@@ -740,6 +731,7 @@ local function InitializeEvents()
         if event == "ADDON_LOADED" then
             if loadedAddonName then
                 addonLoadCache[loadedAddonName] = true
+                addonLoadCache[string.lower(loadedAddonName)] = true
             end
 
             if loadedAddonName == "DragonUI" then
@@ -774,10 +766,13 @@ local function InitializeEvents()
                     end
                 end, CONFIG.scanDelay)
 
-            elseif ADDON_REGISTRY[loadedAddonName] then
+            else
+                local registryKey = ResolveRegistryKey(loadedAddonName)
+                if registryKey then
                 DelayedCall(function()
-                    ProcessAddon(loadedAddonName, ADDON_REGISTRY[loadedAddonName])
+                        ProcessAddon(registryKey, ADDON_REGISTRY[registryKey])
                 end, CONFIG.warningDelay)
+                end
             end
 
         elseif event == "PLAYER_LOGIN" then
