@@ -9,7 +9,7 @@
 - **Quick lock controls** - Added `Alt + LeftClick` slot locking and a clear button to remove all locked slots.
 
 ### Fixed
-- **Target/Focus PvP icon overlap** - The PvP flag icon now renders in front of the elite/worldboss dragon decoration, matching the existing fix applied to raid target icons.
+- **Target/Focus PvP icon overlap** - The PvP flag icon now renders in front of the elite/worldboss dragon decoration.
 
 ### Changed
 - **Localization coverage** - All new bag lock system texts and related changes are fully localized.
