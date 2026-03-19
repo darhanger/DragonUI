@@ -78,7 +78,6 @@ DragonUI will remain free to use.
 
 Support is voluntary and goes towards maintenance, testing, and continued development.
 
-- ☕ Buy Me a Coffee: pending final public link
 - 🪙 Bitcoin: `bc1q8yavz8857lzdfttas584892gf82y0u3wdfjz0a`
 
 ## 📎 Disclaimer
