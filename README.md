@@ -77,12 +77,13 @@ DragonUI combines original work with adapted ideas, ports, and implementation re
 - [CrimsonHollow](https://github.com/CrimsonHollow) for Fat Health Bar contribution
 - [RovBot](https://github.com/RovxBot) for action bar grid/preset system
 - [Raz0r](https://github.com/Raz0r1337) for German localization
+- [nadugi](https://github.com/nadugi) for Korean localization
 - Did I forget you...? Please let me know opening an [issue](https://github.com/NeticSoul/DragonUI/issues).
 
 ## 💛 Special Thanks
 
 - Everyone who tested early builds, reported bugs, and helped shape the addon into what it is today.
-- Translators who contributed localizations and caught string issues across different clients: nadugi (Korean), [Raz0r](https://github.com/Raz0r1337) (German).
+- Translators who contributed localizations and caught string issues across different clients.
 - The addon authors listed in Credits, whose open work made this project possible.
 - Players who took the time to open issues, share screenshots, and suggest improvements.
 
