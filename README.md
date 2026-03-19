@@ -37,7 +37,7 @@ DragonUI is in active development. While already in an advanced state, occasiona
 
 ## 📦 Installation
 
-1. Download the latest release archive.
+1. Download the [latest release archive](https://github.com/NeticSoul/DragonUI/releases/download/v2.4/DragonUI.zip).
 2. Extract the archive.
 3. Copy `DragonUI` and `DragonUI_Options` into your client's `Interface\AddOns\` folder.
 
