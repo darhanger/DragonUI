@@ -4,10 +4,24 @@
 -- ============================================================================
 
 local addon = select(2, ...)
+local L = addon.L
 local unpack = unpack
 local ceil = math.ceil
 local GetTime = GetTime
 local hooksecurefunc = hooksecurefunc
+
+local CooldownsModule = {
+    initialized = false,
+    applied = false,
+    hooks = {},
+}
+addon.CooldownsModule = CooldownsModule
+
+if addon.RegisterModule then
+    addon:RegisterModule("cooldowns", CooldownsModule,
+        (L and L["Cooldown Text"]) or "Cooldown Text",
+        (L and L["Cooldown text on action buttons"]) or "Cooldown text on action buttons")
+end
 
 -- Create a table within the main addon object to hold our functions
 addon.cooldownMixin = {}

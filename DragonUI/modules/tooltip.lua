@@ -1,4 +1,5 @@
 local addon = select(2, ...)
+local L = addon.L
 
 -- ============================================================================
 -- TOOLTIP MODULE FOR DRAGONUI
@@ -17,7 +18,9 @@ local TooltipModule = {
 
 -- Register with ModuleRegistry (if available)
 if addon.RegisterModule then
-    addon:RegisterModule("tooltip", TooltipModule, "Tooltip", "Enhanced tooltip styling with class colors and health bars")
+    addon:RegisterModule("tooltip", TooltipModule,
+        (addon.L and addon.L["Tooltip"]) or "Tooltip",
+        (addon.L and addon.L["Enhanced tooltip styling with class colors and health bars"]) or "Enhanced tooltip styling with class colors and health bars")
 end
 
 -- ============================================================================
@@ -190,7 +193,7 @@ local function AddTargetOfTarget(unit)
                     color = string.format("|cFF%02x%02x%02x", c.r * 255, c.g * 255, c.b * 255)
                 end
             end
-            GameTooltip:AddLine("Targeting: " .. color .. targetName .. "|r", 0.7, 0.7, 0.7)
+            GameTooltip:AddLine(string.format(L["Targeting: %s"], color .. targetName .. "|r"), 0.7, 0.7, 0.7)
         end
     end
 end
@@ -328,6 +331,9 @@ local function OnProfileChanged()
     if IsModuleEnabled() then
         ApplyTooltipSystem()
     else
+        if addon:ShouldDeferModuleDisable("tooltip", TooltipModule) then
+            return
+        end
         RestoreTooltipSystem()
     end
 end

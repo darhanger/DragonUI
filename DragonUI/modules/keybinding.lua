@@ -33,7 +33,9 @@ addon.KeyBindingModule = KeyBindingModule
 
 -- Register with ModuleRegistry (if available)
 if addon.RegisterModule then
-    addon:RegisterModule("keybinding", KeyBindingModule, "Key Binding", "LibKeyBound integration for intuitive keybinding")
+    addon:RegisterModule("keybinding", KeyBindingModule,
+        (addon.L and addon.L["Key Binding"]) or "Key Binding",
+        (addon.L and addon.L["LibKeyBound integration for intuitive keybinding"]) or "LibKeyBound integration for intuitive keybinding")
 end
 
 -- ============================================================================
@@ -255,16 +257,16 @@ function KeyBindingModule:AutoRegisterActionButtons()
     for i = 1, 12 do
         local button = _G["BonusActionButton" .. i]
         if button and not self.registeredButtons[button] then
-            self:MakeButtonBindable(button, "BONUSACTIONBUTTON" .. i, "Bonus Action Button " .. i)
+            self:MakeButtonBindable(button, "BONUSACTIONBUTTON" .. i, string.format(L["Bonus Action Button %d"], i))
         end
     end
 
     -- Register multibar buttons with proper keybind mappings
     local multibarMappings = {
-        {frame = "MultiBarBottomLeftButton", binding = "MULTIACTIONBAR1BUTTON", name = "Bottom Left Button"},
-        {frame = "MultiBarBottomRightButton", binding = "MULTIACTIONBAR2BUTTON", name = "Bottom Right Button"},
-        {frame = "MultiBarRightButton", binding = "MULTIACTIONBAR3BUTTON", name = "Right Button"},
-        {frame = "MultiBarLeftButton", binding = "MULTIACTIONBAR4BUTTON", name = "Left Button"}
+        {frame = "MultiBarBottomLeftButton", binding = "MULTIACTIONBAR1BUTTON", name = L["Bottom Left Button"]},
+        {frame = "MultiBarBottomRightButton", binding = "MULTIACTIONBAR2BUTTON", name = L["Bottom Right Button"]},
+        {frame = "MultiBarRightButton", binding = "MULTIACTIONBAR3BUTTON", name = L["Right Button"]},
+        {frame = "MultiBarLeftButton", binding = "MULTIACTIONBAR4BUTTON", name = L["Left Button"]}
     }
     
     for _, mapping in pairs(multibarMappings) do

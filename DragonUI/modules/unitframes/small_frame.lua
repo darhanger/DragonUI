@@ -7,6 +7,7 @@
 ]]
 
 local _, addon = ...
+local L = addon.L
 local UF = addon.UF
 
 -- Namespace for the factory
@@ -756,7 +757,9 @@ function UF.SmallFrame.Create(opts)
     Module.anchorFrame = addon.CreateUIFrame(120, 47, opts.configKey)
     if Module.anchorFrame.editorText then
         local L = addon.L
-        Module.anchorFrame.editorText:SetText((L and L[opts.namePrefix]) or opts.namePrefix)
+        Module.anchorFrame.editorText:SetText(
+            (L and (L[opts.configKey] or L[opts.namePrefix])) or opts.namePrefix
+        )
     end
     -- Temporary position until ADDON_LOADED restores from DB
     Module.anchorFrame:ClearAllPoints()

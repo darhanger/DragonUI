@@ -11,6 +11,7 @@ local _arialn = addon.Fonts and addon.Fonts.ARIALN or "Fonts\\ARIALN.TTF"
 
 local defaults = {
     profile = {
+        version = 1,
         -- Widgets
         widgets = {
             minimap = {

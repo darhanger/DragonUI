@@ -191,12 +191,11 @@ behaviors.CompactRaidFrameFix = function(addonName, addonInfo)
     -- Show reload dialog for party frame creation issues
     local function ShowPartyReloadDialog()
         StaticPopupDialogs["DRAGONUI_PARTY_RELOAD"] = {
-            text = "|cFFFFFF00DragonUI - Party Frame Issue|r\n\n" ..
-                   "You joined a party while in combat. Due to CompactRaidFrame taint issues, " ..
-                   "party frames may not display correctly.\n\n" ..
-                   "|cFFFF9999Reload the UI to fix party frame display?|r",
-            button1 = "Reload UI",
-            button2 = "Skip",
+            text = "|cFFFFFF00" .. L["DragonUI - Party Frame Issue"] .. "|r\n\n" ..
+                   L["You joined a party while in combat. Due to CompactRaidFrame taint issues, party frames may not display correctly."] ..
+                   "\n\n|cFFFF9999" .. L["Reload the UI to fix party frame display?"] .. "|r",
+            button1 = L["Reload UI"],
+            button2 = L["Skip"],
             OnAccept = function()
                 ReloadUI()
             end,
@@ -808,7 +807,7 @@ local function InitializeCommands()
         end
         
         -- Default: list loaded addons
-        print("|cFF00CCFFDragonUI Compatibility:|r")
+        print("|cFF00CCFF" .. L["DragonUI Compatibility:"] .. "|r")
         print("  /duicomp sexymap - " .. L["Show current SexyMap compatibility mode"])
         print("  /duicomp sexymap reset - " .. L["Reset SexyMap mode choice (re-prompts on reload)"])
         print("")

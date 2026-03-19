@@ -2,6 +2,7 @@
 -- DRAGONUI PET FRAME MODULE
 -- ===============================================================
 local addon = select(2, ...)
+local L = addon.L
 local UF = addon.UF
 local PetFrameModule = {}
 addon.PetFrameModule = PetFrameModule
@@ -40,6 +41,10 @@ local COMBAT_PULSE_SETTINGS = {
 }
 
 local combatPulseTimer = 0
+local petFrameUpdateThrottle = 0
+
+-- Forward declaration (defined after vehicle system section)
+local UpdatePetTextSystemUnit
 
 
 -- ===============================================================
@@ -180,6 +185,14 @@ end
 -- ===============================================================
 local function PetFrame_OnUpdate(self, elapsed)
     AnimatePetCombatPulse(elapsed)
+
+    petFrameUpdateThrottle = petFrameUpdateThrottle + elapsed
+    if petFrameUpdateThrottle < 0.1 then
+        return
+    end
+
+    petFrameUpdateThrottle = 0
+    UpdatePetTextSystemUnit()
 end
 
 -- ===============================================================
@@ -242,7 +255,7 @@ end
 -- ===============================================================
 
 -- Function to update PetFrame textSystem unit based on vehicle state
-local function UpdatePetTextSystemUnit()
+UpdatePetTextSystemUnit = function()
     if not moduleState.textSystem then
         return
     end
@@ -634,7 +647,7 @@ local function ShowPetFrameTest()
         
         -- Simulate having a pet for the test
         if PetName then
-            PetName:SetText("Test Pet")
+            PetName:SetText(L["Test Pet"])
             PetName:Show()
         end
         

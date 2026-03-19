@@ -65,6 +65,30 @@ local BD_INNER = {
     insets = { left = 0, right = 0, top = 0, bottom = 0 },
 }
 
+-- Ensure FontStrings always get a valid font even if locale/custom font paths fail.
+local function SetSafeFont(fs, size, flags)
+    if not fs then return end
+
+    local tryFonts = {
+        T.font,
+        addon.Fonts and addon.Fonts.PRIMARY,
+        STANDARD_TEXT_FONT,
+        "Fonts\\FRIZQT__.TTF",
+    }
+
+    local ok = false
+    for _, fontPath in ipairs(tryFonts) do
+        if fontPath and fs:SetFont(fontPath, size or 12, flags or "") then
+            ok = true
+            break
+        end
+    end
+
+    if not ok then
+        fs:SetFontObject(GameFontNormal)
+    end
+end
+
 -- ============================================================================
 -- TAB REGISTRATION
 -- ============================================================================
@@ -124,9 +148,9 @@ local function CreatePanel()
     titleBar:SetBackdropBorderColor(0, 0, 0, 0)
 
     local titleText = titleBar:CreateFontString(nil, "OVERLAY")
-    titleText:SetFont(T.font, 15, "OUTLINE")
+    SetSafeFont(titleText, 15, "OUTLINE")
     titleText:SetPoint("LEFT", 12, 0)
-    titleText:SetText("|cff1784d1" .. LO["DragonUI"] .. "|r |cffff8800" .. LO["experimental"] .. "|r")
+    titleText:SetText("|cff1784d1" .. LO["DragonUI"] .. "|r |cffaaaaaa2.4|r")
 
     -- Editor Mode button (in title bar) - styled pill button with neon green border
     local editorBtn = CreateFrame("Button", nil, titleBar)
@@ -141,7 +165,7 @@ local function CreatePanel()
     editorBtn:SetBackdropColor(0.05, 0.12, 0.05, 1)
     editorBtn:SetBackdropBorderColor(0.0, 0.9, 0.0, 0.7)
     local editorText = editorBtn:CreateFontString(nil, "OVERLAY")
-    editorText:SetFont(T.font, 11, "")
+    SetSafeFont(editorText, 11, "")
     editorText:SetPoint("CENTER", 0, 0)
     editorText:SetText("|cff00dd00" .. LO["Editor Mode"] .. "|r")
     editorBtn:SetScript("OnClick", function()
@@ -172,7 +196,7 @@ local function CreatePanel()
     keybindBtn:SetBackdropColor(0.05, 0.12, 0.05, 1)
     keybindBtn:SetBackdropBorderColor(0.0, 0.9, 0.0, 0.7)
     local keybindText = keybindBtn:CreateFontString(nil, "OVERLAY")
-    keybindText:SetFont(T.font, 11, "")
+    SetSafeFont(keybindText, 11, "")
     keybindText:SetPoint("CENTER", 0, 0)
     keybindText:SetText("|cff00dd00" .. LO["KeyBind Mode"] .. "|r")
     keybindBtn:SetScript("OnClick", function()
@@ -199,7 +223,7 @@ local function CreatePanel()
     closeBtn:SetNormalFontObject(GameFontNormal)
 
     local closeTex = closeBtn:CreateFontString(nil, "OVERLAY")
-    closeTex:SetFont(T.font, 16, "OUTLINE")
+    SetSafeFont(closeTex, 16, "OUTLINE")
     closeTex:SetPoint("CENTER", 0, 0)
     closeTex:SetText("|cffccccccx|r")
     closeBtn:SetScript("OnClick", function() Panel:Close() end)
@@ -243,10 +267,10 @@ local function CreatePanel()
 
     -- Status bar at bottom
     local statusText = f:CreateFontString(nil, "OVERLAY")
-    statusText:SetFont(T.font, 11, "")
+    SetSafeFont(statusText, 11, "")
     statusText:SetPoint("BOTTOM", f, "BOTTOM", 0, 4)
     statusText:SetTextColor(0.4, 0.4, 0.4, 1)
-    statusText:SetText("/dragonui  |  /pi")
+    statusText:SetText(LO["Use /dragonui or /pi to toggle this panel."])
 
     -- Resize grip (bottom-right corner)
     local resizeGrip = CreateFrame("Frame", nil, f)
@@ -343,7 +367,7 @@ local function BuildTabButtons()
 
         -- Text
         local text = btn:CreateFontString(nil, "OVERLAY")
-        text:SetFont(T.font, 12, "")
+        SetSafeFont(text, 12, "")
         text:SetPoint("LEFT", 10, 0)
         text:SetText(tabInfo.text)
         text:SetTextColor(0.7, 0.7, 0.7, 1)
@@ -429,7 +453,7 @@ function Panel:SelectTab(key)
         local ok, err = pcall(tabInfo.builder, scroll)
         if not ok then
             local errLabel = AceGUI:Create("Label")
-            errLabel:SetText("|cFFFF0000Error:|r " .. tostring(err))
+            errLabel:SetText("|cFFFF0000" .. LO["Error:"] .. "|r " .. tostring(err))
             errLabel:SetFullWidth(true)
             scroll:AddChild(errLabel)
         end

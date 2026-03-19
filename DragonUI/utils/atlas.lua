@@ -131,7 +131,6 @@ addon.atlasinfo = {
 	['ui-hud-actionbar-frame-nineslice-center'] = { uiactionbar2x_, 0, 0 },
 	
 	-- NineSlice background
-	-- ['ui-hud-actionbar-frame-background-nineslice-center'] = { uiactionbar, 1, 1, 1/256, 5/256, 1/1024, 5/1024 },
 	['ui-hud-actionbar-frame-background-nineslice-center'] = { uiactionbar, 506, 20, 0, 16/256, 123/1024, 134/1024, true, false },
 	['ui-hud-actionbar-frame-background-nineslice-cornerbottomleft'] = { uiactionbar, 20, 20, 229/256, 240/256, 444/1024, 456/1024 },
 	['ui-hud-actionbar-frame-background-nineslice-cornerbottomright'] = { uiactionbar, 20, 20, 229/256, 240/256, 458/1024, 470/1024 },

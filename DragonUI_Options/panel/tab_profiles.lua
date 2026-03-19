@@ -59,6 +59,7 @@ local function BuildProfilesTab(scroll)
         setFunc = function(val)
             db:SetProfile(val)
             Panel:SelectTab("profiles")
+            StaticPopup_Show("DRAGONUI_RELOAD_UI")
         end,
         values = GetProfileList(),
     })
@@ -72,6 +73,7 @@ local function BuildProfilesTab(scroll)
             db:SetProfile(text)
             widget:SetText("")
             Panel:SelectTab("profiles")
+            StaticPopup_Show("DRAGONUI_RELOAD_UI")
         end
     end)
     selectSection:AddChild(newName)
@@ -91,6 +93,7 @@ local function BuildProfilesTab(scroll)
                 db:CopyProfile(val)
                 print("|cFF00FF00[DragonUI]|r " .. LO["Copied profile: "] .. val)
                 Panel:SelectTab("profiles")
+                StaticPopup_Show("DRAGONUI_RELOAD_UI")
             end
         end,
         values = GetProfileList(),
@@ -101,7 +104,7 @@ local function BuildProfilesTab(scroll)
     -- ====================================================================
     local deleteSection = C:AddSection(scroll, LO["Delete Profile"])
 
-    C:AddDescription(deleteSection, "|cffFF6600Warning:|r " .. LO["Warning: Deleting a profile is permanent and cannot be undone."])
+    C:AddDescription(deleteSection, "|cffFF6600" .. LO["Warning:"] .. "|r " .. LO["Warning: Deleting a profile is permanent and cannot be undone."])
 
     -- Build list excluding current
     local function GetDeletableProfiles()
@@ -120,9 +123,10 @@ local function BuildProfilesTab(scroll)
         getFunc = function() return nil end,
         setFunc = function(val)
             if val then
-                db:DeleteProfile(val, true)
-                print("|cFF00FF00[DragonUI]|r " .. LO["Deleted profile: "] .. val)
-                Panel:SelectTab("profiles")
+                local dialog = StaticPopup_Show("DRAGONUI_DELETE_PROFILE", val)
+                if dialog then
+                    dialog.data = val
+                end
             end
         end,
         values = GetDeletableProfiles(),

@@ -1,4 +1,5 @@
 local addon = select(2, ...)
+local L = addon.L
 
 -- =============================================================================
 -- DRAGONUI LOOT ROLL MODULE

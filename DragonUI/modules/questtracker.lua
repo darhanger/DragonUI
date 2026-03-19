@@ -1,4 +1,5 @@
 local addon = select(2, ...);
+local L = addon.L
 
 -- =============================================================================
 -- DRAGONUI QUEST TRACKER MODULE 
@@ -13,7 +14,9 @@ addon.QuestTrackerModule = QuestTrackerModule
 
 -- Register with ModuleRegistry (if available)
 if addon.RegisterModule then
-    addon:RegisterModule("questtracker", QuestTrackerModule, "Quest Tracker", "Quest tracker positioning and styling")
+    addon:RegisterModule("questtracker", QuestTrackerModule,
+        (addon.L and addon.L["Quest Tracker"]) or "Quest Tracker",
+        (addon.L and addon.L["Quest tracker positioning and styling"]) or "Quest tracker positioning and styling")
 end
 
 QuestTrackerModule.questTrackerFrame = nil

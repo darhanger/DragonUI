@@ -30,10 +30,13 @@ function addon.core:OnInitialize()
     -- Replace the temporary addon.db with the real AceDB
     addon.db = LibStub("AceDB-3.0"):New("DragonUIDB", addon.defaults);
 
+    addon:ApplyDatabaseMigrations()
+
     -- Force defaults to be written to profile (check for specific key that should always exist)
     if not addon.db.profile.mainbars or not addon.db.profile.mainbars.scale_actionbar then
         -- Copy all defaults to profile to ensure they exist in SavedVariables
         addon.DeepCopy(addon.defaults.profile, addon.db.profile);
+        addon:ApplyDatabaseMigrations()
     end
 
     -- Register callbacks for configuration changes
@@ -109,46 +112,12 @@ function addon:RefreshConfig()
         addon.InitializeCooldowns()
     end
 
-    local failed = {};
-
-    -- List of refresh functions to call
-    local refreshFunctions = {
-        "RefreshMainbars",
-        "RefreshButtons",
-        "RefreshMicromenu",
-        "RefreshMinimap",
-        "RefreshTargetFrame",
-        "RefreshFocusFrame",
-        "RefreshPartyFrames",
-        "RefreshStance",
-        "RefreshPetbar",
-        "RefreshVehicle",
-        "RefreshMulticast",
-        "RefreshCooldowns",
-        "RefreshXpBarPosition",
-        "RefreshRepBarPosition",
-        "RefreshMinimapTime",
-        "RefreshBuffFrame"
-    }
-
-    -- Try to apply each configuration and track failures
-    for _, funcName in ipairs(refreshFunctions) do
-        if addon[funcName] then
-            local success, err = pcall(addon[funcName])
-            if not success then
-                table.insert(failed, funcName)
-            end
-        end
-    end
+    local failed = addon:RefreshRegisteredSystems() or {}
 
     -- If some configurations failed, retry them after 2 seconds
     if #failed > 0 then
         addon.core:ScheduleTimer(function()
-            for _, funcName in ipairs(failed) do
-                if addon[funcName] then
-                    pcall(addon[funcName]);
-                end
-            end
+            addon:RefreshRegisteredSystems()
         end, 2);
     end
 end
@@ -181,7 +150,7 @@ function addon.core:SlashCommand(input)
                 print("|cFFFF0000[DragonUI]|r " .. L["Editor mode not available."])
             end
         else
-            print("|cFF00FF00[DragonUI]|r Commands: /dragonui config, /dragonui edit")
+            print("|cFF00FF00[DragonUI]|r " .. L["Commands: /dragonui config, /dragonui edit"])
         end
     end
 end

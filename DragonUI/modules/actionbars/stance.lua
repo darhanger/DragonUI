@@ -24,7 +24,9 @@ local StanceModule = {
 
 -- Register with ModuleRegistry (if available)
 if addon.RegisterModule then
-    addon:RegisterModule("stance", StanceModule, "Stance Bar", "Stance/shapeshift bar positioning and styling")
+    addon:RegisterModule("stance", StanceModule,
+        (addon.L and addon.L["Stance Bar"]) or "Stance Bar",
+        (addon.L and addon.L["Stance/shapeshift bar positioning and styling"]) or "Stance/shapeshift bar positioning and styling")
 end
 
 -- ============================================================================
@@ -251,11 +253,10 @@ end
 
 local function stancebutton_update()
     if not IsModuleEnabled() or not anchor then return end
-    
-	if not InCombatLockdown() then
-		_G.ShapeshiftButton1:ClearAllPoints()
-		_G.ShapeshiftButton1:SetPoint('BOTTOMLEFT', anchor, 'BOTTOMLEFT', 0, 0)
-	end
+    if InCombatLockdown() then return end
+
+    _G.ShapeshiftButton1:ClearAllPoints()
+    _G.ShapeshiftButton1:SetPoint('BOTTOMLEFT', anchor, 'BOTTOMLEFT', 0, 0)
 end
 
 local function stancebutton_position()
@@ -573,6 +574,9 @@ function addon.RefreshStanceSystem()
             addon.RefreshStance()
         end
     else
+        if addon:ShouldDeferModuleDisable("stance", StanceModule) then
+            return
+        end
         RestoreStanceSystem()
     end
 end

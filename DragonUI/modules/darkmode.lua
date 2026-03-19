@@ -20,7 +20,9 @@ local DarkModeModule = {
 
 -- Register with ModuleRegistry (if available)
 if addon.RegisterModule then
-    addon:RegisterModule("darkmode", DarkModeModule, "Dark Mode", "Darken UI borders and chrome")
+    addon:RegisterModule("darkmode", DarkModeModule,
+        (addon.L and addon.L["Dark Mode"]) or "Dark Mode",
+        (addon.L and addon.L["Darken UI borders and chrome"]) or "Darken UI borders and chrome")
 end
 
 -- ============================================================================
@@ -767,6 +769,9 @@ local function OnProfileChanged()
     if IsModuleEnabled() then
         RefreshDarkMode()
     else
+        if addon:ShouldDeferModuleDisable("darkmode", DarkModeModule) then
+            return
+        end
         RestoreDarkMode()
     end
 end

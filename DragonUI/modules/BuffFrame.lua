@@ -11,7 +11,9 @@ addon.BuffFrameModule = BuffFrameModule
 
 -- Register with ModuleRegistry (if available)
 if addon.RegisterModule then
-    addon:RegisterModule("buffs", BuffFrameModule, "Buff Frame", "Custom buff frame styling, positioning and toggle button")
+    addon:RegisterModule("buffs", BuffFrameModule,
+        (addon.L and addon.L["Buff Frame"]) or "Buff Frame",
+        (addon.L and addon.L["Custom buff frame styling, positioning and toggle button"]) or "Custom buff frame styling, positioning and toggle button")
 end
 
 -- Local variables
@@ -308,6 +310,9 @@ function BuffFrameModule:Toggle(enabled)
     if enabled then
         self:Enable()
     else
+        if addon:ShouldDeferModuleDisable("buffs", self) then
+            return
+        end
         self:Disable()
     end
 end

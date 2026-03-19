@@ -61,7 +61,9 @@ local CombuctorModule = {
 
 -- Register with ModuleRegistry
 if addon.RegisterModule then
-    addon:RegisterModule("combuctor", CombuctorModule, "Combuctor", "All-in-one bag replacement with filtering and search")
+    addon:RegisterModule("combuctor", CombuctorModule,
+        (addon.L and addon.L["Combuctor"]) or "Combuctor",
+        (addon.L and addon.L["All-in-one bag replacement with filtering and search"]) or "All-in-one bag replacement with filtering and search")
 end
 
 -- ============================================================================
@@ -2843,6 +2845,9 @@ local function OnProfileChanged()
             end
         end
     else
+        if addon:ShouldDeferModuleDisable("combuctor", CombuctorModule) then
+            return
+        end
         RestoreCombuctorSystem()
     end
 end

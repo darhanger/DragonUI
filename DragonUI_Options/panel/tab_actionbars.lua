@@ -20,6 +20,11 @@ local Panel = addon.OptionsPanel
 
 local activeSubTab = "general"
 
+-- Allow external code to set the initial sub-tab before SelectTab
+function addon.SetActionBarSubTab(key)
+    activeSubTab = key or "general"
+end
+
 local subTabs = {
     { key = "general", label = LO["General"] },
     { key = "layout",  label = LO["Layout"] },

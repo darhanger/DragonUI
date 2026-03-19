@@ -8,6 +8,10 @@ These are general-purpose functions that can be used by any module.
 ]]
 
 local addon = select(2, ...)
+local L = addon.L
+
+addon.DB_SCHEMA_VERSION = 1
+addon.RELEASE_VERSION = GetAddOnMetadata("DragonUI", "Version") or "2.4.0"
 
 -- ============================================================================
 -- TABLE UTILITIES
@@ -34,6 +38,27 @@ function addon:tcount(tbl)
     local count = 0
     for _ in pairs(tbl) do count = count + 1 end
     return count
+end
+
+local function UpperCamelCase(name)
+    return (name:gsub("(^%l)", string.upper):gsub("_(%l)", string.upper))
+end
+
+local function ApplyMissingDefaults(source, target)
+    if type(source) ~= "table" or type(target) ~= "table" then
+        return
+    end
+
+    for key, value in pairs(source) do
+        if type(value) == "table" then
+            if type(target[key]) ~= "table" then
+                target[key] = {}
+            end
+            ApplyMissingDefaults(value, target[key])
+        elseif target[key] == nil then
+            target[key] = value
+        end
+    end
 end
 
 -- ============================================================================
@@ -564,9 +589,124 @@ addon.ModuleRegistry = addon.ModuleRegistry or {
     loadOrder = {},
     -- Counter for auto-ordering
     orderCounter = 0,
+    legacyRefreshTargets = {},
 }
 
 local MR = addon.ModuleRegistry
+
+local MODULE_LIFECYCLE_OVERRIDES = {
+    boss = {
+        refresh = "RefreshBossFrames",
+        loadOnce = true,
+        isEnabled = function()
+            return addon.UF and addon.UF.IsEnabled and addon.UF.IsEnabled("boss")
+        end,
+    },
+    buffs = {
+        refresh = "RefreshBuffFrame",
+        loadOnce = true,
+        isEnabled = function()
+            return addon.db and addon.db.profile and addon.db.profile.buffs and addon.db.profile.buffs.enabled
+        end,
+    },
+    buttons = { refresh = "RefreshButtons", loadOnce = true },
+    chatmods = {
+        apply = "ApplyChatModsSystem",
+        restore = "RestoreChatModsSystem",
+        loadOnce = true,
+    },
+    combuctor = {
+        apply = "ApplyCombuctorSystem",
+        restore = "RestoreCombuctorSystem",
+        loadOnce = true,
+    },
+    cooldowns = { refresh = "RefreshCooldowns", loadOnce = true },
+    darkmode = { apply = "ApplyDarkMode", restore = "RestoreDarkMode", loadOnce = true },
+    itemquality = {
+        apply = "ApplyItemQualitySystem",
+        restore = "RestoreItemQualitySystem",
+        loadOnce = true,
+    },
+    mainbars = { refresh = "RefreshMainbarsSystem", loadOnce = true },
+    micromenu = { refresh = "RefreshMicromenuSystem", loadOnce = true },
+    minimap = { refresh = "RefreshMinimapSystem", loadOnce = true },
+    multicast = { refresh = "RefreshMulticast", loadOnce = true },
+    noop = { refresh = "RefreshNoopSystem", loadOnce = true },
+    petbar = { refresh = "RefreshPetbarSystem", loadOnce = true },
+    player = {
+        refresh = function()
+            if addon.PlayerFrame and addon.PlayerFrame.RefreshPlayerFrame then
+                addon.PlayerFrame.RefreshPlayerFrame()
+            end
+        end,
+        loadOnce = true,
+        isEnabled = function()
+            return addon.UF and addon.UF.IsEnabled and addon.UF.IsEnabled("player")
+        end,
+    },
+    questtracker = { refresh = "RefreshQuestTracker", loadOnce = true },
+    stance = { refresh = "RefreshStanceSystem", loadOnce = true },
+    tooltip = {
+        apply = "ApplyTooltipSystem",
+        restore = "RestoreTooltipSystem",
+        loadOnce = true,
+    },
+    unitframe_layers = { refresh = "RefreshUnitFrameLayers", loadOnce = true },
+    vehicle = { refresh = "RefreshVehicleSystem", loadOnce = true },
+}
+
+local DEFAULT_LEGACY_REFRESH_TARGETS = {
+    { name = "targetframe", funcName = "RefreshTargetFrame", order = 900 },
+    { name = "focusframe", funcName = "RefreshFocusFrame", order = 910 },
+    { name = "partyframes", funcName = "RefreshPartyFrames", order = 920 },
+}
+
+local function ResolveRegistryFunction(info, phase)
+    local mod = info and info.module
+    local override = info and info.lifecycle or nil
+    local prefix = info and info.lifecyclePrefix or nil
+    local candidates = {}
+
+    if override and override[phase] then
+        table.insert(candidates, override[phase])
+    end
+
+    if phase == "refresh" then
+        table.insert(candidates, "Refresh" .. prefix .. "System")
+        table.insert(candidates, "Refresh" .. prefix)
+        table.insert(candidates, "Refresh")
+        table.insert(candidates, "OnProfileChanged")
+        table.insert(candidates, "Enable")
+    elseif phase == "apply" then
+        table.insert(candidates, "Apply" .. prefix .. "System")
+        table.insert(candidates, "Apply" .. prefix)
+        table.insert(candidates, "Apply")
+        table.insert(candidates, "Enable")
+        table.insert(candidates, "OnEnable")
+    elseif phase == "restore" then
+        table.insert(candidates, "Restore" .. prefix .. "System")
+        table.insert(candidates, "Restore" .. prefix)
+        table.insert(candidates, "Restore")
+        table.insert(candidates, "Disable")
+        table.insert(candidates, "OnDisable")
+    end
+
+    for _, candidate in ipairs(candidates) do
+        if type(candidate) == "function" then
+            return candidate, false
+        end
+        if type(candidate) == "string" then
+            if mod and type(mod[candidate]) == "function" then
+                return mod[candidate], true
+            end
+            if type(addon[candidate]) == "function" then
+                return addon[candidate], false
+            end
+        end
+    end
+
+    return nil, false
+end
 
 -- Register a module with the registry
 -- @param name: Unique module identifier (matches database key in profile.modules)
@@ -574,21 +714,33 @@ local MR = addon.ModuleRegistry
 -- @param displayName: Human-readable name for UI display
 -- @param description: Description for tooltips (optional)
 -- @param order: Load order number (optional, auto-assigned if nil)
-function MR:Register(name, moduleTable, displayName, description, order)
+function MR:Register(name, moduleTable, displayName, description, orderOrOptions)
+    local L = addon.L
+
     if not name or not moduleTable then
-        addon:Error("ModuleRegistry:Register requires name and moduleTable")
+        addon:Error((L and L["ModuleRegistry:Register requires name and moduleTable"]) or "ModuleRegistry:Register requires name and moduleTable")
         return false
     end
     
     -- Prevent duplicate registration
     if self.modules[name] then
-        addon:Debug("ModuleRegistry: Module already registered -", name)
+        addon:Debug((L and L["ModuleRegistry: Module already registered -"]) or "ModuleRegistry: Module already registered -", name)
         return false
     end
     
     -- Auto-assign order if not provided
+    local options = nil
+    if type(orderOrOptions) == "table" then
+        options = orderOrOptions
+    elseif type(orderOrOptions) == "number" then
+        options = { order = orderOrOptions }
+    else
+        options = {}
+    end
+
     self.orderCounter = self.orderCounter + 1
-    local assignedOrder = order or self.orderCounter
+    local assignedOrder = options.order or self.orderCounter
+    local lifecycle = options.lifecycle or MODULE_LIFECYCLE_OVERRIDES[name] or {}
     
     -- Store module info
     self.modules[name] = {
@@ -596,13 +748,40 @@ function MR:Register(name, moduleTable, displayName, description, order)
         displayName = displayName or name,
         description = description or "",
         order = assignedOrder,
+        lifecyclePrefix = options.lifecyclePrefix or lifecycle.lifecyclePrefix or UpperCamelCase(name),
+        lifecycle = lifecycle,
+        loadOnce = options.loadOnce or lifecycle.loadOnce or false,
+        isEnabled = options.isEnabled or lifecycle.isEnabled,
     }
     
     -- Add to load order
     table.insert(self.loadOrder, name)
     
-    addon:Debug("ModuleRegistry: Registered module -", name, "order:", assignedOrder)
+    addon:Debug((L and L["ModuleRegistry: Registered module -"]) or "ModuleRegistry: Registered module -", name, (L and L["order:"]) or "order:", assignedOrder)
     return true
+end
+
+function MR:RegisterLegacyRefreshTarget(name, funcName, order)
+    if not name or not funcName then
+        return false
+    end
+
+    self.legacyRefreshTargets[name] = {
+        funcName = funcName,
+        order = order or 1000,
+    }
+
+    return true
+end
+
+function MR:EnsureLegacyRefreshTargets()
+    if next(self.legacyRefreshTargets) then
+        return
+    end
+
+    for _, target in ipairs(DEFAULT_LEGACY_REFRESH_TARGETS) do
+        self:RegisterLegacyRefreshTarget(target.name, target.funcName, target.order)
+    end
 end
 
 -- Get a registered module by name
@@ -636,20 +815,129 @@ end
 -- @param name: Module identifier
 -- @return boolean
 function MR:IsEnabled(name)
+    local info = self.modules[name]
+    if info and info.isEnabled then
+        return info.isEnabled()
+    end
+
     if not addon.db or not addon.db.profile or not addon.db.profile.modules then
         return false
     end
+
     local cfg = addon.db.profile.modules[name]
     return cfg and cfg.enabled
+end
+
+function MR:IsLoadOnce(name)
+    local info = self.modules[name]
+    return info and info.loadOnce or false
+end
+
+function addon:IsModuleLoadOnce(name)
+    return MR:IsLoadOnce(name)
+end
+
+addon._pendingReloadModules = addon._pendingReloadModules or {}
+
+function addon:ShouldDeferModuleDisable(name, moduleState)
+    local L = addon.L
+
+    if not self:IsModuleLoadOnce(name) then
+        return false
+    end
+
+    if not moduleState or not (moduleState.initialized or moduleState.applied) then
+        return false
+    end
+
+    if not self._pendingReloadModules[name] then
+        self._pendingReloadModules[name] = true
+    end
+
+    return true
+end
+
+function MR:Refresh(name)
+    local L = addon.L
+
+    local info = self.modules[name]
+    if not info then
+        return false
+    end
+
+    local enabled = self:IsEnabled(name)
+    local fn, useModuleSelf = ResolveRegistryFunction(info, enabled and "refresh" or "restore")
+
+    -- Modules that install secure hooks cannot be cleanly unhooked during a live
+    -- WoW session. Treat them as load-once: honor future config on reload, but do
+    -- not run unsafe in-session teardown paths.
+    if not enabled and info.loadOnce and info.module and (info.module.initialized or info.module.applied) then
+        return true
+    end
+
+    if not fn then
+        fn, useModuleSelf = ResolveRegistryFunction(info, enabled and "apply" or "restore")
+    end
+
+    if not fn then
+        return false
+    end
+
+    local success, err
+    if useModuleSelf then
+        success, err = pcall(fn, info.module)
+    else
+        success, err = pcall(fn, addon)
+    end
+
+    if not success then
+        addon:Error((L and L["ModuleRegistry: Refresh failed for"]) or "ModuleRegistry: Refresh failed for", name, "-", err)
+    end
+
+    return success
+end
+
+function MR:RefreshAll()
+    local failed = {}
+    self:EnsureLegacyRefreshTargets()
+
+    for _, name in ipairs(self.loadOrder) do
+        if not self:Refresh(name) then
+            table.insert(failed, name)
+        end
+    end
+
+    local legacyTargets = {}
+    for name, info in pairs(self.legacyRefreshTargets) do
+        table.insert(legacyTargets, { name = name, funcName = info.funcName, order = info.order })
+    end
+    table.sort(legacyTargets, function(a, b)
+        return a.order < b.order
+    end)
+
+    for _, target in ipairs(legacyTargets) do
+        local fn = addon[target.funcName]
+        if type(fn) == "function" then
+            local success, err = pcall(fn, addon)
+            if not success then
+                addon:Error(L["Legacy refresh failed for"], target.name, "-", err)
+                table.insert(failed, target.name)
+            end
+        end
+    end
+
+    return failed
 end
 
 -- Enable a specific module
 -- @param name: Module identifier
 -- @return boolean success
 function MR:Enable(name)
+    local L = addon.L
+
     local info = self.modules[name]
     if not info then
-        addon:Error("ModuleRegistry: Unknown module -", name)
+        addon:Error((L and L["ModuleRegistry: Unknown module -"]) or "ModuleRegistry: Unknown module -", name)
         return false
     end
     
@@ -661,19 +949,9 @@ function MR:Enable(name)
         addon.db.profile.modules[name].enabled = true
     end
     
-    -- Call module's Apply function if it has one
-    local mod = info.module
-    if mod then
-        if mod.ApplySystem then
-            mod:ApplySystem()
-        elseif mod.Apply then
-            mod:Apply()
-        elseif mod.Enable then
-            mod:Enable()
-        end
-    end
+    self:Refresh(name)
     
-    addon:Debug("ModuleRegistry: Enabled -", name)
+    addon:Debug((L and L["ModuleRegistry: Enabled -"]) or "ModuleRegistry: Enabled -", name)
     return true
 end
 
@@ -681,9 +959,11 @@ end
 -- @param name: Module identifier
 -- @return boolean success
 function MR:Disable(name)
+    local L = addon.L
+
     local info = self.modules[name]
     if not info then
-        addon:Error("ModuleRegistry: Unknown module -", name)
+        addon:Error((L and L["ModuleRegistry: Unknown module -"]) or "ModuleRegistry: Unknown module -", name)
         return false
     end
     
@@ -695,19 +975,15 @@ function MR:Disable(name)
         addon.db.profile.modules[name].enabled = false
     end
     
-    -- Call module's Restore function if it has one
-    local mod = info.module
-    if mod then
-        if mod.RestoreSystem then
-            mod:RestoreSystem()
-        elseif mod.Restore then
-            mod:Restore()
-        elseif mod.Disable then
-            mod:Disable()
-        end
+    -- hooksecurefunc / HookScript registrations are permanent for the session.
+    -- Keep load-once modules active until reload instead of pretending we can fully disable them.
+    if info.loadOnce and info.module and (info.module.initialized or info.module.applied) then
+        return true
     end
+
+    self:Refresh(name)
     
-    addon:Debug("ModuleRegistry: Disabled -", name)
+    addon:Debug((L and L["ModuleRegistry: Disabled -"]) or "ModuleRegistry: Disabled -", name)
     return true
 end
 
@@ -727,19 +1003,22 @@ end
 
 -- Print status of all registered modules (for /dragonui status)
 function MR:PrintStatus()
+    local L = addon.L
+
     if #self.loadOrder == 0 then
-        print("  No modules registered in ModuleRegistry")
+        print("  " .. ((L and L["No modules registered in ModuleRegistry"]) or "No modules registered in ModuleRegistry"))
         return
     end
     
-    print("  |cFF00FF00Registered Modules:|r")
+    print("  |cFF00FF00" .. ((L and L["Registered Modules:"]) or "Registered Modules:") .. "|r")
     for _, name in ipairs(self.loadOrder) do
         local info = self.modules[name]
         local enabled = self:IsEnabled(name)
-        local status = enabled and "|cFF00FF00Enabled|r" or "|cFFFF0000Disabled|r"
-        local loaded = info.module and (info.module.initialized or info.module.applied) and "|cFF00FF00Loaded|r" or "|cFFAAAAAA-|r"
+        local status = enabled and ("|cFF00FF00" .. ((L and L["Enabled"]) or "Enabled") .. "|r") or ("|cFFFF0000" .. ((L and L["Disabled"]) or "Disabled") .. "|r")
+        local loaded = info.module and (info.module.initialized or info.module.applied) and ("|cFF00FF00" .. ((L and L["Loaded"]) or "Loaded") .. "|r") or "|cFFAAAAAA-|r"
         
-        print(string.format("    %s: %s (%s)", info.displayName, status, loaded))
+        local mode = info.loadOnce and (" |cFFFFD200(" .. ((L and L["load-once"]) or "load-once") .. ")|r") or ""
+        print(string.format("    %s: %s (%s)%s", info.displayName, status, loaded, mode))
     end
 end
 
@@ -748,8 +1027,16 @@ end
 -- @param moduleTable: Module state table
 -- @param displayName: Display name (optional)
 -- @param description: Description (optional)
-function addon:RegisterModule(name, moduleTable, displayName, description)
-    return MR:Register(name, moduleTable, displayName, description)
+function addon:RegisterModule(name, moduleTable, displayName, description, options)
+    return MR:Register(name, moduleTable, displayName, description, options)
+end
+
+function addon:RegisterLegacyRefreshTarget(name, funcName, order)
+    return MR:RegisterLegacyRefreshTarget(name, funcName, order)
+end
+
+function addon:RefreshRegisteredSystems()
+    return MR:RefreshAll()
 end
 
 -- ============================================================================
@@ -788,8 +1075,10 @@ end
 -- @param func: Function to call when combat ends
 -- @param ...: Arguments to pass to the function
 function CQ:Add(id, func, ...)
+    local L = addon.L
+
     if not id or not func then
-        addon:Error("CombatQueue:Add requires id and func")
+        addon:Error((L and L["CombatQueue:Add requires id and func"]) or "CombatQueue:Add requires id and func")
         return false
     end
     
@@ -803,19 +1092,21 @@ function CQ:Add(id, func, ...)
     if not self.isRegistered then
         self.eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
         self.isRegistered = true
-        addon:Debug("CombatQueue: Registered PLAYER_REGEN_ENABLED")
+        addon:Debug((L and L["CombatQueue: Registered PLAYER_REGEN_ENABLED"]) or "CombatQueue: Registered PLAYER_REGEN_ENABLED")
     end
     
-    addon:Debug("CombatQueue: Queued operation -", id)
+    addon:Debug((L and L["CombatQueue: Queued operation -"]) or "CombatQueue: Queued operation -", id)
     return true
 end
 
 -- Remove an operation from the queue (if no longer needed)
 -- @param id: Identifier of the operation to remove
 function CQ:Remove(id)
+    local L = addon.L
+
     if self.pending[id] then
         self.pending[id] = nil
-        addon:Debug("CombatQueue: Removed operation -", id)
+        addon:Debug((L and L["CombatQueue: Removed operation -"]) or "CombatQueue: Removed operation -", id)
     end
     
     -- If queue is empty, unregister the event
@@ -833,7 +1124,9 @@ end
 
 -- Process all queued operations (called on PLAYER_REGEN_ENABLED)
 function CQ:ProcessQueue()
-    addon:Debug("CombatQueue: Processing", addon:tcount(self.pending), "queued operations")
+    local L = addon.L
+
+    addon:Debug((L and L["CombatQueue: Processing"]) or "CombatQueue: Processing", addon:tcount(self.pending), (L and L["queued operations"]) or "queued operations")
     
     -- Process all pending operations
     for id, operation in pairs(self.pending) do
@@ -842,9 +1135,9 @@ function CQ:ProcessQueue()
         end)
         
         if not success then
-            addon:Error("CombatQueue: Failed to execute", id, "-", err)
+            addon:Error((L and L["CombatQueue: Failed to execute"]) or "CombatQueue: Failed to execute", id, "-", err)
         else
-            addon:Debug("CombatQueue: Executed -", id)
+            addon:Debug((L and L["CombatQueue: Executed -"]) or "CombatQueue: Executed -", id)
         end
     end
     
@@ -855,7 +1148,7 @@ function CQ:ProcessQueue()
     if self.isRegistered then
         self.eventFrame:UnregisterEvent("PLAYER_REGEN_ENABLED")
         self.isRegistered = false
-        addon:Debug("CombatQueue: Unregistered PLAYER_REGEN_ENABLED")
+        addon:Debug((L and L["CombatQueue: Unregistered PLAYER_REGEN_ENABLED"]) or "CombatQueue: Unregistered PLAYER_REGEN_ENABLED")
     end
 end
 
@@ -865,6 +1158,8 @@ end
 -- @param ...: Arguments to pass to the function
 -- @return true if executed immediately, false if queued
 function CQ:ExecuteOrQueue(id, func, ...)
+    local L = addon.L
+
     if InCombatLockdown() then
         self:Add(id, func, ...)
         return false
@@ -876,7 +1171,7 @@ function CQ:ExecuteOrQueue(id, func, ...)
         end)
         
         if not success then
-            addon:Error("CombatQueue: Immediate execution failed -", id, "-", err)
+            addon:Error((L and L["CombatQueue: Immediate execution failed -"]) or "CombatQueue: Immediate execution failed -", id, "-", err)
         end
         return true
     end
@@ -927,6 +1222,15 @@ addon._timerPool = addon._timerPool or {}
 -- @param delay: number — seconds to wait
 -- @param callback: function — called after delay
 function addon:After(delay, callback)
+    if type(callback) ~= "function" then
+        return
+    end
+
+    delay = tonumber(delay) or 0
+    if delay < 0 then
+        delay = 0
+    end
+
     local f = tremove(self._timerPool) or CreateFrame("Frame")
     f._elapsed = 0
     f._delay = delay
@@ -941,6 +1245,54 @@ function addon:After(delay, callback)
             cb()
         end
     end)
+end
+
+function addon:SafeSetAtlas(texture, atlasName, useAtlasSize)
+    if not texture or not atlasName then
+        return false
+    end
+
+    if texture.set_atlas then
+        local ok = pcall(texture.set_atlas, texture, atlasName, useAtlasSize)
+        return ok
+    end
+
+    return false
+end
+
+function addon:SafeSetTexture(texture, path, fallback)
+    if not texture then
+        return false
+    end
+
+    if path and path ~= "" then
+        texture:SetTexture(path)
+        return true
+    end
+
+    if fallback and fallback ~= "" then
+        texture:SetTexture(fallback)
+        return true
+    end
+
+    texture:SetTexture(nil)
+    return false
+end
+
+function addon:ApplyDatabaseMigrations()
+    if not self.db or not self.db.profile then
+        return
+    end
+
+    local profile = self.db.profile
+    local currentVersion = tonumber(profile.version) or 0
+
+    if currentVersion < self.DB_SCHEMA_VERSION then
+        ApplyMissingDefaults(self.defaults.profile, profile)
+    end
+
+    profile.version = self.DB_SCHEMA_VERSION
+    self.db.version = self.DB_SCHEMA_VERSION
 end
 
 -- ============================================================================

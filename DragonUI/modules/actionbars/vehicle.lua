@@ -31,7 +31,9 @@ local VehicleModule = {
 
 -- Register with ModuleRegistry (if available)
 if addon.RegisterModule then
-    addon:RegisterModule("vehicle", VehicleModule, "Vehicle", "Vehicle interface enhancements")
+    addon:RegisterModule("vehicle", VehicleModule,
+        (addon.L and addon.L["Vehicle"]) or "Vehicle",
+        (addon.L and addon.L["Vehicle interface enhancements"]) or "Vehicle interface enhancements")
 end
 
 -- Frame variables
@@ -276,6 +278,7 @@ end
 
 local function vehiclebar_power_setup()
     if not vehiclebar then return end
+    if InCombatLockdown() then return end
 
     VehicleMenuBarLeaveButton:SetParent(vehiclebar)
     VehicleMenuBarLeaveButton:SetSize(47, 50)
@@ -318,6 +321,7 @@ end
 
 local function vehiclebar_mechanical_setup()
     if not vehicleBarBackground then return end
+    if InCombatLockdown() then return end
 
     vehicleBarBackground.OrganicUi:Hide()
     vehicleBarBackground.MechanicUi:Show()
@@ -380,6 +384,7 @@ end
 
 local function vehiclebar_organic_setup()
     if not vehicleBarBackground then return end
+    if InCombatLockdown() then return end
 
     vehicleBarBackground.OrganicUi:Show()
     vehicleBarBackground.MechanicUi:Hide()
@@ -504,9 +509,9 @@ local function RestoreVehicleButtons()
             restoreFrame = CreateFrame('Frame')
             VehicleModule.frames.restoreMouseFrame = restoreFrame
         end
-        restoreFrame:RegisterEvent('PLAYER_REGEN_GAINED')
+        restoreFrame:RegisterEvent('PLAYER_REGEN_ENABLED')
         restoreFrame:SetScript('OnEvent', function(self)
-            self:UnregisterEvent('PLAYER_REGEN_GAINED')
+            self:UnregisterEvent('PLAYER_REGEN_ENABLED')
             for i = 1, VEHICLE_MAX_ACTIONBUTTONS do
                 local btn = _G['VehicleMenuBarActionButton'..i]
                 if btn then btn:EnableMouse(true) end
@@ -820,9 +825,9 @@ local function ApplyVehicleSystem()
                                 restoreFrame = CreateFrame('Frame')
                                 VehicleModule.frames.exitBtnCombatRestore = restoreFrame
                             end
-                            restoreFrame:RegisterEvent('PLAYER_REGEN_GAINED')
+                            restoreFrame:RegisterEvent('PLAYER_REGEN_ENABLED')
                             restoreFrame:SetScript('OnEvent', function(f)
-                                f:UnregisterEvent('PLAYER_REGEN_GAINED')
+                                f:UnregisterEvent('PLAYER_REGEN_ENABLED')
                                 if vehicleExitButton then
                                     vehicleExitButton:Hide()
                                     vehicleExitButton:SetAlpha(1)
@@ -901,9 +906,9 @@ local function ApplyVehicleSystem()
                                 restoreFrame = CreateFrame('Frame')
                                 VehicleModule.frames.exitBtnCombatRestore = restoreFrame
                             end
-                            restoreFrame:RegisterEvent('PLAYER_REGEN_GAINED')
+                            restoreFrame:RegisterEvent('PLAYER_REGEN_ENABLED')
                             restoreFrame:SetScript('OnEvent', function(f)
-                                f:UnregisterEvent('PLAYER_REGEN_GAINED')
+                                f:UnregisterEvent('PLAYER_REGEN_ENABLED')
                                 if vehicleExitButton then
                                     vehicleExitButton:Hide()
                                     vehicleExitButton:SetAlpha(1)
@@ -1027,6 +1032,9 @@ function addon.RefreshVehicleSystem()
             end
         end
     else
+        if addon:ShouldDeferModuleDisable("vehicle", VehicleModule) then
+            return
+        end
         RestoreVehicleSystem()
     end
 end
@@ -1052,6 +1060,7 @@ end
 -- ============================================================================
 
 function addon.DebugVehicle()
+    if not addon.debugMode then return end
     local p = function(msg) print("|cff00ccff[DragonUI Vehicle]|r " .. msg) end
     p("--- Vehicle Module Debug ---")
     p("Module enabled: " .. tostring(IsModuleEnabled()))

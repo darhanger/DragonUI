@@ -25,7 +25,9 @@ local ChatModsModule = {
 
 -- Register with ModuleRegistry
 if addon.RegisterModule then
-    addon:RegisterModule("chatmods", ChatModsModule, "Chat Mods", "Chat enhancements: hide buttons, editbox position, URL copy, chat copy, link hover, tell target")
+    addon:RegisterModule("chatmods", ChatModsModule,
+        (addon.L and addon.L["Chat Mods"]) or "Chat Mods",
+        (addon.L and addon.L["Chat enhancements: hide buttons, editbox position, URL copy, chat copy, link hover, tell target"]) or "Chat enhancements: hide buttons, editbox position, URL copy, chat copy, link hover, tell target")
 end
 
 -- ============================================================================
@@ -514,6 +516,9 @@ local function OnProfileChanged()
         end
         ApplyEditBoxPosition()
     else
+        if addon:ShouldDeferModuleDisable("chatmods", ChatModsModule) then
+            return
+        end
         RestoreChatModsSystem()
     end
 end

@@ -4,6 +4,7 @@
 -- ============================================================================
 
 local addon = select(2,...);
+local L = addon.L
 local InCombatLockdown = InCombatLockdown;
 local UnitAffectingCombat = UnitAffectingCombat;
 local hooksecurefunc = hooksecurefunc;
@@ -32,6 +33,16 @@ local MulticastModule = {
     stateDrivers = {},
     registeredEvents = {}
 }
+addon.MulticastModule = MulticastModule
+
+if addon.RegisterModule then
+    addon:RegisterModule("multicast", MulticastModule,
+        (L and L["Multicast"]) or "Multicast",
+        (L and L["Shaman totem bar positioning and styling"]) or "Shaman totem bar positioning and styling", {
+        refresh = "RefreshMulticast",
+        loadOnce = true,
+    })
+end
 
 -- Module frames (created only when enabled)
 local anchor, totembar
@@ -43,6 +54,8 @@ end
 
 -- Forward declaration for PositionTotemButtons (defined later)
 local PositionTotemButtons
+
+-- Combat deferral uses centralized addon.CombatQueue (core/api.lua)
 
 -- =============================================================================
 -- CONFIG HELPER FUNCTIONS
@@ -89,11 +102,7 @@ local function UpdateTotemBarPosition()
     if InCombatLockdown() then
         if not pendingPositionUpdate then
             pendingPositionUpdate = true
-            local deferFrame = CreateFrame("Frame")
-            deferFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-            deferFrame:SetScript("OnEvent", function(self)
-                self:UnregisterEvent("PLAYER_REGEN_ENABLED")
-                self:SetScript("OnEvent", nil)
+            addon.CombatQueue:Add("multicast_UpdateTotemBarPosition", function()
                 pendingPositionUpdate = false
                 UpdateTotemBarPosition()
             end)
@@ -215,7 +224,7 @@ local function CreateMulticastFrames()
     
     -- Update the editor text
     if editorOverlay.editorText then
-        editorOverlay.editorText:SetText('Totem Bar')
+        editorOverlay.editorText:SetText((L and (L["TotemBarOverlay"] or L["Totem Bar"])) or "Totem Bar")
     end
     
     -- Variables to track drag movement (custom drag like stance.lua)
@@ -333,11 +342,7 @@ local function SetupShamanMulticast()
     if InCombatLockdown() then
         if not multicastSetupPending then
             multicastSetupPending = true
-            local frame = CreateFrame("Frame")
-            frame:RegisterEvent("PLAYER_REGEN_ENABLED")
-            frame:SetScript("OnEvent", function(self)
-                self:UnregisterEvent("PLAYER_REGEN_ENABLED")
-                self:SetScript("OnEvent", nil)
+            addon.CombatQueue:Add("multicast_SetupShamanMulticast", function()
                 multicastSetupPending = false
                 SetupShamanMulticast()
             end)
@@ -426,10 +431,7 @@ end
 -- =============================================================================
 function addon.RefreshMulticast(fullRefresh)
     if InCombatLockdown() or UnitAffectingCombat("player") then 
-        local frame = CreateFrame("Frame")
-        frame:RegisterEvent("PLAYER_REGEN_ENABLED")
-        frame:SetScript("OnEvent", function(self)
-            self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+        addon.CombatQueue:Add(fullRefresh and "multicast_RefreshFull" or "multicast_Refresh", function()
             addon.RefreshMulticast(fullRefresh)
         end)
         return 
@@ -527,11 +529,12 @@ end
 -- =============================================================================
 local function OnProfileChanged()
     DelayedCall(0.2, function()
+        if not IsModuleEnabled() and addon:ShouldDeferModuleDisable("multicast", MulticastModule) then
+            return
+        end
+
         if InCombatLockdown() or UnitAffectingCombat("player") then
-            local frame = CreateFrame("Frame")
-            frame:RegisterEvent("PLAYER_REGEN_ENABLED")
-            frame:SetScript("OnEvent", function(self)
-                self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+            addon.CombatQueue:Add("multicast_OnProfileChanged", function()
                 OnProfileChanged()
             end)
             return

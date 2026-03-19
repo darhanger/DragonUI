@@ -19,9 +19,7 @@ local Panel = addon.OptionsPanel
 -- ============================================================================
 
 local function EnsureModuleTable(moduleName)
-    if not addon.db.profile.modules then addon.db.profile.modules = {} end
-    if not addon.db.profile.modules[moduleName] then addon.db.profile.modules[moduleName] = {} end
-    return addon.db.profile.modules[moduleName]
+    return C:EnsureModuleTable(moduleName)
 end
 
 local function GetModuleField(moduleName, field)
@@ -184,6 +182,45 @@ local function BuildEnhancementsTab(scroll)
         end,
         disabled = function() return not IsEnabled("itemquality") end,
         width = 200,
+    })
+
+    -- ====================================================================
+    -- UNIT FRAME LAYERS
+    -- ====================================================================
+    C:AddSpacer(scroll)
+    local uflSection = C:AddSection(scroll, LO["Unit Frame Layers"])
+
+    C:AddDescription(uflSection, LO["Heal prediction bars, absorb shields, and animated health loss overlays on unit frames."])
+
+    C:AddToggle(uflSection, {
+        label = LO["Enable Unit Frame Layers"],
+        desc = LO["Show heal prediction, absorb shields, and animated health loss on all unit frames."],
+        getFunc = function() return IsEnabled("unitframe_layers") end,
+        setFunc = function(val)
+            EnsureModuleTable("unitframe_layers").enabled = val
+        end,
+        callback = function()
+            Panel:SelectTab("enhancements")
+        end,
+        requiresReload = true,
+    })
+
+    C:AddToggle(uflSection, {
+        label = LO["Animated Health Loss"],
+        desc = LO["Show animated red health loss bar on player frame when taking damage."],
+        getFunc = function()
+            local m = addon.db.profile.modules and addon.db.profile.modules.unitframe_layers
+            if not m then return true end
+            return m.animated_loss ~= false
+        end,
+        setFunc = function(val)
+            if not addon.db.profile.modules.unitframe_layers then
+                addon.db.profile.modules.unitframe_layers = {}
+            end
+            addon.db.profile.modules.unitframe_layers.animated_loss = val
+        end,
+        disabled = function() return not IsEnabled("unitframe_layers") end,
+        requiresReload = true,
     })
 
     -- ====================================================================

@@ -291,19 +291,19 @@ local function BuildBagsTab(scroll)
     C:AddDescription(subtabSection, LO["Configure which bottom subtabs appear within each category tab. Applies to both inventory and bank."])
 
     -- "All" category subtabs
-    C:AddLabel(subtabSection, "|cffAAAAAA" .. (ALL or "All") .. "|r")
+    C:AddLabel(subtabSection, "|cffAAAAAA" .. (ALL or LO["All"]) .. "|r")
     C:AddToggle(subtabSection, {
         label = LO["Normal"],
         desc = LO["Show the Normal bags subtab (non-profession bags)."],
-        getFunc = function() return not IsSubtabExcluded("inventory", ALL or "All", "Normal") end,
-        setFunc = function(val) ToggleSubtab(ALL or "All", "Normal", val) end,
+        getFunc = function() return not IsSubtabExcluded("inventory", ALL or LO["All"], "Normal") end,
+        setFunc = function(val) ToggleSubtab(ALL or LO["All"], "Normal", val) end,
         disabled = function() return not IsCombuctorEnabled() end,
     })
     C:AddToggle(subtabSection, {
         label = LO["Trade Bags"],
         desc = LO["Show the Trade bags subtab (profession bags)."],
-        getFunc = function() return not IsSubtabExcluded("inventory", ALL or "All", "Trade") end,
-        setFunc = function(val) ToggleSubtab(ALL or "All", "Trade", val) end,
+        getFunc = function() return not IsSubtabExcluded("inventory", ALL or LO["All"], "Trade") end,
+        setFunc = function(val) ToggleSubtab(ALL or LO["All"], "Trade", val) end,
         disabled = function() return not IsCombuctorEnabled() end,
     })
 

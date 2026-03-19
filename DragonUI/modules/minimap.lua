@@ -4,6 +4,7 @@
 -- ============================================================================
 
 local addon = select(2, ...);
+local L = addon.L
 
 local atlas = addon.minimap_SetAtlas;
 
@@ -30,7 +31,9 @@ addon.MinimapModule = MinimapModule;
 
 -- Register with ModuleRegistry (if available)
 if addon.RegisterModule then
-    addon:RegisterModule("minimap", MinimapModule, "Minimap", "Custom minimap styling, positioning, tracking icons and calendar")
+    addon:RegisterModule("minimap", MinimapModule,
+        (L and L["Minimap"]) or "Minimap",
+        (L and L["Custom minimap styling, positioning, tracking icons and calendar"]) or "Custom minimap styling, positioning, tracking icons and calendar")
 end
 
 -- Module config helpers (centralized in api.lua)
@@ -905,9 +908,8 @@ end -- End of ReplaceBlizzardFrame function
 local function CreateMinimapBorderFrame(width, height)
     local minimapBorderFrame = CreateFrame('Frame', UIParent)
     minimapBorderFrame:SetSize(width, height)
-    minimapBorderFrame:SetScript("OnUpdate", function(self)
-        UpdateIndoorRotationPolicy()
-
+    minimapBorderFrame._duiHeavyUpdateElapsed = 0
+    minimapBorderFrame:SetScript("OnUpdate", function(self, elapsed)
         local facing = GetPlayerFacing()
         if not facing then return end
         local angle = -facing
@@ -924,10 +926,16 @@ local function CreateMinimapBorderFrame(width, height)
                 end
             end
         end
-        UpdateMinimapMaskForRotation()
-        UpdateMinimapBackdropAlignment(false)
-        UpdateIndoorRotateScale()
-        UpdateMinimapCircleSize()
+
+        self._duiHeavyUpdateElapsed = self._duiHeavyUpdateElapsed + elapsed
+        if self._duiHeavyUpdateElapsed >= 0.1 then
+            self._duiHeavyUpdateElapsed = 0
+            UpdateIndoorRotationPolicy()
+            UpdateMinimapMaskForRotation()
+            UpdateMinimapBackdropAlignment(false)
+            UpdateIndoorRotateScale()
+            UpdateMinimapCircleSize()
+        end
 
         if self.border then
             self.border:SetAlpha(0)
@@ -1822,7 +1830,7 @@ function MinimapModule:RestoreMinimapSystem()
     self.applied = false
     self.isEnabled = false -- Legacy compatibility
     
-    print("DragonUI: Minimap module restored to Blizzard defaults")
+    addon:Print(L["Minimap module restored to Blizzard defaults"])
 end
 
 function MinimapModule:InitializeMinimapSystem()
@@ -2206,6 +2214,9 @@ function addon:RefreshMinimapSystem()
         and addon.db.profile.modules.minimap
     if minimapModuleConfig and minimapModuleConfig.sexymap_mode == "sexymap" then
         if MinimapModule.applied then
+            if addon:ShouldDeferModuleDisable("minimap", MinimapModule) then
+                return
+            end
             MinimapModule:RestoreMinimapSystem()
         end
         return
@@ -2222,6 +2233,9 @@ function addon:RefreshMinimapSystem()
     if isEnabled then
         MinimapModule:ApplyMinimapSystem()
     else
+        if addon:ShouldDeferModuleDisable("minimap", MinimapModule) then
+            return
+        end
         MinimapModule:RestoreMinimapSystem()
     end
 end

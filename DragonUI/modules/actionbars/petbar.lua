@@ -45,7 +45,9 @@ local PetbarModule = {
 
 -- Register with ModuleRegistry (if available)
 if addon.RegisterModule then
-    addon:RegisterModule("petbar", PetbarModule, "Pet Bar", "Pet action bar positioning and styling")
+    addon:RegisterModule("petbar", PetbarModule,
+        (addon.L and addon.L["Pet Bar"]) or "Pet Bar",
+        (addon.L and addon.L["Pet action bar positioning and styling"]) or "Pet action bar positioning and styling")
 end
 
 -- ============================================================================
@@ -557,6 +559,10 @@ addon.UpdatePetbarPosition = UpdateAnchorPosition
 -- Global functions for DragonUI system
 function addon.RefreshPetbarSystem()
     if PetbarModule.applied then
+        if not IsModuleEnabled() and addon:ShouldDeferModuleDisable("petbar", PetbarModule) then
+            return
+        end
+
         RestorePetbarSystem()
         if IsModuleEnabled() then
             ApplyPetbarSystem()

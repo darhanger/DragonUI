@@ -256,7 +256,7 @@ function Movers:RegisterMover(info)
     local defaultPoint = info.defaultPoint -- e.g., "CENTER,UIParent,CENTER,0,0"
     
     if not name or not parent then
-        addon:Error("RegisterMover: name and parent are required")
+        addon:Error(addon.L["RegisterMover: name and parent are required"])
         return
     end
     
@@ -385,7 +385,7 @@ function Movers:ResetPosition(name)
         data.postdrag(mover)
     end
     
-    addon:Print("Reset position: " .. (data.text or name))
+    addon:Print(string.format(L["Reset position: %s"], data.text or name))
 end
 
 -- Reset all movers to default
@@ -399,7 +399,7 @@ function Movers:ResetAllPositions()
         self:ResetPosition(name)
     end
     
-    addon:Print("All positions reset to defaults")
+    addon:Print(L["All positions reset to defaults"])
 end
 
 -- Toggle config/editor mode
@@ -425,9 +425,9 @@ function Movers:ToggleConfigMode(show, moverType)
     end
     
     if show then
-        addon:Print("Editor mode enabled - Drag frames to reposition")
+        addon:Print(L["Editor mode enabled - Drag frames to reposition"])
     else
-        addon:Print("Editor mode disabled - Positions saved")
+        addon:Print(L["Editor mode disabled - Positions saved"])
     end
 end
 

@@ -70,20 +70,20 @@ local function ShowStatus()
         -- Fallback: Show manually detected modules
         print("  |cFF00FF00" .. L["Detected Modules:"] .. "|r")
         local modules = {
-            { name = "Mainbars", check = function() return addon.RefreshMainbars end },
-            { name = "Buttons", check = function() return addon.RefreshButtons end },
-            { name = "Micromenu", check = function() return addon.RefreshMicromenu end },
-            { name = "Minimap", check = function() return addon.RefreshMinimap end },
-            { name = "Target Frame", check = function() return addon.RefreshTargetFrame end },
-            { name = "Focus Frame", check = function() return addon.RefreshFocusFrame end },
-            { name = "Party Frames", check = function() return addon.RefreshPartyFrames end },
-            { name = "Stance Bar", check = function() return addon.RefreshStance end },
-            { name = "Pet Bar", check = function() return addon.RefreshPetbar end },
-            { name = "Vehicle", check = function() return addon.RefreshVehicle end },
-            { name = "Multicast", check = function() return addon.RefreshMulticast end },
-            { name = "Cooldowns", check = function() return addon.RefreshCooldowns end },
-            { name = "Buff Frame", check = function() return addon.RefreshBuffFrame end },
-            { name = "Castbar", check = function() return addon.RefreshCastbar end },
+            { name = L["Main Bars"], check = function() return addon.RefreshMainbars end },
+            { name = L["Buttons"], check = function() return addon.RefreshButtons end },
+            { name = L["Micro Menu"], check = function() return addon.RefreshMicromenu end },
+            { name = L["Minimap"], check = function() return addon.RefreshMinimap end },
+            { name = L["Target Frame"], check = function() return addon.RefreshTargetFrame end },
+            { name = L["Focus Frame"], check = function() return addon.RefreshFocusFrame end },
+            { name = L["Party Frames"], check = function() return addon.RefreshPartyFrames end },
+            { name = L["Stance Bar"], check = function() return addon.RefreshStance end },
+            { name = L["Pet Bar"], check = function() return addon.RefreshPetbar end },
+            { name = L["Vehicle"], check = function() return addon.RefreshVehicle end },
+            { name = L["Multicast"], check = function() return addon.RefreshMulticast end },
+            { name = L["Cooldowns"], check = function() return addon.RefreshCooldowns end },
+            { name = L["Buff Frame"], check = function() return addon.RefreshBuffFrame end },
+            { name = L["Cast Bar"], check = function() return addon.RefreshCastbar end },
         }
         
         for _, module in ipairs(modules) do
@@ -130,6 +130,29 @@ local function ReloadUICommand()
     ReloadUI()
 end
 
+local function SetDebugMode(arg)
+    local normalized = arg and arg:lower() or ""
+
+    if normalized == "" or normalized == "status" then
+        addon:Print(string.format(L["Debug mode is %s"], addon.debugMode and L["enabled"] or L["disabled"]))
+        return
+    end
+
+    if normalized == "on" or normalized == "true" or normalized == "1" then
+        addon.debugMode = true
+        addon:Print(L["Debug mode enabled"])
+        return
+    end
+
+    if normalized == "off" or normalized == "false" or normalized == "0" then
+        addon.debugMode = false
+        addon:Print(L["Debug mode disabled"])
+        return
+    end
+
+    addon:Print(L["Usage: /dragonui debug on|off|status"])
+end
+
 -- Print version info
 local function ShowVersion()
     local version = GetAddOnMetadata("DragonUI", "Version") or "Unknown"
@@ -145,6 +168,7 @@ local function ShowHelp()
     print("  " .. L["/dragonui reset - Reset all positions to defaults"])
     print("  " .. L["/dragonui reset <name> - Reset specific mover"])
     print("  " .. L["/dragonui status - Show module status"])
+    print("  " .. L["/dragonui debug on|off|status - Toggle diagnostic logging"])
     print("  " .. L["/dragonui kb - Toggle keybind mode"])
     print("  " .. L["/dragonui version - Show version info"])
     print("  " .. L["/dragonui help - Show this help"])
@@ -172,13 +196,23 @@ local function SlashCommandHandler(input)
         ResetPositions(arg)
     elseif cmd == "status" then
         ShowStatus()
+    elseif cmd == "debug" then
+        SetDebugMode(arg)
     elseif cmd == "kb" or cmd == "keybind" or cmd == "keybinds" then
         ToggleKeybindMode()
     elseif cmd == "version" or cmd == "ver" then
         ShowVersion()
     elseif cmd == "debugvehicle" then
+        if not addon.debugMode then
+            addon:Print(L["Enable debug mode first with /dragonui debug on"])
+            return
+        end
         if addon.DebugVehicle then addon.DebugVehicle() else addon:Print(L["Vehicle debug not available"]) end
     elseif cmd == "debugshadow" then
+        if not addon.debugMode then
+            addon:Print(L["Enable debug mode first with /dragonui debug on"])
+            return
+        end
         -- Enumerate ALL visible children/textures of TargetFrame to find the shadow source
         local function InspectFrame(frame, prefix, depth)
             if not frame or depth > 3 then return end
@@ -211,29 +245,33 @@ local function SlashCommandHandler(input)
                 InspectFrame(child, prefix .. "  ", depth + 1)
             end
         end
-        print("=== TargetFrame children (depth 3) ===")
+        print(L["=== TargetFrame children (depth 3) ==="])
         InspectFrame(TargetFrame, "  ", 0)
         if FocusFrame then
-            print("=== FocusFrame children (depth 3) ===")
+            print(L["=== FocusFrame children (depth 3) ==="])
             InspectFrame(FocusFrame, "  ", 0)
         end
     elseif cmd == "help" or cmd == "?" then
         ShowHelp()
     elseif cmd == "shadowcolor" then
+        if not addon.debugMode then
+            addon:Print(L["Enable debug mode first with /dragonui debug on"])
+            return
+        end
         -- Tint DragonUI_TargetBG bright red/green to visualize its full extent
         local bg = _G["DragonUI_TargetBG"]
         if not bg then
-            print("BG texture not found")
+            print(L["BG texture not found"])
         else
             if arg == "red" then
                 bg:SetVertexColor(1, 0, 0, 1)
-                print("|cFFFF0000BG tinted RED|r")
+                print("|cFFFF0000" .. L["BG tinted RED"] .. "|r")
             elseif arg == "green" then
                 bg:SetVertexColor(0, 1, 0, 1)
-                print("|cFF00FF00BG tinted GREEN|r")
+                print("|cFF00FF00" .. L["BG tinted GREEN"] .. "|r")
             elseif arg == "reset" then
                 bg:SetVertexColor(1, 1, 1, 1)
-                print("BG color reset")
+                print(L["BG color reset"])
             elseif arg == "info" then
                 local l, b, w, h = bg:GetRect()
                 local p1, parent, p2, x, y = bg:GetPoint(1)
@@ -246,23 +284,27 @@ local function SlashCommandHandler(input)
                     tc[1] or 0, tc[2] or 0, tc[3] or 0, tc[4] or 0,
                     tc[5] or 0, tc[6] or 0, tc[7] or 0, tc[8] or 0))
             else
-                print("Usage: /dui shadowcolor red|green|reset|info")
+                print(L["Usage: /dui shadowcolor red|green|reset|info"])
             end
         end
     elseif cmd == "shadowcrop" then
+        if not addon.debugMode then
+            addon:Print(L["Enable debug mode first with /dragonui debug on"])
+            return
+        end
         -- Real-time SetTexCoord adjustment on BG
         local bg = _G["DragonUI_TargetBG"]
         if not bg then
-            print("BG texture not found")
+            print(L["BG texture not found"])
         elseif not arg or arg == "" then
-            print("Usage: /dui shadowcrop <bottom_px> [right_px]")
-            print("  e.g. /dui shadowcrop 90 — show top 90 of 128 px height")
-            print("  e.g. /dui shadowcrop 90 200 — crop both bottom and right")
-            print("  /dui shadowcrop reset — restore full texture")
+            print(L["Usage: /dui shadowcrop <bottom_px> [right_px]"])
+            print(L["  e.g. /dui shadowcrop 90 - show top 90 of 128 px height"])
+            print(L["  e.g. /dui shadowcrop 90 200 - crop both bottom and right"])
+            print(L["  /dui shadowcrop reset - restore full texture"])
         elseif arg == "reset" then
             bg:SetTexCoord(0, 1, 0, 1)
             bg:SetSize(256, 128)
-            print("BG reset to 256x128 full texture")
+            print(L["BG reset to 256x128 full texture"])
         else
             local b, r = arg:match("^(%d+)%s*(%d*)$")
             b = tonumber(b)
@@ -270,12 +312,16 @@ local function SlashCommandHandler(input)
             if b and b > 0 and b <= 128 and r > 0 and r <= 256 then
                 bg:SetTexCoord(0, r/256, 0, b/128)
                 bg:SetSize(r, b)
-                print(string.format("|cFFFFD700Crop applied:|r showing %dx%d of 256x128 (texcoord 0-%.3f, 0-%.3f)", r, b, r/256, b/128))
+                print("|cFFFFD700" .. string.format(L["Crop applied: showing %dx%d of 256x128 (texcoord 0-%.3f, 0-%.3f)"], r, b, r/256, b/128) .. "|r")
             else
-                print("Invalid values. Height 1-128, Width 1-256")
+                print(L["Invalid values. Height 1-128, Width 1-256"])
             end
         end
     elseif cmd == "shadowtest" then
+        if not addon.debugMode then
+            addon:Print(L["Enable debug mode first with /dragonui debug on"])
+            return
+        end
         -- Interactive element hiding to find the shadow source
         -- Usage: /dui shadowtest <number> to toggle hiding element N
         -- /dui shadowtest alone lists all elements with numbers
@@ -302,13 +348,13 @@ local function SlashCommandHandler(input)
         local n = tonumber(arg)
         if not n then
             -- List all elements
-            print("|cFF00FF00=== TargetFrame elements (use /dui shadowtest N to toggle) ===|r")
+            print("|cFF00FF00" .. L["=== TargetFrame elements (use /dui shadowtest N to toggle) ==="] .. "|r")
             for i, e in ipairs(elements) do
                 local vis = e.visible and "|cFF00FF00VIS|r" or "|cFFFF0000inv|r"
                 local sh = e.shown and "SHOWN" or "hidden"
                 print(string.format("  |cFFFFD700%d|r. %s [%s] %s %s %s", i, e.name, e.type, sh, vis, e.tex))
             end
-            print("|cFFFFD700Total:|r " .. #elements .. " elements")
+            print("|cFFFFD700" .. string.format(L["Total elements: %d"], #elements) .. "|r")
         else
             -- Toggle hide/show element N
             if n >= 1 and n <= #elements then
@@ -316,14 +362,14 @@ local function SlashCommandHandler(input)
                 if e.obj:IsShown() then
                     e.obj:Hide()
                     e.obj:SetAlpha(0)
-                    print(string.format("|cFFFF0000HIDDEN|r: %d. %s [%s]", n, e.name, e.type))
+                    print("|cFFFF0000" .. string.format(L["HIDDEN: %d. %s [%s]"], n, e.name, e.type) .. "|r")
                 else
                     e.obj:Show()
                     e.obj:SetAlpha(1)
-                    print(string.format("|cFF00FF00SHOWN|r: %d. %s [%s]", n, e.name, e.type))
+                    print("|cFF00FF00" .. string.format(L["SHOWN: %d. %s [%s]"], n, e.name, e.type) .. "|r")
                 end
             else
-                print("Invalid element number. Use /dui shadowtest to list.")
+                print(L["Invalid element number. Use /dui shadowtest to list."])
             end
         end
 

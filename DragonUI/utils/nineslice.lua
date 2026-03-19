@@ -1,40 +1,4 @@
---[[
-	Nine-slice utility for creating themed background frames without rewriting a lot of boilerplate code.
-	There are some utilities to help with anchoring, and others to create a border and theme it from scratch.
-	AnchorUtil.ApplyLayout makes use of a layout table, and is probably what most setups will use.
-
-	What the layout table should look like:
-	- A table of tables, where each inner table describes a corner, edge, or center of the nine-slice frame.
-
-	- Inner table keys should exactly match the nine-slice API for setting up the various pieces (TitleCase matters here), and will also be used as the name of the parentKey on the container frame.
-
-	- e.g. Layout = { TopLeftCorner = { ... }, LeftEdge = { ... }, Center = { ... }
-
-	- Global attributes:
-		- mirrorLayout: The nine slice atlases only exist for topLeftCorner, topEdge, leftEdge.  Create the rest of the pieces from those assets.
-
-	- Key-values in each inner table:
-		- Required:
-			atlas: the atlas for this piece
-		- Optional:
-			- layer: texture draw layer, defaults to "BORDER"
-			- subLevel: texture sublevel, defaults to the same default as the CreateTexture API.
-			- point: which point on the piece you want to anchor from, defaults to whatever is appropriate for the piece (e.g. TopLeftCorner = TOPLEFT)
-			- relativePoint: which point on the container frame you want to anchor to, same default as point.
-			- x, y: the offsets for the piece, defaults to SetPoint API default.
-			- x1, y1: the second offsets (ONLY for the edge and center pieces), defaults to SetPoint API default.
-
-	- Legacy frames may not be authored such that the pieces of the nine-slice are named TopLeftCorner, BottomEdge, etc...for this reason,
-	the container is allowed to provide a lookup override function for those pieces, in case they already existed.
-	The API signature is: <container>.GetNineSlicePiece(pieceName).
-	It's not required, if it's missing the fallbacks are:
-	1. Look up the piece by key using the default piece name (e.g. container.TopLeft)
-	2. Create a new texture and add it to the container, accessible by key (e.g. container.TopLeft = container:CreateTexture()).
-
-	- The idea is that borders should be easy to set up, by describing the art theme in data, there should be minimal effort to setup a frame's background.
- 	Offsets exist to provide some proper alignment for legacy frames, most new frames shouldn't need custom offsets.
-	The NineSlice itself isn't intended to exist beyond frame setup, just release the reference to it after use.
-]]
+-- Adapted from Blizzard's retail FrameXML NineSlice system for DragonUI.
 local addon = select(2,...);
 local C_Texture = addon.c_texture;
 
@@ -166,20 +130,6 @@ local layouts =
 		RightEdge = {atlas = "!%s-nineslice-edgeright"},
 		Center = {atlas = "%s-nineslice-center"}
 	},
-	
-	-- ThreeSliceVerticalLayout = {
-		-- threeSliceVertical = true,
-		-- TopEdge = {atlas = "%s-threeslice-edgetop"},
-		-- BottomEdge = {atlas = "%s-threeslice-edgebottom"},
-		-- Center = {atlas = "!%s-threeslice-center"},
-	-- },
-
-	-- ThreeSliceHorizontalLayout = {
-		-- threeSliceHorizontal = true,
-		-- LeftEdge = {atlas = "%s-threeslice-edgeleft"},
-		-- RightEdge = {atlas = "%s-threeslice-edgeright"},
-		-- Center = {atlas = "_%s-threeslice-center"},
-	-- },
 }
 
 --------------------------------------------------

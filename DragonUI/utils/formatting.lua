@@ -54,22 +54,3 @@ do
 end
 addon.GetKeyText = GetKeyText
 
--- returns formatted time as a string.
--- @param time - a time in seconds
---[[
-function addon:formatTime(time)
-	local day = floor((time / 86400) + .5)
-	local hour = time >= 3570 and floor((time / 3600) + .5) or 0
-	local minute = floor((time / 60) + .5)
-	local second = time
-
-	if day > 0 then
-		return ('%1dd'):format(day)
-	elseif hour > 0 then
-		return ('%1dh'):format(hour)
-	elseif minute > 0 and second > 59 then
-		return ('%1dm'):format(minute)
-	end
-	return ('%1ds'):format(second)
-end
-]]

@@ -21,8 +21,9 @@ local UnitFrameLayersModule = {
 
 -- Register with ModuleRegistry
 if addon.RegisterModule then
-	addon:RegisterModule("unitframe_layers", UnitFrameLayersModule, "Unit Frame Layers",
-		"Heal prediction, absorb shields, and animated health loss on unit frames")
+	addon:RegisterModule("unitframe_layers", UnitFrameLayersModule,
+		(addon.L and addon.L["Unit Frame Layers"]) or "Unit Frame Layers",
+		(addon.L and addon.L["Heal prediction, absorb shields, and animated health loss on unit frames"]) or "Heal prediction, absorb shields, and animated health loss on unit frames")
 end
 
 -- ============================================================================
@@ -697,6 +698,9 @@ local function OnProfileChanged()
 			end
 		end
 	else
+		if addon:ShouldDeferModuleDisable("unitframe_layers", UnitFrameLayersModule) then
+			return
+		end
 		RestoreUnitFrameLayersSystem();
 	end
 end

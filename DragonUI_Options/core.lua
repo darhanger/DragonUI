@@ -9,15 +9,16 @@ Based on ElvUI_OptionsUI pattern - accesses DragonUI addon via global.
 
 -- Access the main DragonUI addon (exposed globally in DragonUI/core.lua)
 local addon = DragonUI
+
+-- Initialize localization before any fallback/error path uses it.
+local L = LibStub("AceLocale-3.0"):GetLocale("DragonUI")
+local LO = LibStub("AceLocale-3.0"):GetLocale("DragonUI_Options")
+
 if not addon then
-    print(LO["|cFFFF0000[DragonUI_Options]|r Error: DragonUI addon not found!"])
+    print("|cFFFF0000[DragonUI_Options]|r " .. ((LO and LO["Error: DragonUI addon not found!"]) or "Error: DragonUI addon not found!"))
     return
 end
 
--- Initialize Options localization
--- Core L comes from main addon, Options L is for option-specific strings
-local L = LibStub("AceLocale-3.0"):GetLocale("DragonUI")
-local LO = LibStub("AceLocale-3.0"):GetLocale("DragonUI_Options")
 addon.LO = LO  -- Expose for other option files
 
 -- ============================================================================
@@ -30,6 +31,26 @@ StaticPopupDialogs["DRAGONUI_RELOAD_UI"] = {
     button2 = LO["Not Now"],
     OnAccept = function()
         ReloadUI()
+    end,
+    timeout = 0,
+    whileDead = 1,
+    hideOnEscape = 1,
+    preferredIndex = 3
+}
+
+StaticPopupDialogs["DRAGONUI_DELETE_PROFILE"] = {
+    text = LO["Are you sure you want to delete the profile '%s'? This cannot be undone."],
+    button1 = LO["Delete"],
+    button2 = LO["Not Now"],
+    OnAccept = function(self)
+        local profileName = self.data
+        if profileName and addon.db then
+            addon.db:DeleteProfile(profileName, true)
+            print("|cFF00FF00[DragonUI]|r " .. (LO["Deleted profile: "] or "Deleted profile: ") .. profileName)
+            if addon.OptionsPanel then
+                addon.OptionsPanel:SelectTab("profiles")
+            end
+        end
     end,
     timeout = 0,
     whileDead = 1,

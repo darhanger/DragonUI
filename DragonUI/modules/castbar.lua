@@ -1,4 +1,5 @@
 ﻿local addon = select(2, ...)
+local L = addon.L
 
 -- ============================================================================
 -- CASTBAR MODULE FOR DRAGONUI
@@ -80,6 +81,21 @@ local CastbarModule = {
     anchor = nil,
     blizzardHidden = {}  -- Track which Blizzard castbars we've hidden
 }
+addon.CastbarModule = CastbarModule
+
+if addon.RegisterModule then
+    local L = addon.L
+    addon:RegisterModule("castbar", CastbarModule,
+        (L and L["Cast Bar"]) or "Cast Bar",
+        (L and L["Custom player, target, and focus cast bars"]) or "Custom player, target, and focus cast bars", {
+        refresh = "RefreshCastbar",
+        loadOnce = true,
+        isEnabled = function()
+            local cfg = addon.db and addon.db.profile and addon.db.profile.castbar
+            return cfg and cfg.enabled
+        end,
+    })
+end
 
 -- Initialize frames for each castbar type
 for _, unitType in ipairs({"player", "target", "focus"}) do

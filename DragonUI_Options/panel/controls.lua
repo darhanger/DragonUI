@@ -53,6 +53,29 @@ local BD_WIDGET = {
     insets = { left = 0, right = 0, top = 0, bottom = 0 },
 }
 
+-- Ensure widgets always receive a valid font even when a custom/system font path is unavailable.
+local function SafeSetFont(fs, size, flags, preferredFont)
+    if not fs then return end
+
+    local tryFonts = {
+        preferredFont,
+        Controls.Theme.font,
+        addon.Fonts and addon.Fonts.PRIMARY,
+        STANDARD_TEXT_FONT,
+        "Fonts\\FRIZQT__.TTF",
+    }
+
+    for _, fontPath in ipairs(tryFonts) do
+        if fontPath and fs.SetFont and fs:SetFont(fontPath, size or 12, flags or "") then
+            return
+        end
+    end
+
+    if fs.SetFontObject then
+        fs:SetFontObject(GameFontNormal)
+    end
+end
+
 -- ============================================================================
 -- DB PATH HELPERS
 -- ============================================================================
@@ -79,6 +102,22 @@ function Controls:SetDBValue(dbPath, val)
     target[path[#path]] = val
 end
 
+function Controls:EnsureModuleTable(moduleName)
+    if not addon.db or not addon.db.profile then
+        return {}
+    end
+
+    if not addon.db.profile.modules then
+        addon.db.profile.modules = {}
+    end
+
+    if not addon.db.profile.modules[moduleName] then
+        addon.db.profile.modules[moduleName] = {}
+    end
+
+    return addon.db.profile.modules[moduleName]
+end
+
 -- ============================================================================
 -- WIDGET SKINNING
 -- ============================================================================
@@ -100,10 +139,10 @@ local function SkinCheckBox(widget)
     end
     -- Style text
     if widget.text then
-        widget.text:SetFont(Controls.Theme.font, 12, "")
+        SafeSetFont(widget.text, 12, "")
     end
     if widget.desc then
-        widget.desc:SetFont(Controls.Theme.font, 11, "")
+        SafeSetFont(widget.desc, 11, "")
     end
 end
 
@@ -127,10 +166,10 @@ local function SkinSlider(widget)
         widget.editbox:SetBackdrop(BD_WIDGET)
         widget.editbox:SetBackdropColor(0.12, 0.12, 0.14, 1)
         widget.editbox:SetBackdropBorderColor(0.22, 0.22, 0.24, 1)
-        widget.editbox:SetFont(Controls.Theme.font, 11, "")
+        SafeSetFont(widget.editbox, 11, "")
     end
     if widget.label then
-        widget.label:SetFont(Controls.Theme.font, 12, "")
+        SafeSetFont(widget.label, 12, "")
     end
 end
 
@@ -184,7 +223,7 @@ local function SkinDropdown(widget)
         if btn then
             text:SetPoint("RIGHT", btn, "LEFT", -3, 0)
         end
-        text:SetFont(Controls.Theme.font, 12, "")
+        SafeSetFont(text, 12, "")
         text:SetVertexColor(1, 1, 1)
     end
 
@@ -192,7 +231,7 @@ local function SkinDropdown(widget)
     if widget.label then
         widget.label:ClearAllPoints()
         widget.label:SetPoint("BOTTOMLEFT", bg, "TOPLEFT", 2, 1)
-        widget.label:SetFont(Controls.Theme.font, 12, "")
+        SafeSetFont(widget.label, 12, "")
         widget.label:SetTextColor(1, 0.82, 0)
     end
 
@@ -274,20 +313,20 @@ local function SkinButton(widget)
 
         -- Style text
         if widget.text then
-            widget.text:SetFont(Controls.Theme.font, 11, "")
+            SafeSetFont(widget.text, 11, "")
         end
     end
 end
 
 local function SkinLabel(widget)
     if widget.label then
-        widget.label:SetFont(Controls.Theme.font, 11, "")
+        SafeSetFont(widget.label, 11, "")
     end
 end
 
 local function SkinHeading(widget)
     if widget.label then
-        widget.label:SetFont(Controls.Theme.font, 13, "OUTLINE")
+        SafeSetFont(widget.label, 13, "OUTLINE")
         widget.label:SetTextColor(unpack(Controls.Theme.accent))
     end
     -- Make the separator lines match theme
@@ -309,7 +348,7 @@ local function SkinInlineGroup(widget)
         border:SetBackdropBorderColor(0.20, 0.20, 0.22, 0.8)
     end
     if widget.titletext then
-        widget.titletext:SetFont(Controls.Theme.font, 13, "OUTLINE")
+        SafeSetFont(widget.titletext, 13, "OUTLINE")
         widget.titletext:SetTextColor(unpack(Controls.Theme.textGold))
     end
 end
@@ -336,7 +375,7 @@ local function ReskinWidget(widget)
     elseif t == "InteractiveLabel" then
         -- Re-apply sub-tab font instead of SkinLabel (which sets size 11)
         if widget._dragonSubTabFont and widget.label then
-            widget.label:SetFont(unpack(widget._dragonSubTabFont))
+            SafeSetFont(widget.label, widget._dragonSubTabFont[2], widget._dragonSubTabFont[3], widget._dragonSubTabFont[1])
         end
     elseif t == "Heading" then
         SkinHeading(widget)
@@ -389,7 +428,7 @@ function Controls:AddLabel(parent, text, opts)
     end
     SkinLabel(label)
     if opts.fontSize and label.label then
-        label.label:SetFont(self.Theme.font, opts.fontSize, "")
+        SafeSetFont(label.label, opts.fontSize, "")
     end
     parent:AddChild(label)
     return label
@@ -589,8 +628,18 @@ function Controls:AddButton(parent, opts)
         end
     end
     btn:SetCallback("OnClick", function()
+        GameTooltip:Hide()
         if opts.callback then opts.callback() end
     end)
+    if opts.desc then
+        btn:SetCallback("OnEnter", function(w)
+            GameTooltip:SetOwner(w.frame, "ANCHOR_TOPRIGHT")
+            GameTooltip:SetText(opts.label or "Button", 1, 1, 1)
+            GameTooltip:AddLine(opts.desc, nil, nil, nil, true)
+            GameTooltip:Show()
+        end)
+        btn:SetCallback("OnLeave", function() GameTooltip:Hide() end)
+    end
     SkinButton(btn)
     parent:AddChild(btn)
     return btn
@@ -681,7 +730,7 @@ function Controls:AddSubTabs(parent, tabs, activeKey, onSelect)
         local fontFlags = isActive and "OUTLINE" or ""
         btn._dragonSubTabFont = { self.Theme.font, 12, fontFlags }
         if btn.label then
-            btn.label:SetFont(self.Theme.font, 12, fontFlags)
+            SafeSetFont(btn.label, 12, fontFlags, self.Theme.font)
         end
 
         btn:SetCallback("OnClick", function()
@@ -702,7 +751,7 @@ function Controls:AddSubTabs(parent, tabs, activeKey, onSelect)
 
         -- Re-apply font after AddChild (guards against AceGUI pool/layout resets)
         if btn.label then
-            btn.label:SetFont(self.Theme.font, 12, fontFlags)
+            SafeSetFont(btn.label, 12, fontFlags, self.Theme.font)
         end
     end
 

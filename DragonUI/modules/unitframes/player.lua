@@ -1,5 +1,6 @@
 local addon = select(2, ...)
 local UF = addon.UF
+local L = addon.L
 
 -- ====================================================================
 -- DRAGONUI PLAYER FRAME MODULE
@@ -16,11 +17,18 @@ local Module = {
     playerFrame = nil,
     textSystem = nil,
     initialized = false,
+    applied = false,
     eventsFrame = nil,
     hooks = {},
     registeredEvents = {},
     originalStates = {}
 }
+
+if addon.RegisterModule then
+    addon:RegisterModule("player", Module,
+        (L and L["Player Frame"]) or "Player Frame",
+        (L and L["Dragonflight-styled player unit frame"]) or "Dragonflight-styled player unit frame")
+end
 -- Animation variables for Combat Flash pulse effect
 local combatPulseTimer = 0
 local eliteStatusPulseTimer = 0
@@ -138,6 +146,10 @@ local CLASS_ICON_TEXTURE = "Interface\\TargetingFrame\\UI-Classes-Circles"
 -- Get player configuration with defaults fallback via shared core
 local function GetPlayerConfig()
     return UF.GetConfig("player")
+end
+
+local function IsPlayerModuleEnabled()
+    return UF and UF.IsEnabled and UF.IsEnabled("player")
 end
 
 -- Cache target-style texture paths for decoration system
@@ -840,7 +852,7 @@ local function UpdateGroupIndicator()
     for i = 1, numRaidMembers do
         local name, rank, subgroup = GetRaidRosterInfo(i)
         if name and name == UnitName("player") then
-            groupText:SetText("GROUP " .. subgroup)
+            groupText:SetText(string.format(L["GROUP %d"], subgroup))
             groupIndicatorFrame:Show()
             break
         end
@@ -2592,6 +2604,7 @@ local function InitializePlayerFrame()
     HideBlizzardPlayerTexts()
 
     Module.initialized = true
+    Module.applied = true
 
 end
 
@@ -2933,6 +2946,12 @@ end)
 
 -- Profile change callbacks for configuration updates
 local function OnProfileChanged()
+    if not IsPlayerModuleEnabled() then
+        addon:ShouldDeferModuleDisable("player", Module)
+        return
+    end
+
+    RefreshPlayerFrame()
     SetupAlternateManaBarAlwaysVisible()
 end
 

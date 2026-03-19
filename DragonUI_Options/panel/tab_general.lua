@@ -27,38 +27,62 @@ local function BuildGeneralTab(scroll)
     C:AddLabel(about, "|cff1784d1" .. LO["DragonUI"] .. "|r")
     C:AddDescription(about, LO["Dragonflight-inspired UI for WotLK 3.3.5a."])
     C:AddSpacer(about)
-    C:AddDescription(about, LO["Experimental Branch — This options panel is in early beta."])
-    C:AddDescription(about, LO["Features may change or be incomplete. Report issues on GitHub."])
+    C:AddDescription(about, LO["Use the tabs on the left to customize action bars, unit frames, minimap, cast bars, and more."])
     C:AddSpacer(about)
     C:AddDescription(about, LO["Use /dragonui or /pi to toggle this panel."])
 
     C:AddSpacer(scroll)
 
     -- ====================================================================
-    -- QUICK ACTIONS
+    -- QUICK ACCESS
     -- ====================================================================
     local actions = C:AddSection(scroll, LO["Quick Actions"])
 
+    C:AddDescription(actions, LO["Jump to popular settings sections."])
+
     C:AddButton(actions, {
-        label = LO["Editor Mode"],
+        label = LO["Dark Mode"],
+        desc = LO["Configure dark tinting for all UI chrome."],
+        width = 200,
+        callback = function() Panel:SelectTab("enhancements") end,
+    })
+
+    C:AddButton(actions, {
+        label = LO["Fat Health Bar"],
+        desc = LO["Full-width health bar that fills the entire player frame."],
+        width = 200,
+        callback = function() Panel:SelectTab("unitframes") end,
+    })
+
+    C:AddButton(actions, {
+        label = LO["Dragon Decoration"],
+        desc = LO["Add a decorative dragon to your player frame."],
+        width = 200,
+        callback = function() Panel:SelectTab("unitframes") end,
+    })
+
+    C:AddButton(actions, {
+        label = LO["Unit Frame Layers"],
+        desc = LO["Heal prediction, absorb shields and animated health loss."],
+        width = 200,
+        callback = function() Panel:SelectTab("enhancements") end,
+    })
+
+    C:AddButton(actions, {
+        label = LO["Action Bar Layout"],
+        desc = LO["Change columns, rows, and buttons shown per action bar."],
         width = 200,
         callback = function()
-            if addon.OptionsPanel then addon.OptionsPanel:Close() end
-            if addon.EditorMode then
-                addon.EditorMode:Toggle()
-            end
+            if addon.SetActionBarSubTab then addon.SetActionBarSubTab("layout") end
+            Panel:SelectTab("actionbars")
         end,
     })
 
     C:AddButton(actions, {
-        label = LO["KeyBind Mode"],
+        label = LO["Grayscale Icons"],
+        desc = LO["Switch micro menu icons between colored and grayscale style."],
         width = 200,
-        callback = function()
-            if addon.OptionsPanel then addon.OptionsPanel:Close() end
-            if addon.KeyBindingModule and LibStub and LibStub("LibKeyBound-1.0", true) then
-                LibStub("LibKeyBound-1.0"):Toggle()
-            end
-        end,
+        callback = function() Panel:SelectTab("micromenu") end,
     })
 end
 

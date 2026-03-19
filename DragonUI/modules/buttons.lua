@@ -35,7 +35,9 @@ local ButtonsModule = {
 
 -- Register with ModuleRegistry (if available)
 if addon.RegisterModule then
-    addon:RegisterModule("buttons", ButtonsModule, "Buttons", "Action button styling and enhancements")
+    addon:RegisterModule("buttons", ButtonsModule,
+        (addon.L and addon.L["Buttons"]) or "Buttons",
+        (addon.L and addon.L["Action button styling and enhancements"]) or "Action button styling and enhancements")
 end
 
 -- ============================================================================
@@ -858,6 +860,29 @@ end
 -- Range check OnUpdate handler (shared across all action buttons)
 local rangeFrame = CreateFrame("Frame")
 rangeFrame:Hide()
+rangeFrame.buttonList = rangeFrame.buttonList or {}
+
+local function RebuildRangeButtonList()
+    wipe(rangeFrame.buttonList)
+
+    for i = 1, 12 do
+        local button = _G["ActionButton" .. i]
+        if button then
+            table.insert(rangeFrame.buttonList, button)
+        end
+    end
+
+    for _, prefix in ipairs({"MultiBarBottomLeftButton", "MultiBarBottomRightButton", "MultiBarRightButton", "MultiBarLeftButton"}) do
+        for i = 1, 12 do
+            local button = _G[prefix .. i]
+            if button then
+                table.insert(rangeFrame.buttonList, button)
+            end
+        end
+    end
+end
+
+RebuildRangeButtonList()
 
 rangeFrame:SetScript("OnUpdate", function(self, elapsed)
     rangeTimer = rangeTimer + elapsed
@@ -867,15 +892,8 @@ rangeFrame:SetScript("OnUpdate", function(self, elapsed)
     -- Only update if we have a target and module is enabled
     if not UnitExists("target") then return end
 
-    -- Update main action buttons
-    for i = 1, 12 do
-        UpdateButtonRange(_G["ActionButton" .. i])
-    end
-    -- Multi-bar buttons
-    for _, prefix in ipairs({"MultiBarBottomLeftButton", "MultiBarBottomRightButton", "MultiBarRightButton", "MultiBarLeftButton"}) do
-        for i = 1, 12 do
-            UpdateButtonRange(_G[prefix .. i])
-        end
+    for _, button in ipairs(self.buttonList) do
+        UpdateButtonRange(button)
     end
 end)
 
@@ -887,6 +905,9 @@ local function UpdateRangeIndicatorState()
     end
     local rangeCfg = GetRangeConfig()
     if rangeCfg and rangeCfg.enabled then
+        if #rangeFrame.buttonList == 0 then
+            RebuildRangeButtonList()
+        end
         rangeFrame:Show()
     else
         rangeFrame:Hide()

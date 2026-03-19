@@ -176,23 +176,6 @@ local function BuildModulesTab(scroll)
         requiresReload = true,
     })
 
-    C:AddToggle(ufLayersSection, {
-        label = LO["Animated Health Loss"],
-        desc = LO["Show animated red health loss bar on player frame when taking damage."],
-        getFunc = function()
-            local m = addon.db.profile.modules and addon.db.profile.modules.unitframe_layers
-            if not m then return true end
-            return m.animated_loss ~= false
-        end,
-        setFunc = function(val)
-            if not addon.db.profile.modules.unitframe_layers then
-                addon.db.profile.modules.unitframe_layers = {}
-            end
-            addon.db.profile.modules.unitframe_layers.animated_loss = val
-        end,
-        requiresReload = true,
-    })
-
     -- ====================================================================
     -- ADVANCED: Individual Module Control
     -- ====================================================================
@@ -208,8 +191,9 @@ local function BuildModulesTab(scroll)
         for _, moduleName in ipairs(MR.loadOrder) do
             local info = MR:GetInfo(moduleName)
             if info then
-                local displayLabel = LO[info.displayName] or info.displayName or moduleName
-                local displayDesc = LO[info.description] or info.description
+                -- displayName/description are already translated at registration time via addon.L
+                local displayLabel = info.displayName or moduleName
+                local displayDesc = info.description
                 if not displayDesc or displayDesc == "" then
                     displayDesc = LO["Enable/disable "] .. displayLabel
                 end

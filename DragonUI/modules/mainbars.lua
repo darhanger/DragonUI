@@ -1,4 +1,5 @@
 local addon = select(2, ...)
+local L = addon.L
 addon._dir = "Interface\\AddOns\\DragonUI\\assets\\"
 
 -- ============================================================================
@@ -25,7 +26,9 @@ addon.MainbarsModule = MainbarsModule  -- Expose globally for external access
 
 -- Register with ModuleRegistry (if available)
 if addon.RegisterModule then
-    addon:RegisterModule("mainbars", MainbarsModule, "Main Bars", "Main action bars, status bars, scaling and positioning")
+    addon:RegisterModule("mainbars", MainbarsModule,
+        (addon.L and addon.L["Main Bars"]) or "Main Bars",
+        (addon.L and addon.L["Main action bars, status bars, scaling and positioning"]) or "Main action bars, status bars, scaling and positioning")
 end
 
 -- ============================================================================
@@ -43,7 +46,7 @@ local DEFAULT_PADDING = 4
 local DEFAULT_HEIGHT_PADDING = 6
 
 -- ============================================================================
--- GRID LAYOUT SYSTEM (ported from old contributor)
+-- GRID LAYOUT SYSTEM
 -- ============================================================================
 
 -- Calculate frame size needed for a given row/column layout
@@ -905,9 +908,9 @@ end
             local restedMax = maxXP * 1.5
             local restedPct = (restedMax > 0) and (100 * restedXP / restedMax) or 0
             GameTooltip:AddLine(" ")
-            GameTooltip:AddDoubleLine("XP: ", format("|cFFFFFFFF%s/%s (%.1f%%)", currXP, maxXP, pct))
-            GameTooltip:AddDoubleLine("Remaining: ", format("|cFFFFFFFF%s (%.1f%%)", left, leftPct))
-            GameTooltip:AddDoubleLine("Rested: ", format("|cFFFFFFFF%s (%.1f%%)", restedXP, restedPct))
+            GameTooltip:AddDoubleLine(L["XP: "], format("|cFFFFFFFF%s/%s (%.1f%%)", currXP, maxXP, pct))
+            GameTooltip:AddDoubleLine(L["Remaining: "], format("|cFFFFFFFF%s (%.1f%%)", left, leftPct))
+            GameTooltip:AddDoubleLine(L["Rested: "], format("|cFFFFFFFF%s (%.1f%%)", restedXP, restedPct))
             GameTooltip:Show()
         end)
         f.Bar:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -971,7 +974,7 @@ end
                 GameTooltip:AddLine(name, 1, 1, 1)
                 local standingLabel = _G["FACTION_STANDING_LABEL" .. standing] or ""
                 GameTooltip:AddLine(standingLabel, NORMAL_FONT_COLOR.r, NORMAL_FONT_COLOR.g, NORMAL_FONT_COLOR.b)
-                GameTooltip:AddDoubleLine("Reputation: ", format("|cFFFFFFFF%s / %s", value - minRep, maxRep - minRep))
+                GameTooltip:AddDoubleLine(L["Reputation: "], format("|cFFFFFFFF%s / %s", value - minRep, maxRep - minRep))
                 GameTooltip:Show()
             end
         end)
@@ -1101,7 +1104,7 @@ end
             dfXpBar.TextPercent:SetDrawLayer("HIGHLIGHT")
         end
 
-        dfXpBar.Text:SetText("XP: " .. currXP .. "/" .. maxXP)
+        dfXpBar.Text:SetText(string.format(L["XP: %d/%d"], currXP, maxXP))
 
         local showPercent = cfg.show_xp_percent ~= false
         if showPercent then
@@ -2148,7 +2151,11 @@ end
         
         -- Apply button positioning based on horizontal settings (RetailUI pattern)
         -- This ensures buttons are positioned correctly when horizontal mode is enabled on reload
-        addon.PositionActionBars()
+        if addon.PositionActionBars then
+            addon.PositionActionBars()
+        elseif addon.PositionActionBarsToContainers then
+            addon.PositionActionBarsToContainers()
+        end
 
         -- Set up drag handlers - Execute immediately
         SetupActionBarDragHandlers()
@@ -2977,7 +2984,11 @@ function addon.ApplyAllBarButtonCounts()
 
     -- Left/Right bars: uses TOPLEFT grid layout via PositionSideBarButtons
     -- which respects columns setting (1=vertical, 12=horizontal, etc.)
-    addon.PositionActionBars()
+    if addon.PositionActionBars then
+        addon.PositionActionBars()
+    elseif addon.PositionActionBarsToContainers then
+        addon.PositionActionBarsToContainers()
+    end
 
     -- Keep overlay sizes in sync with current layout
     if addon.UpdateOverlaySizes then
@@ -2988,6 +2999,7 @@ end
 -- Public API for options
 function addon.RefreshMainbarsSystem()
     if not IsModuleEnabled() then
+        addon:ShouldDeferModuleDisable("mainbars", MainbarsModule)
         return
     end
 

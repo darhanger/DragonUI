@@ -1,6 +1,10 @@
 local addon = select(2, ...)
 local L = addon.L
 
+local function T(key, fallback)
+    return (L and L[key]) or fallback or key
+end
+
 -- ============================================================================
 -- BAG SORT MODULE FOR DRAGONUI
 -- Sorts items in bags and bank by type, rarity, level, name.
@@ -20,7 +24,9 @@ local BagSortModule = {
 
 -- Register with ModuleRegistry (if available)
 if addon.RegisterModule then
-    addon:RegisterModule("bagsort", BagSortModule, "Bag Sort", "Sort bags and bank items with buttons")
+    addon:RegisterModule("bagsort", BagSortModule,
+        T("Bag Sort", "Bag Sort"),
+        T("Sort bags and bank items with buttons", "Sort bags and bank items with buttons"))
 end
 
 -- ============================================================================
@@ -37,10 +43,6 @@ end
 
 local function IsCombuctorEnabled()
     return addon:IsModuleEnabled("combuctor")
-end
-
-local function T(key, fallback)
-    return (L and L[key]) or fallback or key
 end
 
 -- ============================================================================
@@ -730,7 +732,7 @@ moveFrame:SetScript("OnUpdate", function(self, elapsed)
         end
     end
 
-    DEFAULT_CHAT_FRAME:AddMessage("|cff00cc66DragonUI:|r Sort complete.", 0.4, 1, 0.4)
+    DEFAULT_CHAT_FRAME:AddMessage("|cff00cc66DragonUI:|r " .. T("Sort complete.", "Sort complete."), 0.4, 1, 0.4)
     StopSorting()
 end)
 moveFrame:Hide()
@@ -764,7 +766,7 @@ end
 
 local function SortPlayerBags()
     if running then
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00cc66DragonUI:|r Sort already in progress.", 1, 0.8, 0)
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00cc66DragonUI:|r " .. T("Sort already in progress.", "Sort already in progress."), 1, 0.8, 0)
         return
     end
 
@@ -774,27 +776,25 @@ local function SortPlayerBags()
     StartSorting()
 
     if #moves == 0 then
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00cc66DragonUI:|r Bags already sorted!", 0.4, 1, 0.4)
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00cc66DragonUI:|r " .. T("Bags already sorted!", "Bags already sorted!"), 0.4, 1, 0.4)
     end
 end
 
-local sort_debug = false
-
 local function SortBankBags()
     if running then
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00cc66DragonUI:|r Sort already in progress.", 1, 0.8, 0)
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00cc66DragonUI:|r " .. T("Sort already in progress.", "Sort already in progress."), 1, 0.8, 0)
         return
     end
     if not bank_open then
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00cc66DragonUI:|r You must be at the bank.", 1, 0.4, 0.4)
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00cc66DragonUI:|r " .. T("You must be at the bank.", "You must be at the bank."), 1, 0.4, 0.4)
         return
     end
 
     ScanBags(ALL_BAGS)
 
     -- Debug: print what ScanBags found for bank items
-    if sort_debug then
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00cc66=== BANK SCAN DEBUG ===|r")
+    if addon.debugMode then
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00cc66" .. T("=== BANK SCAN DEBUG ===", "=== BANK SCAN DEBUG ===") .. "|r")
         for bag, slot, bagslot in IterateBags(BANK_BAGS) do
             local id = bag_ids[bagslot]
             if id then
@@ -817,7 +817,7 @@ local function SortBankBags()
     SortItems(BANK_BAGS)
 
     -- Debug: print sorted order and moves
-    if sort_debug then
+    if addon.debugMode then
         DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00cc66=== %d MOVES ===|r", #moves))
         for i = #moves, 1, -1 do
             local s, t = decode_move(moves[i])
@@ -830,7 +830,7 @@ local function SortBankBags()
     StartSorting()
 
     if #moves == 0 then
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00cc66DragonUI:|r Bank already sorted!", 0.4, 1, 0.4)
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00cc66DragonUI:|r " .. T("Bank already sorted!", "Bank already sorted!"), 0.4, 1, 0.4)
     end
 end
 
@@ -1220,12 +1220,6 @@ ApplyBagSortSystem = function()
     SLASH_DRAGONUI_SORTLOCK1 = "/sortlock"
     SLASH_DRAGONUI_SORTLOCK2 = "/sortignore"
 
-    SlashCmdList["DRAGONUI_SORTDEBUG"] = function()
-        sort_debug = not sort_debug
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00cc66DragonUI:|r Sort debug " .. (sort_debug and "ON" or "OFF"), 1, 1, 0)
-    end
-    SLASH_DRAGONUI_SORTDEBUG1 = "/sortdebug"
-
     -- Delay button creation to ensure combustor frames are ready, then install hooks
     InstallAltClickHooks()
 
@@ -1298,6 +1292,9 @@ local function OnProfileChanged()
             UpdateButtonVisibility()
         end
     else
+        if addon:ShouldDeferModuleDisable("bagsort", BagSortModule) then
+            return
+        end
         RestoreBagSortSystem()
     end
 end

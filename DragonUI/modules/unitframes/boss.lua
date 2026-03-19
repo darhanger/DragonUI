@@ -13,6 +13,7 @@
 ]]
 
 local _, addon = ...
+local L = addon.L
 
 local UF = addon.UF
 if not UF then return end
@@ -42,6 +43,12 @@ local NUM_BOSS_FRAMES = 4
 local BossModule = UF.CreateModule("boss")
 BossModule.wrapperFrames = {} -- editor wrapper frames indexed 1-4
 BossModule.configured = false
+
+if addon.RegisterModule then
+    addon:RegisterModule("boss", BossModule,
+        (L and L["Boss Frames"]) or "Boss Frames",
+        (L and L["Dragonflight-styled boss target frames"]) or "Dragonflight-styled boss target frames")
+end
 
 -- ============================================================================
 -- RESKIN BLIZZARD BOSS FRAME
@@ -432,6 +439,8 @@ local function InitializeBossFrames()
     HookHealthBarColor()
     PositionBossFrames()
 
+    BossModule.initialized = true
+    BossModule.applied = true
     BossModule.configured = true
 end
 
@@ -445,7 +454,7 @@ local function SetupEditorMode()
 
     if BossModule.overlay.editorText then
         local L = addon.L
-        BossModule.overlay.editorText:SetText((L and L["Boss Frames"]) or "Boss Frames")
+        BossModule.overlay.editorText:SetText((L and (L["boss"] or L["Boss Frames"])) or "Boss Frames")
     end
 
     -- Initial position will be set by ApplyBossFramePosition()
@@ -573,7 +582,10 @@ eventsFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
 function addon.RefreshBossFrames()
     if not BossModule.configured then return end
     if InCombatLockdown() then return end
-    if not IsEnabled() then return end
+    if not IsEnabled() then
+        addon:ShouldDeferModuleDisable("boss", BossModule)
+        return
+    end
 
     HideBlizzardBossBackgrounds()
 
@@ -593,6 +605,11 @@ addon.BossModule = BossModule
 
 -- Profile change callbacks
 local function OnProfileChanged()
+    if not IsEnabled() then
+        addon:ShouldDeferModuleDisable("boss", BossModule)
+        return
+    end
+
     if addon.RefreshBossFrames then
         addon.RefreshBossFrames()
     end

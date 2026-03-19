@@ -85,7 +85,7 @@ function addon.CombatSafety:ExecutePending(id)
     if operation then
         local success, err = pcall(operation.func, unpack(operation.args))
         if not success then
-            print("|cFFFF0000[DragonUI]|r Error executing pending operation:", err)
+            addon:Error(addon.L and addon.L["Error executing pending operation:"] or "Error executing pending operation:", err)
         end
         self.pendingOperations[id] = nil
     end
@@ -113,7 +113,7 @@ function addon.SafeCall(operationId, func, ...)
     
     local success, result = pcall(func, ...)
     if not success then
-        print("|cFFFF0000[DragonUI]|r Error in SafeCall:", result)
+        addon:Error(addon.L and addon.L["Error in SafeCall:"] or "Error in SafeCall:", result)
         return false, nil
     end
     
@@ -491,6 +491,4 @@ initFrame:SetScript("OnEvent", function(self, event)
 end)
 
 ]]
-
-print("|cFF00FF00[DragonUI]|r Module Base loaded")
 

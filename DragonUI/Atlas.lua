@@ -695,6 +695,7 @@ local atlasTextures = {
 
 function SetAtlasTexture(texture, textureName)
     local atlasInfo = atlasTextures[textureName]
+    if not atlasInfo then return false end
     local assetInfo = atlasInfo.asset
 
     local texCoordInfo = atlasInfo.texcoord
@@ -703,4 +704,5 @@ function SetAtlasTexture(texture, textureName)
     texture:SetTexture(assetInfo.path)
     texture:SetTexCoord(left / assetInfo.width, right / assetInfo.width, top / assetInfo.height, bottom / assetInfo.height)
     texture:SetSize(right - left, bottom - top)
+    return true
 end

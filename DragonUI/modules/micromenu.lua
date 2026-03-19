@@ -33,7 +33,9 @@ local MicromenuModule = {
 
 -- Register with ModuleRegistry (if available)
 if addon.RegisterModule then
-    addon:RegisterModule("micromenu", MicromenuModule, "Micro Menu", "Micro menu and bags system styling and positioning")
+    addon:RegisterModule("micromenu", MicromenuModule,
+        (addon.L and addon.L["Micro Menu"]) or "Micro Menu",
+        (addon.L and addon.L["Micro menu and bags system styling and positioning"]) or "Micro menu and bags system styling and positioning")
 end
 
 -- ============================================================================
@@ -278,8 +280,89 @@ local function UpdateCharacterPortraitVisibility()
             MicroButtonPortrait:SetAlpha(0)
         else
             MicroButtonPortrait:Show()
-            MicroButtonPortrait:SetAlpha(1)
+            -- Keep portrait valid after late Blizzard refreshes.
+            SetPortraitTexture(MicroButtonPortrait, "player")
+            -- Don't set alpha here — the SetPushed/SetNormal hooks and
+            -- HandleDragonUIState manage it to avoid race conditions.
         end
+    end
+
+    -- Kill Blizzard's native button textures every time UpdateMicroButtons
+    -- runs. Blizzard restores them internally; we must re-clear each pass.
+    -- Only in colored mode — grayscale uses native textures with atlas.
+    local charBtn = _G.CharacterMicroButton
+    local useGrayscaleForClear = addon and addon.db and addon.db.profile and addon.db.profile.micromenu and addon.db.profile.micromenu.grayscale_icons
+    if charBtn and not useGrayscaleForClear then
+        local nt = charBtn:GetNormalTexture()
+        if nt then nt:SetTexture(nil) end
+        local pt = charBtn:GetPushedTexture()
+        if pt then pt:SetTexture(nil) end
+        local ht = charBtn:GetHighlightTexture()
+        if ht then ht:SetTexture(nil) end
+    end
+
+    -- Refresh character highlight so it stays in sync.
+    -- Character button background can be hidden by late startup passes.
+    local useGrayscale = addon and addon.db and addon.db.profile and addon.db.profile.micromenu and addon.db.profile.micromenu.grayscale_icons
+    if charBtn and not useGrayscale and charBtn.DragonUICharHighlight then
+        SetPortraitTexture(charBtn.DragonUICharHighlight, "player")
+        -- Read current portrait TexCoord instead of hardcoding normal coords.
+        -- Blizzard shifts the crop for pushed/normal state; we must match it.
+        charBtn.DragonUICharHighlight:SetTexCoord(MicroButtonPortrait:GetTexCoord())
+        charBtn.DragonUICharHighlight:SetBlendMode('ADD')
+        charBtn.DragonUICharHighlight:SetAlpha(0.5)
+        charBtn.DragonUICharHighlight:SetAllPoints(MicroButtonPortrait)
+    end
+    if charBtn and charBtn.DragonUIBackground then
+        local microTexture = 'Interface\\AddOns\\DragonUI\\Textures\\Micromenu\\uimicromenu2x'
+
+        -- Rehydrate texture data in case a late UI pass stripped it.
+        charBtn.DragonUIBackground:SetTexture(microTexture)
+        charBtn.DragonUIBackground:SetTexCoord(0.0654297, 0.12793, 0.330078, 0.490234)
+        if charBtn.DragonUIBackgroundPushed then
+            charBtn.DragonUIBackgroundPushed:SetTexture(microTexture)
+            charBtn.DragonUIBackgroundPushed:SetTexCoord(0.0654297, 0.12793, 0.494141, 0.654297)
+        end
+
+        if useGrayscale then
+            charBtn.DragonUIBackground:Hide()
+            if charBtn.DragonUIBackgroundPushed then
+                charBtn.DragonUIBackgroundPushed:Hide()
+            end
+        else
+            if charBtn.dragonUIState and charBtn.dragonUIState.pushed and charBtn.DragonUIBackgroundPushed then
+                charBtn.DragonUIBackground:Hide()
+                charBtn.DragonUIBackgroundPushed:Show()
+            else
+                charBtn.DragonUIBackground:Show()
+                if charBtn.DragonUIBackgroundPushed then
+                    charBtn.DragonUIBackgroundPushed:Hide()
+                end
+            end
+        end
+    elseif charBtn and not (addon and addon.db and addon.db.profile and addon.db.profile.micromenu and addon.db.profile.micromenu.grayscale_icons) then
+        -- Late safety net: if background was removed, recreate it for colored mode.
+        local microTexture = 'Interface\\AddOns\\DragonUI\\Textures\\Micromenu\\uimicromenu2x'
+        local dx, dy = -1, 1
+        local offX, offY = charBtn:GetPushedTextOffset()
+        local sizeX, sizeY = charBtn:GetSize()
+
+        local bg = charBtn:CreateTexture(nil, 'BACKGROUND')
+        bg:SetTexture(microTexture)
+        bg:SetSize(sizeX, sizeY + 1)
+        bg:SetTexCoord(0.0654297, 0.12793, 0.330078, 0.490234)
+        bg:SetPoint('CENTER', dx, dy)
+        charBtn.DragonUIBackground = bg
+
+        local bgPushed = charBtn:CreateTexture(nil, 'BACKGROUND')
+        bgPushed:SetTexture(microTexture)
+        bgPushed:SetSize(sizeX, sizeY + 1)
+        bgPushed:SetTexCoord(0.0654297, 0.12793, 0.494141, 0.654297)
+        bgPushed:SetPoint('CENTER', dx + offX, dy + offY)
+        bgPushed:Hide()
+        charBtn.DragonUIBackgroundPushed = bgPushed
+
+        charBtn.DragonUIBackground:Show()
     end
 end
 -- ============================================================================
@@ -627,11 +710,11 @@ end
 -- Blizzard refreshes the micro button bar.
 if UpdateMicroButtons then
     hooksecurefunc("UpdateMicroButtons", function()
-        if MicroButtonPortrait and MicroButtonPortrait:IsShown() then
-            SetPortraitTexture(MicroButtonPortrait, "player")
-        end
+        UpdateCharacterPortraitVisibility()
     end)
 end
+
+
 
 local function ApplyMicromenuSystem()
     if MicromenuModule.applied or not IsModuleEnabled() then
@@ -742,193 +825,344 @@ local function ApplyMicromenuSystem()
         end
     end
 
+    -- Character/PVP are special: their panel-open state may not always map to
+    -- transient GetButtonState()=="PUSHED", so include checked/open-state signals.
+    local function IsSpecialMicroButtonActive(button, buttonName)
+        if not button then return false end
+
+        local pressed = button.GetButtonState and button:GetButtonState() == "PUSHED"
+        local checked = button.GetChecked and button:GetChecked()
+
+        if buttonName == "Character" then
+            -- Use ONLY panel visibility. GetButtonState/GetChecked cause false
+            -- positives: GetButtonState is PUSHED while holding the mouse (before
+            -- OnClick opens the frame), GetChecked may be stale from portrait loading.
+            return (_G.CharacterFrame and _G.CharacterFrame:IsVisible() and true or false)
+                or (_G.PaperDollFrame and _G.PaperDollFrame:IsVisible() and true or false)
+        elseif buttonName == "PVP" then
+            -- In WotLK 3.3.5a, GetChecked() on PVPMicroButton returns true when
+            -- the player has their PvP flag enabled - NOT when the panel is open.
+            -- Using it would permanently dim the icon on PvP servers.
+            -- GetButtonState() == "PUSHED" is also unreliable here.
+            -- Only use actual panel-frame visibility as the active signal.
+            return (_G.PVPFrame and _G.PVPFrame:IsVisible() and true or false)
+                or (_G.PVPParentFrame and _G.PVPParentFrame:IsVisible() and true or false)
+                or (_G.BattlefieldFrame and _G.BattlefieldFrame:IsVisible() and true or false)
+                or (_G.HonorFrame and _G.HonorFrame:IsVisible() and true or false)
+        end
+
+        return pressed
+    end
+
     -- ============================================================================
     -- SECTION 5: SPECIALIZED BUTTON SETUP
     -- ============================================================================
     local function SetupPVPButton(button)
+        -- Mirror the Character button pattern:
+        -- Instead of fighting WoW's internal NormalTexture alpha management,
+        -- we create our own ARTWORK texture (DragonUIPVPIcon) that we control
+        -- exclusively, just like Character uses MicroButtonPortrait.
         local microTexture = 'Interface\\AddOns\\DragonUI\\Textures\\Micromenu\\micropvp'
-        local englishFaction, localizedFaction = UnitFactionGroup('player')
-
-        if not englishFaction then
-            -- Fallback to grayscale if faction not determined
-            local normalTexture = button:GetNormalTexture()
-            local pushedTexture = button:GetPushedTexture()
-            local disabledTexture = button:GetDisabledTexture()
-            local highlightTexture = button:GetHighlightTexture()
-
-            if normalTexture then
-                normalTexture:set_atlas('ui-hud-micromenu-pvp-up-2x')
-            end
-            if pushedTexture then
-                pushedTexture:set_atlas('ui-hud-micromenu-pvp-down-2x')
-            end
-            if disabledTexture then
-                disabledTexture:set_atlas('ui-hud-micromenu-pvp-disabled-2x')
-            end
-            if highlightTexture then
-                highlightTexture:set_atlas('ui-hud-micromenu-pvp-mouseover-2x')
-            end
-            return
-        end
-
-        local coords = {}
-        if englishFaction == 'Alliance' then
-            coords = {0, 118 / 256, 0, 151 / 256}
-        else
-            coords = {118 / 256, 236 / 256, 0, 151 / 256}
-        end
-
-        -- Apply coordinates to all states
+        local englishFaction = UnitFactionGroup('player')
+        local backgroundTexture = 'Interface\\AddOns\\DragonUI\\Textures\\Micromenu\\uimicromenu2x'
         local buttonWidth, buttonHeight = button:GetSize()
+        local dx, dy = -1, 1
+        local offX, offY = button:GetPushedTextOffset()
+        local sizeX, sizeY = buttonWidth, buttonHeight
 
-        local normalTexture = button:GetNormalTexture()
-        if normalTexture then
-            normalTexture:SetTexture(microTexture)
-            normalTexture:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
-            normalTexture:ClearAllPoints()
-            normalTexture:SetPoint('CENTER', 0, 0)
-            normalTexture:SetSize(buttonWidth, buttonHeight)
+        -- ---- Icon layer: our own ARTWORK texture, never touched by WoW's button system ----
+        if not button.DragonUIPVPIcon then
+            local icon = button:CreateTexture(nil, 'ARTWORK')
+            button.DragonUIPVPIcon = icon
         end
 
-        local pushedTexture = button:GetPushedTexture()
-        if pushedTexture then
-            pushedTexture:SetTexture(microTexture)
-            pushedTexture:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
-            pushedTexture:ClearAllPoints()
-            pushedTexture:SetPoint('CENTER', 0, 0)
-            pushedTexture:SetSize(buttonWidth, buttonHeight)
+        local icon = button.DragonUIPVPIcon
+        if englishFaction == 'Alliance' then
+            icon:SetTexture(microTexture)
+            icon:SetTexCoord(0, 118 / 256, 0, 151 / 256)
+        elseif englishFaction == 'Horde' then
+            icon:SetTexture(microTexture)
+            icon:SetTexCoord(118 / 256, 236 / 256, 0, 151 / 256)
+        else
+            -- Faction unknown: use atlas grayscale fallback
+            icon:set_atlas('ui-hud-micromenu-pvp-up-2x')
         end
+        icon:ClearAllPoints()
+        icon:SetPoint('CENTER', button, 'CENTER', 0, 0)
+        icon:SetSize(buttonWidth, buttonHeight)
+        icon:SetAlpha(1.0)
+        icon:Show()
 
-        local disabledTexture = button:GetDisabledTexture()
-        if disabledTexture then
-            disabledTexture:SetTexture(microTexture)
-            disabledTexture:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
-            disabledTexture:ClearAllPoints()
-            disabledTexture:SetPoint('CENTER', 0, 0)
-            disabledTexture:SetSize(buttonWidth, buttonHeight)
-        end
-
+        -- ---- Hover highlight: reuse GetHighlightTexture() with faction texture + BlendMode ADD
+        -- WoW shows/hides this automatically on mouse enter/leave.
         local highlightTexture = button:GetHighlightTexture()
         if highlightTexture then
-            highlightTexture:SetTexture(microTexture)
-            highlightTexture:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
+            if englishFaction == 'Alliance' then
+                highlightTexture:SetTexture(microTexture)
+                highlightTexture:SetTexCoord(0, 118 / 256, 0, 151 / 256)
+            elseif englishFaction == 'Horde' then
+                highlightTexture:SetTexture(microTexture)
+                highlightTexture:SetTexCoord(118 / 256, 236 / 256, 0, 151 / 256)
+            else
+                highlightTexture:set_atlas('ui-hud-micromenu-pvp-mouseover-2x')
+            end
             highlightTexture:ClearAllPoints()
-            highlightTexture:SetPoint('CENTER', 0, 0)
-            highlightTexture:SetSize(buttonWidth, buttonHeight)
+            highlightTexture:SetAllPoints(button)
+            highlightTexture:SetBlendMode('ADD')
+            highlightTexture:SetAlpha(0.5)
         end
 
-        -- Add background for PVP button
+        -- ---- Background slot texture ----
         if not button.DragonUIBackground then
-            local backgroundTexture = 'Interface\\AddOns\\DragonUI\\Textures\\Micromenu\\uimicromenu2x'
-            local dx, dy = -1, 1
-            local offX, offY = button:GetPushedTextOffset()
-            local sizeX, sizeY = button:GetSize()
-
-            local bg = button:CreateTexture('DragonUIBackground', 'BACKGROUND')
+            local bg = button:CreateTexture(nil, 'BACKGROUND')
             bg:SetTexture(backgroundTexture)
             bg:SetSize(sizeX, sizeY + 1)
             bg:SetTexCoord(0.0654297, 0.12793, 0.330078, 0.490234)
             bg:SetPoint('CENTER', dx, dy)
             button.DragonUIBackground = bg
 
-            local bgPushed = button:CreateTexture('DragonUIBackgroundPushed', 'BACKGROUND')
+            local bgPushed = button:CreateTexture(nil, 'BACKGROUND')
             bgPushed:SetTexture(backgroundTexture)
             bgPushed:SetSize(sizeX, sizeY + 1)
             bgPushed:SetTexCoord(0.0654297, 0.12793, 0.494141, 0.654297)
             bgPushed:SetPoint('CENTER', dx + offX, dy + offY)
             bgPushed:Hide()
             button.DragonUIBackgroundPushed = bgPushed
+        else
+            button.DragonUIBackground:SetTexture(backgroundTexture)
+            button.DragonUIBackground:SetTexCoord(0.0654297, 0.12793, 0.330078, 0.490234)
+            button.DragonUIBackground:ClearAllPoints()
+            button.DragonUIBackground:SetPoint('CENTER', dx, dy)
+            button.DragonUIBackground:SetSize(sizeX, sizeY + 1)
 
-            -- Initialize state tracking properties
-            button.dragonUIState = {
-                pushed = false
-            }
-            button.dragonUITimer = 0
-            button.dragonUILastState = false
+            if button.DragonUIBackgroundPushed then
+                button.DragonUIBackgroundPushed:SetTexture(backgroundTexture)
+                button.DragonUIBackgroundPushed:SetTexCoord(0.0654297, 0.12793, 0.494141, 0.654297)
+                button.DragonUIBackgroundPushed:ClearAllPoints()
+                button.DragonUIBackgroundPushed:SetPoint('CENTER', dx + offX, dy + offY)
+                button.DragonUIBackgroundPushed:SetSize(sizeX, sizeY + 1)
+            end
+        end
 
-            -- Create state handler
-            local dx, dy = -1, 1
-            local offX, offY = button:GetPushedTextOffset()
+        -- ---- State tracking ----
+        button.dragonUIState = button.dragonUIState or {}
+        button.dragonUIState.pushed = IsSpecialMicroButtonActive(button, "PVP")
+        button.dragonUILastState = button.dragonUIState.pushed
+        button.dragonUITimer = button.dragonUITimer or 0
 
-            button.HandleDragonUIState = function()
-                local state = button.dragonUIState
-                if state and state.pushed then
-                    local subtleOffX = offX * 0.3
-                    local subtleOffY = offY * 0.3
-                    if button:GetNormalTexture() then
-                        button:GetNormalTexture():ClearAllPoints()
-                        button:GetNormalTexture():SetPoint('CENTER', subtleOffX, subtleOffY)
-                        button:GetNormalTexture():SetAlpha(0.7)
+        -- ---- State handler: only manipulates DragonUIPVPIcon ----
+        button.HandleDragonUIState = function()
+            local pvpIcon = button.DragonUIPVPIcon
+            local state = button.dragonUIState
+            local hlTex = button:GetHighlightTexture()
+            if state and state.pushed then
+                if pvpIcon then
+                    pvpIcon:ClearAllPoints()
+                    pvpIcon:SetPoint('CENTER', button, 'CENTER', offX, offY)
+                    pvpIcon:SetAlpha(0.7)
+                end
+                if button.DragonUIBackground then
+                    button.DragonUIBackground:Hide()
+                end
+                if button.DragonUIBackgroundPushed then
+                    button.DragonUIBackgroundPushed:Show()
+                end
+                -- Shift highlight to match icon pushed displacement
+                if hlTex then
+                    hlTex:ClearAllPoints()
+                    hlTex:SetPoint('TOPLEFT', button, 'TOPLEFT', offX, offY)
+                    hlTex:SetPoint('BOTTOMRIGHT', button, 'BOTTOMRIGHT', offX, offY)
+                end
+            else
+                if pvpIcon then
+                    pvpIcon:ClearAllPoints()
+                    pvpIcon:SetPoint('CENTER', button, 'CENTER', 0, 0)
+                    pvpIcon:SetAlpha(1.0)
+                end
+                if button.DragonUIBackground then
+                    button.DragonUIBackground:Show()
+                end
+                if button.DragonUIBackgroundPushed then
+                    button.DragonUIBackgroundPushed:Hide()
+                end
+                if hlTex then
+                    hlTex:ClearAllPoints()
+                    hlTex:SetAllPoints(button)
+                end
+            end
+        end
+
+        -- ---- OnUpdate: poll panel visibility ----
+        button:SetScript('OnUpdate', function(self, elapsed)
+            self.dragonUITimer = (self.dragonUITimer or 0) + elapsed
+            if self.dragonUITimer >= 0.1 then
+                self.dragonUITimer = 0
+                local currentState = IsSpecialMicroButtonActive(self, "PVP")
+                if currentState ~= self.dragonUILastState then
+                    self.dragonUILastState = currentState
+                    if self.dragonUIState then
+                        self.dragonUIState.pushed = currentState
                     end
-                    if button.DragonUIBackground then
-                        button.DragonUIBackground:Hide()
-                    end
-                    if button.DragonUIBackgroundPushed then
-                        button.DragonUIBackgroundPushed:Show()
-                    end
-                else
-                    if button:GetNormalTexture() then
-                        button:GetNormalTexture():ClearAllPoints()
-                        button:GetNormalTexture():SetPoint('CENTER', 0, 0)
-                        button:GetNormalTexture():SetAlpha(1.0)
-                    end
-                    if button.DragonUIBackground then
-                        button.DragonUIBackground:Show()
-                    end
-                    if button.DragonUIBackgroundPushed then
-                        button.DragonUIBackgroundPushed:Hide()
+                    if self.HandleDragonUIState then
+                        self.HandleDragonUIState()
                     end
                 end
             end
+        end)
 
-            button:SetScript('OnUpdate', function(self, elapsed)
-                -- Ensure timer is initialized
-                if not self.dragonUITimer then
-                    self.dragonUITimer = 0
+        -- ---- Mouse feedback (immediate response on click) ----
+        if not button.DragonUIStateHooks then
+            button:HookScript('OnMouseDown', function(self)
+                if self.dragonUIState then
+                    self.dragonUIState.pushed = true
                 end
-
-                self.dragonUITimer = self.dragonUITimer + elapsed
-                if self.dragonUITimer >= 0.1 then
-                    self.dragonUITimer = 0
-                    local currentState = self:GetButtonState() == "PUSHED"
-                    if currentState ~= self.dragonUILastState then
-                        self.dragonUILastState = currentState
-                        if self.dragonUIState then
-                            self.dragonUIState.pushed = currentState
-                        end
-                        if self.HandleDragonUIState then
-                            self.HandleDragonUIState()
-                        end
-                    end
+                if self.HandleDragonUIState then
+                    self.HandleDragonUIState()
                 end
             end)
-
-            button.HandleDragonUIState()
+            button:HookScript('OnMouseUp', function(self)
+                local currentState = IsSpecialMicroButtonActive(self, "PVP")
+                self.dragonUILastState = currentState
+                if self.dragonUIState then
+                    self.dragonUIState.pushed = currentState
+                end
+                if self.HandleDragonUIState then
+                    self.HandleDragonUIState()
+                end
+            end)
+            button.DragonUIStateHooks = true
         end
+
+        -- Apply initial state
+        button.HandleDragonUIState()
     end
+
+    -- Local flag: reset on every /reload (Lua state is wiped).
+    -- Frame properties survive reload, but hooksecurefunc on globals don't.
+    local charPushHooksRegistered = false
+
     local function SetupCharacterButton(button)
         -- STEP 1: Use Blizzard's native portrait (like RetailUI)
         local portraitTexture = MicroButtonPortrait
+        if not portraitTexture then
+            return
+        end
         portraitTexture:ClearAllPoints()
-        portraitTexture:SetPoint('CENTER', button, 'CENTER', 0, -0.5) -- No offset
-        portraitTexture:SetSize(18, 24) -- Adjustable size
-        portraitTexture:SetAlpha(1) -- Always visible
+        portraitTexture:SetPoint('CENTER', button, 'CENTER', 0, -0.5)
+        portraitTexture:SetSize(18, 24)
+        portraitTexture:SetAlpha(1)
 
-        -- STEP 2: Background only (like other buttons)
+        -- Hide Blizzard's native normal/pushed/highlight textures so they
+        -- don't bleed through as a background after /reload.  We use our
+        -- own DragonUIBackground/BackgroundPushed instead.
+        local nt = button:GetNormalTexture()
+        if nt then nt:SetTexture(nil) end
+        local pt = button:GetPushedTexture()
+        if pt then pt:SetTexture(nil) end
+        local ht = button:GetHighlightTexture()
+        if ht then ht:SetTexture(nil) end
+        local dt = button:GetDisabledTexture()
+        if dt then dt:SetTexture(nil) end
+
+        -- STEP 2: Hover highlight — OVERLAY with ADD blend.
+        -- Uses SetPortraitTexture directly (not GetTexture clone, which returns
+        -- nil for 3D portrait renders). SetAllPoints(portraitTexture) guarantees
+        -- identical position/size — same technique as DragonUIPortraitDim.
+        local function RefreshCharHighlight(btn)
+            local hl = btn.DragonUICharHighlight
+            if not hl then return end
+            SetPortraitTexture(hl, "player")
+            hl:SetTexCoord(MicroButtonPortrait:GetTexCoord())
+            hl:SetBlendMode('ADD')
+            hl:SetAlpha(1)
+            hl:SetAllPoints(MicroButtonPortrait)
+        end
+
+        if not button.DragonUICharHighlight then
+            local hl = button:CreateTexture(nil, 'OVERLAY')
+            hl:SetAllPoints(portraitTexture)
+            hl:Hide()
+            button.DragonUICharHighlight = hl
+
+            button:HookScript('OnEnter', function(self)
+                if self.DragonUICharHighlight then
+                    RefreshCharHighlight(self)
+                    self.DragonUICharHighlight:Show()
+                end
+            end)
+            button:HookScript('OnLeave', function(self)
+                if self.DragonUICharHighlight then
+                    self.DragonUICharHighlight:Hide()
+                end
+            end)
+        end
+
+        -- Global function hooks: must re-register every reload (Lua state resets).
+        -- Sync highlight TexCoord and force portrait alpha=1 so Blizzard's
+        -- SetPushed/SetNormal don't darken the portrait.
+        if not charPushHooksRegistered then
+            hooksecurefunc('CharacterMicroButton_SetPushed', function()
+                local isGS = addon and addon.db and addon.db.profile
+                    and addon.db.profile.micromenu and addon.db.profile.micromenu.grayscale_icons
+                if isGS then return end
+                MicroButtonPortrait:SetAlpha(0.7)
+                local nt = button:GetNormalTexture()
+                if nt then nt:SetTexture(nil) end
+                local pt = button:GetPushedTexture()
+                if pt then pt:SetTexture(nil) end
+                local hl = button.DragonUICharHighlight
+                if hl and hl:IsShown() then
+                    hl:SetTexCoord(MicroButtonPortrait:GetTexCoord())
+                end
+            end)
+            hooksecurefunc('CharacterMicroButton_SetNormal', function()
+                local isGS = addon and addon.db and addon.db.profile
+                    and addon.db.profile.micromenu and addon.db.profile.micromenu.grayscale_icons
+                if isGS then return end
+                MicroButtonPortrait:SetAlpha(1)
+                local nt = button:GetNormalTexture()
+                if nt then nt:SetTexture(nil) end
+                local pt = button:GetPushedTexture()
+                if pt then pt:SetTexture(nil) end
+                local hl = button.DragonUICharHighlight
+                if hl and hl:IsShown() then
+                    hl:SetTexCoord(MicroButtonPortrait:GetTexCoord())
+                end
+            end)
+            charPushHooksRegistered = true
+        end
+        RefreshCharHighlight(button)
+        button.DragonUICharHighlight:Hide()
+
+        -- Keep highlight in sync when portrait model updates (first login).
+        if not button.DragonUIPortraitEventRegistered then
+            button:RegisterEvent("UNIT_PORTRAIT_UPDATE")
+            button:HookScript("OnEvent", function(self, event, unit)
+                if event == "UNIT_PORTRAIT_UPDATE" and unit == "player" then
+                    local isGrayscale = addon and addon.db and addon.db.profile
+                        and addon.db.profile.micromenu and addon.db.profile.micromenu.grayscale_icons
+                    if isGrayscale then return end
+                    RefreshCharHighlight(self)
+                end
+            end)
+            button.DragonUIPortraitEventRegistered = true
+        end
+
+        -- STEP 3: Background only (like other buttons)
         if not button.DragonUIBackground then
             local microTexture = 'Interface\\AddOns\\DragonUI\\Textures\\Micromenu\\uimicromenu2x'
             local dx, dy = -1, 1
             local offX, offY = button:GetPushedTextOffset()
             local sizeX, sizeY = button:GetSize()
 
-            local bg = button:CreateTexture('DragonUIBackground', 'BACKGROUND')
+            local bg = button:CreateTexture(nil, 'BACKGROUND')
             bg:SetTexture(microTexture)
             bg:SetSize(sizeX, sizeY + 1)
             bg:SetTexCoord(0.0654297, 0.12793, 0.330078, 0.490234)
             bg:SetPoint('CENTER', dx, dy)
             button.DragonUIBackground = bg
 
-            local bgPushed = button:CreateTexture('DragonUIBackgroundPushed', 'BACKGROUND')
+            local bgPushed = button:CreateTexture(nil, 'BACKGROUND')
             bgPushed:SetTexture(microTexture)
             bgPushed:SetSize(sizeX, sizeY + 1)
             bgPushed:SetTexCoord(0.0654297, 0.12793, 0.494141, 0.654297)
@@ -937,34 +1171,38 @@ local function ApplyMicromenuSystem()
             button.DragonUIBackgroundPushed = bgPushed
 
             -- STEP 3: Initialize state tracking properties
+            -- Always start unpushed: CharacterFrame can't be open on login/reload.
+            -- The OnUpdate poll will detect it correctly after the first tick.
             button.dragonUIState = {
                 pushed = false
             }
             button.dragonUITimer = 0
-            button.dragonUILastState = false
+            button.dragonUILastState = button.dragonUIState.pushed
 
             button.HandleDragonUIState = function()
                 local state = button.dragonUIState
                 if state and state.pushed then
+                    MicroButtonPortrait:SetAlpha(0.7)
                     bg:Hide()
                     bgPushed:Show()
                 else
+                    MicroButtonPortrait:SetAlpha(1)
                     bg:Show()
                     bgPushed:Hide()
                 end
             end
 
-            -- STEP 4: Simple timer (without touching the portrait)
+            -- STEP 4: Poll CharacterFrame visibility every 100ms.
+            -- Frame visibility (IsVisible) is the only reliable signal:
+            -- - GetButtonState is PUSHED while holding mouse, BEFORE OnClick opens
+            --   the frame, causing a premature false dim that resets on release.
+            -- - Pure IsVisible polling has no false-positive risk: CharacterFrame
+            --   is only visible when actually open.
             button:SetScript('OnUpdate', function(self, elapsed)
-                -- Ensure timer is initialized
-                if not self.dragonUITimer then
-                    self.dragonUITimer = 0
-                end
-
-                self.dragonUITimer = self.dragonUITimer + elapsed
+                self.dragonUITimer = (self.dragonUITimer or 0) + elapsed
                 if self.dragonUITimer >= 0.1 then
                     self.dragonUITimer = 0
-                    local currentState = self:GetButtonState() == "PUSHED"
+                    local currentState = IsSpecialMicroButtonActive(self, "Character")
                     if currentState ~= self.dragonUILastState then
                         self.dragonUILastState = currentState
                         if self.dragonUIState then
@@ -978,6 +1216,33 @@ local function ApplyMicromenuSystem()
             end)
 
             button.HandleDragonUIState()
+        else
+            -- Re-apply geometry/visibility every pass to survive late Blizzard updates.
+            local microTexture = 'Interface\\AddOns\\DragonUI\\Textures\\Micromenu\\uimicromenu2x'
+            local dx, dy = -1, 1
+            local offX, offY = button:GetPushedTextOffset()
+            local sizeX, sizeY = button:GetSize()
+
+            button.DragonUIBackground:SetTexture(microTexture)
+            button.DragonUIBackground:SetTexCoord(0.0654297, 0.12793, 0.330078, 0.490234)
+            button.DragonUIBackground:ClearAllPoints()
+            button.DragonUIBackground:SetPoint('CENTER', dx, dy)
+            button.DragonUIBackground:SetSize(sizeX, sizeY + 1)
+
+            if button.DragonUIBackgroundPushed then
+                button.DragonUIBackgroundPushed:SetTexture(microTexture)
+                button.DragonUIBackgroundPushed:SetTexCoord(0.0654297, 0.12793, 0.494141, 0.654297)
+                button.DragonUIBackgroundPushed:ClearAllPoints()
+                button.DragonUIBackgroundPushed:SetPoint('CENTER', dx + offX, dy + offY)
+                button.DragonUIBackgroundPushed:SetSize(sizeX, sizeY + 1)
+            end
+
+            button.dragonUIState = button.dragonUIState or { pushed = false }
+
+            -- Delegate to the existing handler for consistent state application
+            if button.HandleDragonUIState then
+                button.HandleDragonUIState()
+            end
         end
     end
 
@@ -1142,8 +1407,16 @@ local function ApplyMicromenuSystem()
                 MainMenuBarBackpackButton:SetPoint("RIGHT", self, "RIGHT", 0, 0)
             end)
 
-            -- Continuous hook to maintain position
-            bagsFrame:HookScript("OnUpdate", function(self)
+            -- Defensive maintenance hook. Throttled to avoid per-frame work when the
+            -- backpack button is already anchored correctly.
+            bagsFrame._duiBackpackCheckElapsed = 0
+            bagsFrame:HookScript("OnUpdate", function(self, elapsed)
+                self._duiBackpackCheckElapsed = self._duiBackpackCheckElapsed + elapsed
+                if self._duiBackpackCheckElapsed < 0.2 then
+                    return
+                end
+
+                self._duiBackpackCheckElapsed = 0
                 if not MainMenuBarBackpackButton:GetPoint() then
                     MainMenuBarBackpackButton:ClearAllPoints()
                     MainMenuBarBackpackButton:SetPoint("RIGHT", self, "RIGHT", 0, 0)
@@ -1392,6 +1665,17 @@ local function ApplyMicromenuSystem()
                     local disabledTexture = button:GetDisabledTexture()
                     local highlightTexture = button:GetHighlightTexture()
 
+                    -- Ensure colored-only backgrounds do not bleed into grayscale mode.
+                    if button.DragonUIBackground then
+                        button.DragonUIBackground:Hide()
+                    end
+                    if button.DragonUIBackgroundPushed then
+                        button.DragonUIBackgroundPushed:Hide()
+                    end
+                    if button.DragonUIHover then
+                        button.DragonUIHover:Hide()
+                    end
+
                     if normalTexture then
                         normalTexture:set_atlas('ui-hud-micromenu-' .. name .. '-up-2x')
                     end
@@ -1448,21 +1732,22 @@ local function ApplyMicromenuSystem()
                         tex:SetAllPoints(button)
                     end
 
-                    -- Add background
+                    -- Add/update background (colored mode only)
                     if not button.DragonUIBackground then
                         local backgroundTexture = 'Interface\\AddOns\\DragonUI\\Textures\\Micromenu\\uimicromenu2x'
                         local dx, dy = -1, 1
                         local offX, offY = button:GetPushedTextOffset()
                         local sizeX, sizeY = button:GetSize()
 
-                        local bg = button:CreateTexture('DragonUIBackground', 'BACKGROUND')
+                        -- Use anonymous textures; named globals collide across buttons.
+                        local bg = button:CreateTexture(nil, 'BACKGROUND')
                         bg:SetTexture(backgroundTexture)
                         bg:SetSize(sizeX, sizeY + 1)
                         bg:SetTexCoord(0.0654297, 0.12793, 0.330078, 0.490234)
                         bg:SetPoint('CENTER', dx, dy)
                         button.DragonUIBackground = bg
 
-                        local bgPushed = button:CreateTexture('DragonUIBackgroundPushed', 'BACKGROUND')
+                        local bgPushed = button:CreateTexture(nil, 'BACKGROUND')
                         bgPushed:SetTexture(backgroundTexture)
                         bgPushed:SetSize(sizeX, sizeY + 1)
                         bgPushed:SetTexCoord(0.0654297, 0.12793, 0.494141, 0.654297)
@@ -1479,38 +1764,154 @@ local function ApplyMicromenuSystem()
 
                         button.HandleDragonUIState = function()
                             local state = button.dragonUIState
+                            local hlTex = button:GetHighlightTexture()
                             if state and state.pushed then
                                 button.DragonUIBackground:Hide()
                                 button.DragonUIBackgroundPushed:Show()
+                                -- Shift highlight to match pushed displacement
+                                if hlTex then
+                                    hlTex:ClearAllPoints()
+                                    hlTex:SetPoint('TOPLEFT', button, 'TOPLEFT', offX, offY)
+                                    hlTex:SetPoint('BOTTOMRIGHT', button, 'BOTTOMRIGHT', offX, offY)
+                                end
                             else
                                 button.DragonUIBackground:Show()
                                 button.DragonUIBackgroundPushed:Hide()
+                                if hlTex then
+                                    hlTex:ClearAllPoints()
+                                    hlTex:SetAllPoints(button)
+                                end
                             end
                         end
                         button.HandleDragonUIState()
 
-                        if buttonName ~= "MainMenu" then
-                            button:SetScript('OnUpdate', function(self, elapsed)
-                                -- Ensure timer is initialized
-                                if not self.dragonUITimer then
-                                    self.dragonUITimer = 0
-                                end
+                        -- Save original OnUpdate so the Blizzard handler
+                        -- (performance indicator, tooltip data, etc.) keeps
+                        -- running alongside our push-state tracker.
+                        local origOnUpdate = button:GetScript('OnUpdate')
+                        -- Only MainMenuMicroButton has an aggressive Blizzard
+                        -- OnUpdate that overwrites textures every frame.
+                        local needsTextureGuard = (buttonName == "MainMenu") and origOnUpdate ~= nil
+                        local cachedUpCoords, cachedDownCoords, cachedDisabledCoords, cachedMouseoverCoords
+                        if needsTextureGuard then
+                            cachedUpCoords = upCoords
+                            cachedDownCoords = downCoords
+                            cachedDisabledCoords = disabledCoords
+                            cachedMouseoverCoords = mouseoverCoords
+                        end
 
-                                self.dragonUITimer = self.dragonUITimer + elapsed
-                                if self.dragonUITimer >= 0.1 then
-                                    self.dragonUITimer = 0
-                                    local currentState = self:GetButtonState() == "PUSHED"
-                                    if currentState ~= self.dragonUILastState then
-                                        self.dragonUILastState = currentState
-                                        if self.dragonUIState then
-                                            self.dragonUIState.pushed = currentState
-                                        end
-                                        if self.HandleDragonUIState then
-                                            self.HandleDragonUIState()
-                                        end
+                        button:SetScript('OnUpdate', function(self, elapsed)
+                            -- Ensure timer is initialized
+                            if not self.dragonUITimer then
+                                self.dragonUITimer = 0
+                            end
+
+                            self.dragonUITimer = self.dragonUITimer + elapsed
+                            if self.dragonUITimer >= 0.1 then
+                                self.dragonUITimer = 0
+                                local currentState = self:GetButtonState() == "PUSHED"
+                                if currentState ~= self.dragonUILastState then
+                                    self.dragonUILastState = currentState
+                                    if self.dragonUIState then
+                                        self.dragonUIState.pushed = currentState
+                                    end
+                                    if self.HandleDragonUIState then
+                                        self.HandleDragonUIState()
                                     end
                                 end
-                            end)
+                            end
+
+                            -- Chain the original Blizzard OnUpdate so the
+                            -- performance indicator and tooltip keep working.
+                            if origOnUpdate then
+                                origOnUpdate(self, elapsed)
+                            end
+
+                            -- Re-apply colored textures after Blizzard's
+                            -- OnUpdate which overwrites them every frame.
+                            if needsTextureGuard then
+                                if cachedUpCoords then
+                                    local nt = self:GetNormalTexture()
+                                    if nt then
+                                        nt:SetTexture(microTexture)
+                                        nt:SetTexCoord(cachedUpCoords[1], cachedUpCoords[2], cachedUpCoords[3], cachedUpCoords[4])
+                                    end
+                                end
+                                if cachedDownCoords then
+                                    local pt = self:GetPushedTexture()
+                                    if pt then
+                                        pt:SetTexture(microTexture)
+                                        pt:SetTexCoord(cachedDownCoords[1], cachedDownCoords[2], cachedDownCoords[3], cachedDownCoords[4])
+                                    end
+                                end
+                                if cachedDisabledCoords then
+                                    local dt = self:GetDisabledTexture()
+                                    if dt then
+                                        dt:SetTexture(microTexture)
+                                        dt:SetTexCoord(cachedDisabledCoords[1], cachedDisabledCoords[2], cachedDisabledCoords[3], cachedDisabledCoords[4])
+                                    end
+                                end
+                                if cachedMouseoverCoords then
+                                    local ht = self:GetHighlightTexture()
+                                    if ht then
+                                        ht:SetTexture(microTexture)
+                                        ht:SetTexCoord(cachedMouseoverCoords[1], cachedMouseoverCoords[2], cachedMouseoverCoords[3], cachedMouseoverCoords[4])
+                                    end
+                                end
+                            end
+                        end)
+
+                        -- Instant push: OnMouseDown fires BEFORE Blizzard
+                        -- moves the icon, so highlight shifts in sync.
+                        button:HookScript("OnMouseDown", function(self)
+                            if not self.dragonUIState then return end
+                            -- Only act on push direction (not already pushed)
+                            if not self.dragonUIState.pushed then
+                                self.dragonUIState.pushed = true
+                                self.dragonUILastState = true
+                                if self.HandleDragonUIState then
+                                    self.HandleDragonUIState()
+                                end
+                            end
+                        end)
+
+                        -- Instant unpush: SetButtonState hook fires right
+                        -- when Blizzard internally sets NORMAL.
+                        hooksecurefunc(button, "SetButtonState", function(self, state)
+                            if state ~= "PUSHED" then
+                                -- Only act on unpush direction
+                                if self.dragonUIState and self.dragonUIState.pushed then
+                                    self.dragonUIState.pushed = false
+                                    self.dragonUILastState = false
+                                    if self.HandleDragonUIState then
+                                        self.HandleDragonUIState()
+                                    end
+                                end
+                            end
+                        end)
+                    else
+                        -- Re-apply size/position/visibility in case a late Blizzard pass altered regions.
+                        local backgroundTexture = 'Interface\\AddOns\\DragonUI\\Textures\\Micromenu\\uimicromenu2x'
+                        local dx, dy = -1, 1
+                        local offX, offY = button:GetPushedTextOffset()
+                        local sizeX, sizeY = button:GetSize()
+                        button.DragonUIBackground:SetTexture(backgroundTexture)
+                        button.DragonUIBackground:SetTexCoord(0.0654297, 0.12793, 0.330078, 0.490234)
+                        button.DragonUIBackground:ClearAllPoints()
+                        button.DragonUIBackground:SetPoint('CENTER', dx, dy)
+                        button.DragonUIBackground:SetSize(sizeX, sizeY + 1)
+                        button.DragonUIBackground:Show()
+
+                        button.DragonUIBackgroundPushed:SetTexture(backgroundTexture)
+                        button.DragonUIBackgroundPushed:SetTexCoord(0.0654297, 0.12793, 0.494141, 0.654297)
+                        button.DragonUIBackgroundPushed:ClearAllPoints()
+                        button.DragonUIBackgroundPushed:SetPoint('CENTER', dx + offX, dy + offY)
+                        button.DragonUIBackgroundPushed:SetSize(sizeX, sizeY + 1)
+                        if button.dragonUIState and button.dragonUIState.pushed then
+                            button.DragonUIBackground:Hide()
+                            button.DragonUIBackgroundPushed:Show()
+                        else
+                            button.DragonUIBackgroundPushed:Hide()
                         end
                     end
                 end
@@ -2047,29 +2448,40 @@ end
     -- Mark as applied
     MicromenuModule.applied = true
 
-    -- Execute the main setup
-    local xOffset
-    if IsAddOnLoaded('ezCollections') then
-        xOffset = -180
-        if _G.CollectionsMicroButton then
-            _G.CollectionsMicroButton:UnregisterEvent('UPDATE_BINDINGS')
+    -- Execute setup immediately only after login; pre-login passes can produce transient bad geometry.
+    if IsLoggedIn() then
+        local xOffset
+        if IsAddOnLoaded('ezCollections') then
+            xOffset = -180
+            if _G.CollectionsMicroButton then
+                _G.CollectionsMicroButton:UnregisterEvent('UPDATE_BINDINGS')
+            end
+        else
+            xOffset = -166
         end
-    else
-        xOffset = -166
-    end
 
-    setupMicroButtons(xOffset)
+        setupMicroButtons(xOffset)
 
-    if MainMenuMicroButtonMixin.bagbuttons_setup then
-        MainMenuMicroButtonMixin:bagbuttons_setup()
-    end
+        if MainMenuMicroButtonMixin.bagbuttons_setup then
+            MainMenuMicroButtonMixin:bagbuttons_setup()
+        end
 
-    if addon.RefreshBags then
-        addon.RefreshBags()
-    end
+        if addon.RefreshBags then
+            addon.RefreshBags()
+        end
 
-    if addon.RefreshMicromenu then
-        addon.RefreshMicromenu()
+        if addon.RefreshMicromenu then
+            addon.RefreshMicromenu()
+        end
+
+        -- Late stabilization pass for startup race conditions.
+        addon.core:ScheduleTimer(function()
+            if IsModuleEnabled() then
+                setupMicroButtons(xOffset)
+                if addon.RefreshMicromenu then addon.RefreshMicromenu() end
+                if addon.RefreshBags then addon.RefreshBags() end
+            end
+        end, 0.2)
     end
 
     -- Setup all hooks
@@ -2159,6 +2571,9 @@ function addon.RefreshMicromenuSystem()
             addon.RefreshBags()
         end
     else
+        if addon:ShouldDeferModuleDisable("micromenu", MicromenuModule) then
+            return
+        end
         RestoreMicromenuSystem()
     end
 end
