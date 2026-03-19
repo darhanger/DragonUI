@@ -1,31 +1,98 @@
-# 🐉 DragonUI - Experimental
+# 🐉 DragonUI for 3.3.5a
 
-Dragonflight UI for WotLK 3.3.5a.
+<div align="center">
 
-⚠️ **Experimental branch** - Active development, may contain bugs or incomplete features. If you run into any problems, feel free to let me know [here](https://github.com/NeticSoul/DragonUI/issues/141) - any feedback helps!
+![Interface Version](https://img.shields.io/badge/Interface-30300-blue)
+![WoW Version](https://img.shields.io/badge/WoW-3.3.5a-orange)
+![Status](https://img.shields.io/badge/Status-Work%20in%20Progress-yellow)
 
-## Installation
+**Bringing the retail WoW look to 3.3.5a, inspired by Dragonflight UI Classic**
 
-1. [Download the latest version](https://github.com/NeticSoul/DragonUI/archive/refs/heads/experimental.zip)
-2. Extract and copy the `DragonUI` and `DragonUI_Options` folders to `Interface/AddOns/`
+Created and maintained by **Neticsoul**, with community contributions.
 
-> **Recommended:** Before launching the game after installing or updating the addon, delete the saved variables folder for your character to avoid conflicts:
-> `WorldOfWarcraft\WTF\Account\ACCOUNTNAME\SERVERNAME\CharacterName`
->
-> Also clear the addon saved variables at account level:
-> `WorldOfWarcraft\WTF\Account\ACCOUNTNAME\SavedVariables\`
-> Delete:
-> `DragonUI.lua`
-> `DragonUI.lua.bak`
+</div>
 
-<img width="236" height="58" alt="image" src="https://github.com/user-attachments/assets/a6b7239b-fd9e-41f2-b8f4-c2ad7c844e78" />
+---
 
-## Commands
+## 📌 Project Status
 
-- `/dragonui` - Open configuration
-- `/duiedit` - Toggle editor mode
+DragonUI is still in active development. Expect some bugs — feel free to report them.
 
-## Changes
+## ✨ Features
 
-See [CHANGELOG](CHANGELOG.md) for recent updates.
+- 🧩 Modular system — enable or disable any major UI component independently.
+- 🎯 Custom action bars with configurable layouts, visibility rules, fat bar mode, and retail-style presentation.
+- 💚 Reworked unit frames for player, target, focus, party, pet, boss, ToT and ToF — with elite decorations on player frame.
+- 🎒 Auto-sort for bags and bank, plus integrated Combuctor for unified inventory browsing.
+- 🗺️ Custom minimap, micro menu, cast bars, buff frame, loot roll, quest tracker, tooltips, and editor mode.
+- 🌙 Dark mode to tone down the default UI colors.
+- ⌨️ Hover-and-press keybinding workflow on supported buttons.
+- ⚙️ In-game configuration panel with profile support and per-module controls.
+- 🌍 Localization support for multiple client languages.
+
+## 📦 Installation
+
+1. Download the latest release archive.
+2. Extract the archive.
+3. Copy `DragonUI` and `DragonUI_Options` into your client's `Interface\AddOns\` folder.
+4. Check that the addon is active from the AddOns button on the character selection screen.
+
+> 💡 **Clean reset:** delete `WTF\Account\<AccountName>\` to wipe all saved settings for all addons on that account.
+
+## 🔧 Commands
+
+| Command | Action |
+|---|---|
+| `/dragonui` or `/dui` | Opens the configuration UI |
+| `/dragonui edit` | Toggles editor mode |
+| `/dragonui help` | Shows available commands |
+
+## ⚠️ Known Issues
+
+- Party and raid scenarios still need broader real-world validation.
+- Some compatibility paths with third-party addons may still require manual module disablement or extra cleanup.
+- Found a bug or something weird? Report it in the [issues](https://github.com/NeticSoul/DragonUI/issues).
+
+## 📜 Legal And Licensing Summary
+
+- DragonUI code is released under the [MIT License](LICENSE).
+- Bundled third-party components have their own licenses — see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) and [`LICENSES/`](LICENSES/).
+
+## 🙏 Credits And References
+
+DragonUI combines original work with adapted ideas, ports, and implementation references from multiple addon authors and projects.
+
+- [Dragonflight UI (Classic)](https://github.com/Karl-HeinzSchneider) by Karl-HeinzSchneider
+- [pretty_actionbar and pretty_minimap](https://github.com/s0h2x) by s0h2x
+- [RetailUI](https://github.com/a3st) by a3st (Dmitriy)
+- [KPack](https://github.com/bkader/KPack) by bkader
+- [Combuctor](https://github.com/Jaliborc) by Jaliborc
+- [BankStack](https://github.com/kemayo/) by kemayo
+- [UnitFrameLayers](https://github.com/RomanSpector) by RomanSpector
+- [oGlow](https://github.com/haste) by haste
+- [ElvUI-WotLK](https://github.com/ElvUI-WotLK/) as a pattern reference in selected areas.
+
+## ☕ Support The Project
+
+DragonUI will remain free to use.
+
+Support is voluntary and goes towards maintenance, testing, and continued development.
+
+- ☕ Buy Me a Coffee: pending final public link
+- 🪙 Bitcoin: `bc1q8yavz8857lzdfttas584892gf82y0u3wdfjz0a`
+
+## 📎 Disclaimer
+
+DragonUI is an unofficial, fan-made addon for World of Warcraft.
+
+This project is non-commercial and non-profit. It is developed and maintained by members of the community, with no financial compensation involved.
+
+DragonUI is not affiliated with, endorsed by, or sponsored by Blizzard Entertainment. World of Warcraft and all related trademarks are the property of Blizzard Entertainment.
+
+## 💛 Special Thanks
+
+- Everyone who tested early builds, reported bugs, and helped shape the addon into what it is today.
+- Translators who contributed localizations and caught string issues across different clients.
+- The addon authors listed in Credits, whose open work made this project possible.
+- Players who took the time to open issues, share screenshots, and suggest improvements.
 
