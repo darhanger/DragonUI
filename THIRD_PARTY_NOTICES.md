@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-DragonUI's own code is released under the MIT License (see `LICENSE`).
+DragonUI's own code is released under the MIT License (see [LICENSE](https://github.com/NeticSoul/DragonUI/blob/main/LICENSE)).
 
 This file exists because the addon bundles components with licenses that differ from MIT and need to be distributed alongside the project.
 
