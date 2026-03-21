@@ -107,7 +107,7 @@ DragonUI will remain free to use.
 
 Support is voluntary and goes towards maintenance, testing, and continued development.
 
-- [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/W7W11WA4K6)
+- [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/neticsoul)
 
 - 🪙 Bitcoin: `bc1q8yavz8857lzdfttas584892gf82y0u3wdfjz0a`
 
