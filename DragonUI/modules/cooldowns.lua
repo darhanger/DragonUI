@@ -38,24 +38,19 @@ function addon.cooldownMixin:update_cooldown(elapsed)
     local remaining = self.remain - GetTime()
 
     if remaining > 0 then
-        local moduleDb = addon.db.profile.modules.cooldowns
         local db = addon.db.profile.buttons.cooldown
         if not db then return end
         
         if remaining <= 5 then
-            -- Red alert for critical time (hardcoded)
             text:SetTextColor(1, 0, .2)
             text:SetFormattedText('%.1f', remaining)
         elseif remaining <= 60 then
-            -- Orange/yellow alert for short time (hardcoded) - show seconds
             text:SetTextColor(1, 1, 0)
             text:SetText(ceil(remaining))
         elseif remaining <= 3600 then
-            -- 1-60 minutes: Use user color and show minutes
             text:SetText(ceil(remaining / 60) .. 'm')
             text:SetTextColor(unpack(db.color))
         else
-            -- > 1 hour: Use user color but dimmed
             text:SetText(ceil(remaining / 3600) .. 'h')
             local r, g, b, a = unpack(db.color)
             text:SetTextColor(r * 0.7, g * 0.7, b * 0.7, a)
@@ -68,18 +63,12 @@ function addon.cooldownMixin:update_cooldown(elapsed)
 end
 
 function addon.cooldownMixin:create_string()
-    local text = self:CreateFontString(nil, 'OVERLAY')
+    -- 'GameFontNormalLarge' template guarantees a valid font on every locale.
+    -- We immediately override with the centralized addon font for the intended look;
+    -- set_cooldown() may further override with the user's chosen db font.
+    local text = self:CreateFontString(nil, 'OVERLAY', 'GameFontNormalLarge')
+    text:SetFont(addon.Fonts.ACTIONBAR, 16, 'OUTLINE')
     text:SetPoint('CENTER')
-    
-    -- Set default font immediately to prevent "Font not set" errors in OnUpdate
-    local db = addon.db and addon.db.profile and addon.db.profile.buttons and addon.db.profile.buttons.cooldown
-    if db and db.font then
-        local fontPath = db.font[1]
-        local fontSize = db.font_size or db.font[2]
-        local fontFlags = db.font[3]
-        text:SetFont(fontPath, fontSize, fontFlags)
-    end
-    
     self.text = text
     self:SetScript('OnUpdate', addon.cooldownMixin.update_cooldown)
     return text
@@ -113,11 +102,13 @@ function addon.cooldownMixin:set_cooldown(start, duration)
         self.remain = start + duration
 
         local text = self.text or addon.cooldownMixin.create_string(self)
-        -- Use font_size if available, otherwise fallback to font array
-        local fontPath = db.font[1]
-        local fontSize = db.font_size or db.font[2]
-        local fontFlags = db.font[3]
-        text:SetFont(fontPath, fontSize, fontFlags)
+        -- Apply user font if valid, otherwise addon.Fonts.ACTIONBAR stays from create_string
+        local fontPath = db.font and db.font[1]
+        text:SetFont(
+            fontPath or addon.Fonts.ACTIONBAR,
+            db.font_size or (db.font and db.font[2]) or 16,
+            (db.font and db.font[3]) or 'OUTLINE'
+        )
         text:SetPoint(unpack(db.position))
         text:Show()
     else
@@ -144,10 +135,12 @@ function addon.RefreshCooldowns()
             if cooldown then
                 -- Update existing text font settings
                 if cooldown.text then
-                    local fontPath = db.font[1]
-                    local fontSize = db.font_size or db.font[2]
-                    local fontFlags = db.font[3]
-                    cooldown.text:SetFont(fontPath, fontSize, fontFlags)
+                    local fontPath = db.font and db.font[1]
+                    cooldown.text:SetFont(
+                        fontPath or addon.Fonts.ACTIONBAR,
+                        db.font_size or (db.font and db.font[2]) or 16,
+                        (db.font and db.font[3]) or 'OUTLINE'
+                    )
 
                     -- If cooldowns are disabled, hide the text
                     if not moduleDb.enabled then
