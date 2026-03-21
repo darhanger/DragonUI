@@ -192,6 +192,58 @@ local function SetBagCollapseState(collapsed)
     end
 end
 
+-- Bag icon refresh helper.
+-- In 3.3.5a, item textures can be temporarily unavailable right after reload;
+-- avoid clearing/hiding valid icon data on transient nil returns.
+local function RefreshBagSlotIcons()
+    for _, bagButton in pairs(bagslots) do
+        if bagButton then
+            local icon = _G[bagButton:GetName() .. 'IconTexture']
+            if icon then
+                PaperDollItemSlotButton_Update(bagButton)
+
+                local inventorySlot = bagButton:GetID()
+                local bagLink = GetInventoryItemLink("player", inventorySlot)
+                local itemTexture = GetInventoryItemTexture("player", inventorySlot)
+
+                if bagLink then
+                    if itemTexture then
+                        icon:SetTexture(itemTexture)
+                    end
+
+                    icon:Show()
+                    icon:SetAlpha(1)
+                    pcall(function()
+                        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                    end)
+                else
+                    icon:SetTexture("Interface\\PaperDoll\\UI-PaperDoll-Slot-Bag")
+                    icon:Show()
+                    icon:SetAlpha(0)
+                end
+            end
+        end
+    end
+end
+
+local function ScheduleBagSlotIconRefreshes()
+    RefreshBagSlotIcons()
+
+    if addon.core and addon.core.ScheduleTimer then
+        addon.core:ScheduleTimer(function()
+            if IsModuleEnabled() then
+                RefreshBagSlotIcons()
+            end
+        end, 0.2)
+
+        addon.core:ScheduleTimer(function()
+            if IsModuleEnabled() then
+                RefreshBagSlotIcons()
+            end
+        end, 1.0)
+    end
+end
+
 -- Atlas helpers
 local function GetAtlasKey(buttonName)
     local buttonMap
@@ -1506,26 +1558,8 @@ local function ApplyMicromenuSystem()
             KeyRingButton:Hide();
         end
 
-        -- Update icons immediately using real item textures
-        for _, bags in pairs(bagslots) do
-            local icon = _G[bags:GetName() .. 'IconTexture']
-            if icon then
-                local inventorySlot = bags:GetID()
-                local itemTexture = GetInventoryItemTexture("player", inventorySlot)
-                
-                if itemTexture then
-                    icon:SetTexture(itemTexture)
-                    icon:Show()
-                    icon:SetAlpha(1)
-                    pcall(function()
-                        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-                    end)
-                else
-                    icon:SetTexture(nil)
-                    icon:Hide()
-                end
-            end
-        end
+        -- Update bag slot icons with delayed stabilization for reload timing.
+        ScheduleBagSlotIconRefreshes()
 
         HideUnwantedBagFrames()
     end
@@ -2353,27 +2387,8 @@ end
 
     addon.package:RegisterEvents(function(self, event)
         if not IsModuleEnabled() then return end
-        
-        -- Update bag icons immediately on login/reload
-        for i, bags in pairs(bagslots) do
-            local icon = _G[bags:GetName() .. 'IconTexture']
-            if icon then
-                local inventorySlot = bags:GetID()
-                local itemTexture = GetInventoryItemTexture("player", inventorySlot)
-                
-                if itemTexture then
-                    icon:SetTexture(itemTexture)
-                    icon:Show()
-                    icon:SetAlpha(1)
-                    pcall(function()
-                        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-                    end)
-                else
-                    icon:SetTexture(nil)
-                    icon:Hide()
-                end
-            end
-        end
+
+        ScheduleBagSlotIconRefreshes()
 
         if KeyRingButton and HasKey() then
             KeyRingButton:Show()
@@ -2384,31 +2399,12 @@ end
 
     addon.package:RegisterEvents(function(self, event, bagID)
         if not IsModuleEnabled() then return end
-        
-        -- Validate bagID is in valid range (0-3 for bags)
+
+        -- Validate bagID is in valid range (0-3 for bag container IDs).
         if bagID and bagID >= 0 and bagID <= 3 then
-            local bagSlot = bagslots[bagID + 1]
-            if bagSlot then
-                local icon = _G[bagSlot:GetName() .. 'IconTexture']
-                if icon then
-                    local inventorySlot = bagSlot:GetID()
-                    local itemTexture = GetInventoryItemTexture("player", inventorySlot)
-                    
-                    if itemTexture then
-                        icon:SetTexture(itemTexture)
-                        icon:Show()
-                        icon:SetAlpha(1)
-                        pcall(function()
-                            icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-                        end)
-                    else
-                        icon:SetTexture(nil)
-                        icon:Hide()
-                    end
-                end
-            end
+            ScheduleBagSlotIconRefreshes()
         end
-        
+
         HideUnwantedBagFrames()
     end, 'BAG_UPDATE');
 
@@ -2521,37 +2517,28 @@ end
     MicromenuModule.eventFrames.playerEntering = eventFrame2
     addon.package:RegisterEvents(function(self, event)
         if IsModuleEnabled() then
-            local updateFrame = CreateFrame("Frame")
-            local elapsed = 0
-            updateFrame:SetScript("OnUpdate", function(self, dt)
-                elapsed = elapsed + dt
-                if elapsed >= 1 then
-                    self:SetScript("OnUpdate", nil)
+            ScheduleBagSlotIconRefreshes()
 
-                    for i, bags in pairs(bagslots) do
-                        local icon = _G[bags:GetName() .. 'IconTexture']
-                        if icon then
-                            PaperDollItemSlotButton_Update(bags)
+            if KeyRingButton and HasKey() then
+                KeyRingButton:Show()
+            end
 
-                            local empty = icon:GetTexture() == 'interface\\paperdoll\\UI-PaperDoll-Slot-Bag'
-                            if empty then
-                                icon:SetAlpha(0)
-                            else
-                                icon:SetAlpha(1)
-                            end
-                        end
-                    end
-
-                    if KeyRingButton and HasKey() then
-                        KeyRingButton:Show()
-                    end
-
-                    ScheduleHideFrames(0.2)
-                    ScheduleHideFrames(0.5)
-                end
-            end)
+            ScheduleHideFrames(0.2)
+            ScheduleHideFrames(0.5)
         end
     end, 'PLAYER_ENTERING_WORLD')
+
+    local eventFrame3 = MicromenuModule.eventFrames.playerEquipmentChanged or CreateFrame("Frame")
+    MicromenuModule.eventFrames.playerEquipmentChanged = eventFrame3
+    addon.package:RegisterEvents(function(self, event, slotID)
+        if not IsModuleEnabled() then return end
+
+        -- Bag slot swaps (equipped container changes) must refresh icons explicitly.
+        if slotID and slotID >= ContainerIDToInventoryID(0) and slotID <= ContainerIDToInventoryID(3) then
+            ScheduleBagSlotIconRefreshes()
+            ScheduleHideFrames(0.1)
+        end
+    end, 'PLAYER_EQUIPMENT_CHANGED')
 end
 
 -- ============================================================================
