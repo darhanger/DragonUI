@@ -408,6 +408,7 @@ function UF.TargetStyle.Create(opts)
         if opts.afterBarHooks then
             opts.afterBarHooks(Module, ManaBar, GetConfig, updateCache)
         end
+
     end
 
     -- ================================================================
@@ -470,37 +471,29 @@ function UF.TargetStyle.Create(opts)
             return
         end
 
-        -- Vehicle override (strict): only hide for actual units in vehicles.
-        -- UnitVehicleSeatCount can be non-zero on some boss units and should not
-        -- suppress elite/worldboss decoration in that case.
-        if UnitInVehicle and UnitInVehicle(unitToken) then
-            frameElements.elite:Hide()
-            return
-        end
-
         local classification = UnitClassification(unitToken)
         local name   = UnitName(unitToken)
         local coords = nil
 
-        if classification == "worldboss" or classification == "elite" then
+        if classification == "worldboss" then
+            coords = BOSS_COORDS.rareelite
+        elseif classification == "elite" then
             coords = BOSS_COORDS.elite
         elseif classification == "rareelite" then
             coords = BOSS_COORDS.rareelite
         elseif classification == "rare" then
             coords = BOSS_COORDS.rare
         else
-            -- Famous NPC override
+            -- Fallback: famous NPC or skull-level boss
             if name and UF.FAMOUS_NPCS[name] then
                 coords = BOSS_COORDS.elite
-                -- Per-module callback (e.g. message throttle)
                 if opts.onFamousNpc then
                     opts.onFamousNpc(name, updateCache)
                 end
             else
-                -- Skull-level = boss
                 local unitLevel = UnitLevel(unitToken)
                 if unitLevel == -1 then
-                    coords = BOSS_COORDS.elite
+                    coords = BOSS_COORDS.rareelite
                 end
             end
         end
@@ -750,6 +743,17 @@ function UF.TargetStyle.Create(opts)
 
         -- ---- Setup bar hooks ----
         SetupBarHooks()
+
+        -- Hook Blizzard classification updates so decoration refreshes
+        -- whenever the client receives updated unit data
+        if not BlizzFrame.DragonUI_ClassificationHook then
+            hooksecurefunc("TargetFrame_CheckClassification", function(self, forceNormal)
+                if self == BlizzFrame then
+                    UpdateClassification()
+                end
+            end)
+            BlizzFrame.DragonUI_ClassificationHook = true
+        end
 
         -- ---- Apply config (scale + position) ----
         local config = GetConfig()

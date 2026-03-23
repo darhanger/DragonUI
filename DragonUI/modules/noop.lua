@@ -97,10 +97,25 @@ local function ApplyNoopChangesImpl()
     end
     elements = nil
     
-    -- RetailUI pattern: VehicleMenuBar keeps events alive so Blizzard vehicle
-    -- transitions work correctly. Only make invisible + non-interactive.
-    VehicleMenuBar:EnableMouse(false)
-    VehicleMenuBar:SetAlpha(0)
+    -- VehicleMenuBar handling depends on whether the vehicle module is enabled.
+    -- When enabled, DragonUI's vehicle module provides its own UI, so we KILL
+    -- VehicleMenuBar completely. Keeping its events alive causes Blizzard's
+    -- vehicle transition code (MainMenuBar_ToVehicleArt etc.) to interfere by
+    -- reparenting VehicleMenuBarActionButtons and repositioning frames —
+    -- this is the root cause of vehicle UI not showing. Matches the
+    -- pretty_actionbar pattern which also kills VehicleMenuBar.
+    local vehicleModuleEnabled = addon.db and addon.db.profile
+        and addon.db.profile.modules and addon.db.profile.modules.vehicle
+        and addon.db.profile.modules.vehicle.enabled
+    if vehicleModuleEnabled then
+        VehicleMenuBar:UnregisterAllEvents()
+        VehicleMenuBar:Hide()
+        VehicleMenuBar:SetAlpha(0)
+        VehicleMenuBar:EnableMouse(false)
+    else
+        -- Vehicle module disabled — keep VehicleMenuBar fully functional
+        -- so Blizzard's native vehicle transitions display correctly.
+    end
     
     local uiManagedFrames = {
         'MultiBarLeft',

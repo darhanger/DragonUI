@@ -13,9 +13,10 @@ local _G = getfenv(0);
 -- ============================================================================
 -- VEHICLE MODULE FOR DRAGONUI
 -- ============================================================================
--- Approach: RetailUI pattern — do NOT kill VehicleMenuBar, let Blizzard
--- handle vehicle transitions natively. We reskin in-place and overlay
--- our custom art when artstyle=true.
+-- Approach: Kill VehicleMenuBar in noop.lua (prevents Blizzard's vehicle
+-- transition code from interfering). Use secure state drivers and
+-- _onstate-* snippets (combat-safe) for vehicle bar show/hide.
+-- Matches the pretty_actionbar pattern.
 -- ============================================================================
 
 -- Module state tracking
@@ -182,6 +183,13 @@ local function CreateVehicleExitButton()
     vehicleExitButton:SetScript('OnShow', function(self)
         self:SetChecked(false)
     end)
+    -- Ensure alpha is always 1 when shown — combat dismount sets alpha=0 as a
+    -- visual-only hide fallback; this resets it on any subsequent Show().
+    -- Runs in insecure env so SetAlpha works even when Show() comes from a
+    -- secure state driver snippet (where SetAlpha is NOT whitelisted).
+    vehicleExitButton:HookScript('OnShow', function(self)
+        self:SetAlpha(1)
+    end)
 
     vehicleExitButton:Hide()
 
@@ -276,9 +284,32 @@ local function CreateVehicleArtFrames()
     VehicleModule.frames.vehiclebar = vehiclebar
 end
 
+-- Set up secure snippet on vehiclebar (child) — shows/hides parent
+-- (vehicleBarBackground) when [vehicleui] changes. Uses custom state name
+-- 'vehicleupdate' (NOT 'visibility') to avoid conflicts with other state
+-- drivers. Combat-safe: secure snippets execute in the restricted
+-- environment. Matches pretty_actionbar's vehiclebutton_state() pattern.
+local function vehiclebutton_state()
+    if not vehiclebar then return end
+    for index = 1, VEHICLE_MAX_ACTIONBUTTONS do
+        local button = _G['VehicleMenuBarActionButton'..index]
+        if button then
+            vehiclebar:SetFrameRef('VehicleMenuBarActionButton'..index, button)
+        end
+    end
+    vehiclebar:SetAttribute('_onstate-vehicleupdate', [[
+        if newstate == 's1' then
+            self:GetParent():Show()
+        else
+            self:GetParent():Hide()
+        end
+    ]])
+    VehicleModule.stateDrivers.vehicleArtVisibility = {frame = vehiclebar, state = 'vehicleupdate'}
+    RegisterStateDriver(vehiclebar, 'vehicleupdate', '[vehicleui] s1; s2')
+end
+
 local function vehiclebar_power_setup()
     if not vehiclebar then return end
-    if InCombatLockdown() then return end
 
     VehicleMenuBarLeaveButton:SetParent(vehiclebar)
     VehicleMenuBarLeaveButton:SetSize(47, 50)
@@ -321,7 +352,6 @@ end
 
 local function vehiclebar_mechanical_setup()
     if not vehicleBarBackground then return end
-    if InCombatLockdown() then return end
 
     vehicleBarBackground.OrganicUi:Hide()
     vehicleBarBackground.MechanicUi:Show()
@@ -384,7 +414,6 @@ end
 
 local function vehiclebar_organic_setup()
     if not vehicleBarBackground then return end
-    if InCombatLockdown() then return end
 
     vehicleBarBackground.OrganicUi:Show()
     vehicleBarBackground.MechanicUi:Hide()
@@ -458,9 +487,9 @@ end
 -- If all icons are hidden, Blizzard hasn't populated slot data yet — we skip
 -- and let the next timer/event retry.
 local function HideEmptyVehicleButtons()
-    if InCombatLockdown() then return end
     if not UnitHasVehicleUI('player') then return end
 
+    local inCombat = InCombatLockdown()
     local anyVisible = false
     local emptyButtons = {}
 
@@ -471,7 +500,10 @@ local function HideEmptyVehicleButtons()
             if icon and icon:IsShown() then
                 anyVisible = true
                 button:SetAlpha(1)
-                button:EnableMouse(true)
+                -- EnableMouse is protected on secure frames — skip in combat
+                if not inCombat then
+                    button:EnableMouse(true)
+                end
             else
                 emptyButtons[#emptyButtons + 1] = button
             end
@@ -484,7 +516,9 @@ local function HideEmptyVehicleButtons()
     if anyVisible then
         for _, button in ipairs(emptyButtons) do
             button:SetAlpha(0)
-            button:EnableMouse(false)
+            if not inCombat then
+                button:EnableMouse(false)
+            end
         end
     end
 end
@@ -524,8 +558,76 @@ end
 -- ARTSTYLE EVENT HANDLING
 -- ============================================================================
 
+-- Apply full vehicle art layout (called when NOT in combat lockdown)
+local function ApplyFullVehicleArtLayout()
+    vehiclebar_layout_setup()
+    vehiclebutton_position()
+    if addon.vehiclebuttons_template then
+        addon.vehiclebuttons_template()
+    end
+    HideEmptyVehicleButtons()
+    if VehicleMenuBarHealthBar then
+        pcall(UnitFrameHealthBar_Update, VehicleMenuBarHealthBar, 'vehicle')
+    end
+    if VehicleMenuBarPowerBar then
+        pcall(UnitFrameManaBar_Update, VehicleMenuBarPowerBar, 'vehicle')
+    end
+
+    -- State drivers are already registered with [vehicleui] conditions
+    -- from SetupArtStyleStateDrivers/SetupVehicleBarHiding — they auto-toggle.
+    -- No need to re-register them here.
+
+    VehicleModule.pendingCombatVehicleSetup = false
+end
+
 local function OnVehicleEvent(self, event, ...)
     if event == 'UNIT_ENTERED_VEHICLE' then
+        if InCombatLockdown() then
+            -- MID-COMBAT VEHICLE ENTRY (e.g., Malygos Phase 3 drakes):
+            -- State drivers are already set up with [vehicleui] condition —
+            -- they auto-toggle visibility (main bar hides, vehicle art shows).
+            -- Vehicle buttons are pre-parented to vehiclebar at init time,
+            -- so they become visible when the state driver shows vehicleBarBackground.
+            -- RegisterStateDriver is PROTECTED and CANNOT be called in combat.
+            -- Full art layout (organic/mechanical textures, health/power bar sizes,
+            -- overlay positions, leave button textures) runs here — these operate
+            -- on non-secure widgets (StatusBars, Textures) which are combat-safe.
+            -- Only secure frame repositioning (vehiclebutton_position) is deferred
+            -- to PLAYER_REGEN_ENABLED.
+            VehicleModule.pendingCombatVehicleSetup = true
+            -- Combat-safe full vehicle art layout: sets bar sizes, positions,
+            -- overlay textures, leave button textures AND toggles OrganicUi/MechanicUi.
+            -- Without this, vehicleBarBackground appears with wrong/missing decorations.
+            pcall(vehiclebar_layout_setup)
+            -- Button styling with skipCombatGuard=true: bypasses the
+            -- InCombatLockdown + UnitHasVehicleUI guards in buttons.lua.
+            -- All operations are texture-level (NormalTexture, atlas, draw layers)
+            -- which are combat-safe in 3.3.5a.
+            if addon.vehiclebuttons_template then
+                pcall(addon.vehiclebuttons_template, true)
+            end
+            -- Health/power bar updates are safe even in combat
+            if VehicleMenuBarHealthBar then
+                pcall(UnitFrameHealthBar_Update, VehicleMenuBarHealthBar, 'vehicle')
+            end
+            if VehicleMenuBarPowerBar then
+                pcall(UnitFrameManaBar_Update, VehicleMenuBarPowerBar, 'vehicle')
+            end
+            -- Schedule empty-button hiding AND button styling retries.
+            -- Action data arrives after a short delay; __styled flag prevents
+            -- double-styling if the immediate call already succeeded.
+            if addon.core and addon.core.ScheduleTimer then
+                addon.core:ScheduleTimer(HideEmptyVehicleButtons, 0.3)
+                addon.core:ScheduleTimer(HideEmptyVehicleButtons, 0.6)
+                addon.core:ScheduleTimer(HideEmptyVehicleButtons, 1.0)
+                -- Retry button styling in case buttons weren't ready yet
+                local function retryVehicleButtons() addon.vehiclebuttons_template(true) end
+                addon.core:ScheduleTimer(retryVehicleButtons, 0.3)
+                addon.core:ScheduleTimer(retryVehicleButtons, 0.6)
+            end
+            return
+        end
+
         vehiclebar_layout_setup()
         vehiclebutton_position()
         if addon.vehiclebuttons_template then
@@ -544,6 +646,9 @@ local function OnVehicleEvent(self, event, ...)
         end
     elseif event == 'UNIT_EXITED_VEHICLE' then
         RestoreVehicleButtons()
+        -- State drivers auto-restore via [vehicleui] condition — no need to
+        -- call RegisterStateDriver again. Just clean up the pending flag.
+        VehicleModule.pendingCombatVehicleSetup = false
     elseif event == 'ACTIONBAR_UPDATE_STATE' or event == 'ACTIONBAR_SLOT_CHANGED' then
         -- Fires when vehicle action slots are populated/changed.
         if UnitHasVehicleUI('player') then
@@ -551,6 +656,14 @@ local function OnVehicleEvent(self, event, ...)
         end
     elseif event == 'UNIT_DISPLAYPOWER' then
         UnitFrameManaBar_Update(VehicleMenuBarPowerBar, 'vehicle')
+    elseif event == 'PLAYER_REGEN_ENABLED' then
+        -- Combat ended: if we deferred vehicle art setup, apply it now
+        if VehicleModule.pendingCombatVehicleSetup and UnitHasVehicleUI('player') then
+            ApplyFullVehicleArtLayout()
+        elseif VehicleModule.pendingCombatVehicleSetup then
+            -- Exited vehicle during combat, just clean up the flag
+            VehicleModule.pendingCombatVehicleSetup = false
+        end
     end
 end
 
@@ -578,9 +691,18 @@ local function SetupVehicleBarHiding(hideMainBar)
     -- 1) pUiMainBar: hide during vehicle ONLY if artstyle=true.
     --    When artstyle=false, the main bar stays visible because it shows
     --    vehicle abilities via BonusActionBar page switching (bonusbar:5 → page 11).
+    --    Uses custom state name 'vehicleupdate' with secure snippet (NOT
+    --    'visibility') to avoid conflicts with other state drivers on pUiMainBar.
     if hideMainBar and not VehicleModule.stateDrivers.mainBarVehicle then
-        VehicleModule.stateDrivers.mainBarVehicle = {frame = mainBar, state = 'visibility'}
-        RegisterStateDriver(mainBar, 'visibility', '[vehicleui] hide; show')
+        mainBar:SetAttribute('_onstate-vehicleupdate', [[
+            if newstate == '1' then
+                self:Hide()
+            else
+                self:Show()
+            end
+        ]])
+        VehicleModule.stateDrivers.mainBarVehicle = {frame = mainBar, state = 'vehicleupdate'}
+        RegisterStateDriver(mainBar, 'vehicleupdate', '[vehicleui] 1; 2')
     end
 
     -- 2) Secondary bars: register 'visibility' state driver DIRECTLY on each bar.
@@ -623,11 +745,13 @@ end
 -- ============================================================================
 
 local function SetupArtStyleStateDrivers()
-    if not vehicleBarBackground then return end
+    if not vehiclebar or not vehicleBarBackground then return end
 
-    -- Direct state driver on vehicleBarBackground: show/hide based on [vehicleui]
-    VehicleModule.stateDrivers.vehicleArtVisibility = {frame = vehicleBarBackground, state = 'visibility'}
-    RegisterStateDriver(vehicleBarBackground, 'visibility', '[vehicleui] show; hide')
+    -- Show/hide vehicle art via secure snippet on vehiclebar — the child's
+    -- _onstate-vehicleupdate snippet calls Show()/Hide() on parent
+    -- (vehicleBarBackground). This is combat-safe and avoids 'visibility'
+    -- state driver conflicts.
+    vehiclebutton_state()
 end
 
 -- ============================================================================
@@ -694,45 +818,22 @@ local function ApplyVehicleSystem()
     if InCombatLockdown() then
         VehicleModule.pendingApply = true
 
-        -- COMBAT-SAFE BAR HIDING: Only when artstyle is enabled.
-        -- Register 'visibility' state drivers directly on each bar.
-        -- The 'visibility' driver uses C-level enforcement that blocks :Show()
-        -- calls from Blizzard's MultiActionBar_Update during loading.
-        local cfg = addon.config
-        local isArtStyle = cfg and cfg.additional and cfg.additional.vehicle and cfg.additional.vehicle.artstyle
-        if UnitHasVehicleUI('player') and isArtStyle then
-            local secondaryBars = {
-                {key = 'vehicleHide_bl', bar = MultiBarBottomLeft},
-                {key = 'vehicleHide_br', bar = MultiBarBottomRight},
-                {key = 'vehicleHide_r',  bar = MultiBarRight},
-                {key = 'vehicleHide_l',  bar = MultiBarLeft},
-            }
-            for _, entry in ipairs(secondaryBars) do
-                if entry.bar and not VehicleModule.stateDrivers[entry.key] then
-                    VehicleModule.stateDrivers[entry.key] = {frame = entry.bar, state = 'visibility'}
-                    RegisterStateDriver(entry.bar, 'visibility', '[vehicleui] hide; show')
-                end
-            end
+        -- COMBAT: RegisterStateDriver is PROTECTED — cannot be called here.
+        -- Defer all state driver setup to after combat ends (PLAYER_REGEN_ENABLED).
+        -- The only safe operations in combat are creating non-secure frames
+        -- and hooking functions.
 
-            -- Also hide main bar (art overlay replaces it)
-            local mainBar = addon.pUiMainBar or _G.pUiMainBar
-            if mainBar and not VehicleModule.stateDrivers.mainBarVehicle then
-                VehicleModule.stateDrivers.mainBarVehicle = {frame = mainBar, state = 'visibility'}
-                RegisterStateDriver(mainBar, 'visibility', '[vehicleui] hide; show')
-            end
-
-            -- Hook MultiActionBar_Update as belt-and-suspenders for non-combat cases
-            if not VehicleModule.hooks.multiActionBarUpdate and MultiActionBar_Update then
-                hooksecurefunc('MultiActionBar_Update', function()
-                    if not UnitHasVehicleUI('player') then return end
-                    if InCombatLockdown() then return end
-                    if MultiBarBottomLeft  then MultiBarBottomLeft:Hide()  end
-                    if MultiBarBottomRight then MultiBarBottomRight:Hide() end
-                    if MultiBarRight       then MultiBarRight:Hide()       end
-                    if MultiBarLeft        then MultiBarLeft:Hide()        end
-                end)
-                VehicleModule.hooks.multiActionBarUpdate = true
-            end
+        -- Hook MultiActionBar_Update (safe — just a hooksecurefunc call)
+        if not VehicleModule.hooks.multiActionBarUpdate and MultiActionBar_Update then
+            hooksecurefunc('MultiActionBar_Update', function()
+                if not UnitHasVehicleUI('player') then return end
+                if InCombatLockdown() then return end
+                if MultiBarBottomLeft  then MultiBarBottomLeft:Hide()  end
+                if MultiBarBottomRight then MultiBarBottomRight:Hide() end
+                if MultiBarRight       then MultiBarRight:Hide()       end
+                if MultiBarLeft        then MultiBarLeft:Hide()        end
+            end)
+            VehicleModule.hooks.multiActionBarUpdate = true
         end
 
         -- COMBAT-SAFE EXIT BUTTON: For artstyle=false, we need the exit button
@@ -782,6 +883,24 @@ local function ApplyVehicleSystem()
         CreateVehicleArtFrames()
         vehiclebar_power_setup()
 
+        -- Pre-parent and pre-position vehicle action buttons on vehiclebar.
+        -- This ensures buttons are visible when [vehicleui] state driver shows
+        -- vehicleBarBackground during mid-combat vehicle entry (e.g., Malygos
+        -- Phase 3 drakes). Default organic layout is used; correct layout
+        -- (organic/mechanical) is applied by UNIT_ENTERED_VEHICLE handler when
+        -- not in combat, or deferred to PLAYER_REGEN_ENABLED otherwise.
+        -- (MCP Ch.25: secure snippets can Show()/Hide() in combat, but
+        --  SetParent/SetPoint on secure frames cannot be called in combat.)
+        vehiclebutton_position()
+
+        -- Pre-style vehicle buttons NOW so they already have Dragonflight
+        -- borders when the state driver shows them. Without this, buttons
+        -- flash with Blizzard's default large borders for a split second
+        -- before UNIT_ENTERED_VEHICLE handler styles them.
+        if addon.vehiclebuttons_template then
+            addon.vehiclebuttons_template(true)
+        end
+
         -- Register vehicle events for layout and health bar updates
         local artEvents = {
             'UNIT_ENTERED_VEHICLE',
@@ -789,6 +908,7 @@ local function ApplyVehicleSystem()
             'UNIT_DISPLAYPOWER',
             'ACTIONBAR_UPDATE_STATE',
             'ACTIONBAR_SLOT_CHANGED',
+            'PLAYER_REGEN_ENABLED',
         }
         for _, event in ipairs(artEvents) do
             vehiclebar:RegisterEvent(event)
@@ -800,9 +920,27 @@ local function ApplyVehicleSystem()
         SetupArtStyleStateDrivers()
         SetupVehicleBarHiding(true)  -- true = hide mainbar (art overlay replaces it)
 
-        -- Handle mount-type vehicles (multi-seat mounts) where [vehicleui] doesn't fire.
-        -- For these, the art frame won't show (no vehicle UI), but we still need the
-        -- standalone exit button to appear so the player can leave the mount.
+        -- Standalone exit button for ANY vehicle without full vehicleui.
+        -- [target=vehicle,exists] checks UnitExists('vehicle') which is true for ALL
+        -- vehicle types: EoE hover disks, multi-seat mounts, bonusbar:5 vehicles.
+        -- Hidden when [vehicleui] is active because the art bar has its own leave button.
+        -- Pretty_actionbar confirms [target=vehicle,...] works in 3.3.5a state drivers.
+        if vehicleExitButton then
+            vehicleExitButton:SetAttribute('_onstate-vehicleshow', [[
+                if newstate == 's1' then
+                    self:Show()
+                else
+                    self:Hide()
+                end
+            ]])
+            VehicleModule.stateDrivers.exitButtonVehicle = {frame = vehicleExitButton, state = 'vehicleshow'}
+            RegisterStateDriver(vehicleExitButton, 'vehicleshow', '[vehicleui] s2; [target=vehicle,exists] s1; s2')
+        end
+
+        -- Fallback event handler for edge cases where the 'vehicle' unit token
+        -- may not exist yet when UNIT_ENTERED_VEHICLE fires (race condition).
+        -- The state driver [target=vehicle,exists] covers most cases; this is
+        -- a safety net for out-of-combat transitions.
         if not VehicleModule.hooks.exitButtonVehicleEvents then
             local exitBtnEventFrame = CreateFrame('Frame')
             exitBtnEventFrame:RegisterEvent('UNIT_ENTERED_VEHICLE')
@@ -814,6 +952,7 @@ local function ApplyVehicleSystem()
                     if InCombatLockdown() then return end
                     -- Mount-type vehicles: no [vehicleui] but CanExitVehicle() is true
                     if not UnitHasVehicleUI('player') and CanExitVehicle() then
+                        vehicleExitButton:SetAlpha(1)
                         vehicleExitButton:Show()
                     end
                 elseif event == 'UNIT_EXITED_VEHICLE' then
@@ -877,11 +1016,29 @@ local function ApplyVehicleSystem()
         -- Main bar stays VISIBLE (it shows vehicle abilities via page switching).
         -- Secondary bars also stay VISIBLE (only hidden when artstyle=true).
 
-        -- Exit button visibility via events (NOT state driver).
-        -- We can't use RegisterStateDriver with 'visibility' here because [vehicleui]
-        -- doesn't fire for mount-type vehicles (multi-seat mounts), and the state driver
-        -- would force hide, overriding any manual Show() from our event handler.
-        -- Using events covers BOTH real vehicles and mount-type vehicles.
+        -- Exit button visibility: SECURE STATE DRIVER with [target=vehicle,exists].
+        -- Covers ALL vehicle types: EoE hover disks, multi-seat mounts, bonusbar:5
+        -- vehicles. [target=vehicle,exists] checks UnitExists('vehicle') which is true
+        -- whenever the player occupies any vehicle seat.
+        -- Combat-safe: secure snippet Show()/Hide() execute in restricted env (MCP Ch.25).
+        -- Uses custom state 'vehicleshow' (NOT 'visibility') so mount-type vehicle
+        -- Show() calls from the event handler aren't blocked by C-level enforcement.
+        if vehicleExitButton then
+            vehicleExitButton:SetAttribute('_onstate-vehicleshow', [[
+                if newstate == 's1' then
+                    self:Show()
+                else
+                    self:Hide()
+                end
+            ]])
+            VehicleModule.stateDrivers.exitButtonVehicle = {frame = vehicleExitButton, state = 'vehicleshow'}
+            RegisterStateDriver(vehicleExitButton, 'vehicleshow', '[target=vehicle,exists] s1; s2')
+        end
+
+        -- Fallback event handler for edge cases where the 'vehicle' unit token
+        -- may not exist yet when UNIT_ENTERED_VEHICLE fires (race condition).
+        -- The state driver [target=vehicle,exists] covers most cases; this is
+        -- a safety net for out-of-combat transitions and clean dismount handling.
         if not VehicleModule.hooks.exitButtonVehicleEvents then
             local exitBtnEventFrame = CreateFrame('Frame')
             exitBtnEventFrame:RegisterEvent('UNIT_ENTERED_VEHICLE')
@@ -891,8 +1048,9 @@ local function ApplyVehicleSystem()
                 if not vehicleExitButton then return end
                 if event == 'UNIT_ENTERED_VEHICLE' then
                     if InCombatLockdown() then return end
-                    -- Show exit button for any vehicle type (real or mount)
-                    if CanExitVehicle() then
+                    -- Mount-type vehicles only: no [vehicleui], state driver won't fire
+                    if not UnitHasVehicleUI('player') and CanExitVehicle() then
+                        vehicleExitButton:SetAlpha(1)
                         vehicleExitButton:Show()
                     end
                 elseif event == 'UNIT_EXITED_VEHICLE' then
@@ -925,7 +1083,8 @@ local function ApplyVehicleSystem()
         end
 
         -- If player is ALREADY in a vehicle (e.g. after /reload), show exit button.
-        -- UNIT_ENTERED_VEHICLE won't fire again after reload.
+        -- UNIT_ENTERED_VEHICLE won't fire again after reload. The state driver
+        -- handles [vehicleui] case automatically; this covers mount vehicles.
         if (UnitHasVehicleUI('player') or CanExitVehicle()) and vehicleExitButton then
             vehicleExitButton:Show()
         end
@@ -980,6 +1139,12 @@ local function RestoreVehicleSystem()
     local mainBar = pUiMainBar or addon.pUiMainBar or _G.pUiMainBar
     if mainBar then
         mainBar:SetAttribute('_onstate-vehicleupdate', nil)
+    end
+    if vehiclebar then
+        vehiclebar:SetAttribute('_onstate-vehicleupdate', nil)
+    end
+    if vehicleExitButton then
+        vehicleExitButton:SetAttribute('_onstate-vehicleshow', nil)
     end
 
     -- Clean up vehicle hider frame (secure state driver for secondary bars)

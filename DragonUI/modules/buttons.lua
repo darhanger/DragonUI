@@ -258,11 +258,12 @@ local function StoreOriginalButtonState(button)
     end
 end
 
-local function main_buttons(button)
+local function main_buttons(button, skipCombatGuard)
     if not IsModuleEnabled() then return end
     
-    -- CRITICAL: Don't style buttons during combat to avoid taint
-    if InCombatLockdown() then return end
+    -- Don't style buttons during combat to avoid taint (vehicle buttons
+    -- bypass this via skipCombatGuard — all ops are texture-level, combat-safe)
+    if InCombatLockdown() and not skipCombatGuard then return end
     
 	if not button or button.__styled then return; end
 
@@ -585,15 +586,16 @@ end
 -- ============================================================================
 
 -- setup vehicle action buttons
-function addon.vehiclebuttons_template()
+-- @param skipCombatGuard: bypass InCombatLockdown + UnitHasVehicleUI guards
+--   for mid-combat vehicle entry (all operations are texture-level, combat-safe)
+function addon.vehiclebuttons_template(skipCombatGuard)
     if not IsModuleEnabled() then return end
     
-	if UnitHasVehicleUI('player') then
+	if skipCombatGuard or UnitHasVehicleUI('player') then
 		for index=1, VEHICLE_MAX_ACTIONBUTTONS do
 			local button = _G['VehicleMenuBarActionButton'..index]
 			if button then
-				main_buttons(button)
-				-- Apply hotkey format to vehicle buttons too
+				main_buttons(button, skipCombatGuard)
 				actionbuttons_hotkey(button)
 			end
 		end

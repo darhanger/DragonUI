@@ -1118,7 +1118,7 @@ function CastbarModule:HandleCastStop_Simple(unitType, wasInterrupted, isChannel
             texture:SetVertexColor(1, 1, 1, 1)
         end
         
-        SetCastText(unitType, "Interrupted")
+        SetCastText(unitType, INTERRUPTED)
         FadeOutCastbar(unitType, 1)
     else
         -- Normal completion - show success flash

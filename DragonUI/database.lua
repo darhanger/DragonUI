@@ -553,7 +553,7 @@ local defaults = {
                 anchor = 'TOPRIGHT',
                 anchorParent = 'TOPRIGHT',
                 x = -85,
-                y = -300
+                y = -350
             }
         },
 

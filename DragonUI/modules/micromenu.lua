@@ -2534,7 +2534,8 @@ end
         if not IsModuleEnabled() then return end
 
         -- Bag slot swaps (equipped container changes) must refresh icons explicitly.
-        if slotID and slotID >= ContainerIDToInventoryID(0) and slotID <= ContainerIDToInventoryID(3) then
+        -- Container 0 is the backpack (no inventory slot); equipped bags are 1-4.
+        if slotID and slotID >= ContainerIDToInventoryID(1) and slotID <= ContainerIDToInventoryID(4) then
             ScheduleBagSlotIconRefreshes()
             ScheduleHideFrames(0.1)
         end
