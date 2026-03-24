@@ -514,6 +514,29 @@ end
 
 -- Height per aura row (buff icon ~17px + ~2px spacing in WotLK 3.3.5a)
 local AURA_ROW_HEIGHT = 17
+local FOCUS_AURA_OFFSET_TWEAK = 2
+
+local function GetFirstVisibleAuraAnchor(parentFrame, unit)
+    if not parentFrame or not parentFrame.GetName then
+        return nil
+    end
+
+    local frameName = parentFrame:GetName()
+    local buff1 = _G[frameName .. "Buff1"]
+    local debuff1 = _G[frameName .. "Debuff1"]
+    local buffShown = buff1 and buff1:IsShown()
+    local debuffShown = debuff1 and debuff1:IsShown()
+
+    if UnitIsFriend("player", unit) then
+        return buffShown and buff1 or (debuffShown and debuff1 or nil)
+    end
+
+    if debuffShown then
+        return debuff1
+    end
+
+    return buffShown and buff1 or nil
+end
 
 local function GetAuraOffset(unit)
     local cfg = GetConfig(unit)
@@ -541,8 +564,20 @@ local function GetAuraOffset(unit)
         return 0
     end
 
+    local calibration = unit == "focus" and FOCUS_AURA_OFFSET_TWEAK or 0
+
+    local firstAnchor = GetFirstVisibleAuraAnchor(parentFrame, unit)
+    local currentAnchor = parentFrame.spellbarAnchor
+    if firstAnchor and currentAnchor and firstAnchor.GetBottom and currentAnchor.GetBottom then
+        local firstBottom = firstAnchor:GetBottom()
+        local currentBottom = currentAnchor:GetBottom()
+        if firstBottom and currentBottom then
+            return max(0, (firstBottom - currentBottom) - calibration)
+        end
+    end
+
     -- First row is already accounted for by castbar base position
-    return (auraRows - 1) * AURA_ROW_HEIGHT
+    return max(0, ((auraRows - 1) * AURA_ROW_HEIGHT) - calibration)
 end
 
 local function ApplyAuraOffset(unit)
