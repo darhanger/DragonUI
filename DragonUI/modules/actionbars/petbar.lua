@@ -27,7 +27,7 @@ local function IsModuleEnabled()
 end
 
 local function GetPetbarConfig()
-    return addon.db and addon.db.profile and addon.db.profile.additional and addon.db.profile.additional.petbar
+    return addon.db and addon.db.profile and addon.db.profile.additional and addon.db.profile.additional.pet
 end
 
 -- DragonUI Module state tracking
@@ -66,7 +66,8 @@ local function GetDynamicConfig()
         rightbar_offset = 0,
         size = 30,
         spacing = 6,
-        grid = false
+        grid = false,
+        scale = 1.0
     }
     
     if not petConfig then return defaults end
@@ -79,7 +80,8 @@ local function GetDynamicConfig()
         rightbar_offset = petConfig.rightbar_offset or defaults.rightbar_offset,
         size = petConfig.size or (additionalConfig and additionalConfig.size) or defaults.size,
         spacing = petConfig.spacing or (additionalConfig and additionalConfig.spacing) or defaults.spacing,
-        grid = petConfig.grid or defaults.grid
+        grid = petConfig.grid or defaults.grid,
+        scale = (additionalConfig and additionalConfig.pet and additionalConfig.pet.scale) or defaults.scale
     }
 end
 
@@ -118,6 +120,9 @@ local function CreateAnchorFrame()
     local anchor = addon.CreateUIFrame(petbarWidth, petbarHeight, "petbar")
     PetbarModule.anchor = anchor
     
+    -- Apply petbar scale
+    anchor:SetScale(config.scale or 1.0)
+    
     -- Apply position from widgets config or use defaults
     local extraY = GetPetbarDualBarOffset()
     local widgetConfig = addon.db and addon.db.profile and addon.db.profile.widgets and addon.db.profile.widgets.petbar
@@ -139,6 +144,8 @@ end
 local function UpdateAnchorPosition()
     if not IsModuleEnabled() then return end
     if not PetbarModule.anchor then return end
+    -- Skip repositioning while editor mode is active (user may be dragging the anchor)
+    if addon.EditorMode and addon.EditorMode:IsActive() then return end
     
     -- Check if we have a saved widget position first
     local widgetConfig = addon.db and addon.db.profile and addon.db.profile.widgets and addon.db.profile.widgets.petbar
@@ -199,8 +206,10 @@ local function CreatePetbarFrame()
     local anchor = CreateAnchorFrame()
     if not anchor then return end
     
+    local config = GetDynamicConfig()
     local petbar = CreateFrame('Frame', 'DragonUI_PetBar', UIParent, 'SecureHandlerStateTemplate')
     petbar:SetAllPoints(anchor)
+    petbar:SetScale(config.scale or 1.0)
     PetbarModule.petbar = petbar
     
     return petbar
@@ -319,9 +328,11 @@ local function petbutton_position()
     
     PetActionBarFrame.showgrid = 1
     
-    -- Register state driver for pet visibility
-    RegisterStateDriver(petbar, 'visibility', '[pet,novehicleui,nobonusbar:5] show; hide')
-    PetbarModule.stateDrivers.visibility = petbar
+    -- Register state driver for pet visibility (skip during editor mode to keep petbar visible)
+    if not (addon.EditorMode and addon.EditorMode:IsActive()) then
+        RegisterStateDriver(petbar, 'visibility', '[pet,novehicleui,nobonusbar:5] show; hide')
+        PetbarModule.stateDrivers.visibility = petbar
+    end
     
     -- Hook for pet action updates
     hooksecurefunc('PetActionBar_Update', petbutton_updatestate)
@@ -337,6 +348,8 @@ local function CreateEventFrame()
     
     local function OnEvent(self, event, ...)
         if not IsModuleEnabled() then return end
+        -- Skip event processing during editor mode (prevents state driver re-registration)
+        if addon.EditorMode and addon.EditorMode:IsActive() then return end
         
         -- Handle pet bar events
         local arg1 = ...
@@ -465,6 +478,8 @@ end
 
 local function RestorePetbarSystem()
     if not PetbarModule.applied then return end
+    -- Never tear down petbar while editor mode is active (overlay must stay visible)
+    if addon.EditorMode and addon.EditorMode:IsActive() then return end
 
     -- Hide DragonUI frames
     if PetbarModule.anchor then PetbarModule.anchor:Hide() end
@@ -511,20 +526,24 @@ end
 local function ShowPetbarTest()
     if not PetbarModule.anchor then return end
     
-    -- Enable editor mode - let DragonUI's system handle the rest
-    if PetbarModule.anchor then
-        -- DragonUI's CreateUIFrame already has drag functionality built-in
-        -- Just make sure it's enabled for editor mode
-        PetbarModule.anchor:SetMovable(true)
-        PetbarModule.anchor:EnableMouse(true)
-        
-        -- Show editor overlay elements if they exist
-        if PetbarModule.anchor.editorTexture then
-            PetbarModule.anchor.editorTexture:Show()
-        end
-        if PetbarModule.anchor.editorText then
-            PetbarModule.anchor.editorText:Show()
-        end
+    -- Ensure anchor frame is visible
+    PetbarModule.anchor:Show()
+    PetbarModule.anchor:SetMovable(true)
+    PetbarModule.anchor:EnableMouse(true)
+    
+    -- Temporarily unregister state driver so petbar stays visible during editor mode
+    -- (state driver hides petbar when player has no pet)
+    if PetbarModule.petbar and not InCombatLockdown() then
+        UnregisterStateDriver(PetbarModule.petbar, 'visibility')
+        PetbarModule.petbar:Show()
+    end
+    
+    -- Show editor overlay elements if they exist
+    if PetbarModule.anchor.editorTexture then
+        PetbarModule.anchor.editorTexture:Show()
+    end
+    if PetbarModule.anchor.editorText then
+        PetbarModule.anchor.editorText:Show()
     end
 end
 
@@ -534,6 +553,12 @@ local function HidePetbarTest()
     -- Disable editor mode
     PetbarModule.anchor:SetMovable(false)
     PetbarModule.anchor:EnableMouse(false)
+    
+    -- Re-register state driver for normal gameplay visibility
+    if PetbarModule.petbar and not InCombatLockdown() then
+        RegisterStateDriver(PetbarModule.petbar, 'visibility', '[pet,novehicleui,nobonusbar:5] show; hide')
+        PetbarModule.stateDrivers.visibility = PetbarModule.petbar
+    end
     
     -- Hide editor overlay elements
     if PetbarModule.anchor.editorTexture then
@@ -558,6 +583,9 @@ addon.UpdatePetbarPosition = UpdateAnchorPosition
 
 -- Global functions for DragonUI system
 function addon.RefreshPetbarSystem()
+    -- Skip refresh during editor mode (prevents overlay from disappearing)
+    if addon.EditorMode and addon.EditorMode:IsActive() then return end
+
     if PetbarModule.applied then
         if not IsModuleEnabled() and addon:ShouldDeferModuleDisable("petbar", PetbarModule) then
             return
@@ -585,6 +613,13 @@ function addon.RefreshPetbarFrame()
     local petbarHeight = btnsize
     
     PetbarModule.anchor:SetSize(petbarWidth, petbarHeight)
+    
+    -- Update scale on both anchor and petbar (petbar is UIParent-parented, not a child of anchor)
+    local newScale = config.scale or 1.0
+    PetbarModule.anchor:SetScale(newScale)
+    if PetbarModule.petbar then
+        PetbarModule.petbar:SetScale(newScale)
+    end
     
     -- Update editor registration
     UpdateEditorFrameRegistration()

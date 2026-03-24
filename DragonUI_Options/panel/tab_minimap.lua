@@ -33,7 +33,7 @@ local function BuildMinimapTab(scroll)
     C:AddSlider(basic, {
         label = LO["Scale"],
         dbPath = "minimap.scale",
-        min = 0.5, max = 2.0, step = 0.1,
+        min = 0.5, max = 2.0, step = 0.01,
         width = 200,
         callback = RefreshMinimap,
     })

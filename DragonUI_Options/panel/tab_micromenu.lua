@@ -45,7 +45,7 @@ local function BuildMicromenuTab(scroll)
             C:SetDBValue("micromenu." .. modeKey() .. ".scale_menu", val)
             if addon.RefreshMicromenu then addon.RefreshMicromenu() end
         end,
-        min = 0.5, max = 3.0, step = 0.1,
+        min = 0.5, max = 3.0, step = 0.01,
         width = 200,
     })
 
@@ -89,7 +89,7 @@ local function BuildMicromenuTab(scroll)
     C:AddSlider(bags, {
         label = LO["Bag Bar Scale"],
         dbPath = "bags.scale",
-        min = 0.5, max = 2.0, step = 0.1,
+        min = 0.5, max = 2.0, step = 0.01,
         width = 200,
         callback = function()
             if addon.RefreshBagsPosition then addon.RefreshBagsPosition() end

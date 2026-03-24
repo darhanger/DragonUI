@@ -55,7 +55,17 @@ local function BuildAdditionalBarsTab(scroll)
         label = LO["Show Empty Slots"],
         dbPath = "additional.pet.grid",
         callback = function()
-            if addon.RefreshPetbar then addon.RefreshPetbar() end
+            if addon.RefreshPetbarFrame then addon.RefreshPetbarFrame() end
+        end,
+    })
+
+    C:AddSlider(pet, {
+        label = LO["Scale"],
+        dbPath = "additional.pet.scale",
+        min = 0.5, max = 2.0, step = 0.05,
+        width = 200,
+        callback = function()
+            if addon.RefreshPetbarFrame then addon.RefreshPetbarFrame() end
         end,
     })
 

@@ -66,7 +66,7 @@ local function AddCastbarControls(parent, dbPrefix, refreshFunc, opts)
     C:AddSlider(parent, {
         label = LO["Scale"],
         dbPath = dbPrefix .. ".scale",
-        min = 0.5, max = 2.0, step = 0.1,
+        min = 0.5, max = 2.0, step = 0.01,
         width = 200,
         callback = refreshFunc,
     })

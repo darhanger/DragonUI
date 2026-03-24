@@ -550,19 +550,31 @@ function QuestTrackerModule:ShowEditorTest()
             self.questTrackerFrame.editorText:Show()
         end
 
+        -- Click to select in editor panel
+        self.questTrackerFrame:SetScript("OnMouseDown", function(frame, button)
+            if button == "LeftButton" and addon.SelectEditorFrame then
+                addon.SelectEditorFrame(frame)
+            end
+        end)
+
         self.questTrackerFrame:SetScript("OnDragStart", function(frame)
             frame:StartMoving()
-            -- Show selected state while dragging
-            if frame.NineSlice and addon.SetNinesliceState then
-                addon.SetNinesliceState(frame, true)
+            -- Ensure selected
+            if addon.selectedEditorFrame ~= frame and addon.SelectEditorFrame then
+                addon.SelectEditorFrame(frame)
+            end
+            -- Clear green tint while dragging
+            if addon.ClearSelectionTint then
+                addon.ClearSelectionTint(frame)
             end
         end)
 
         self.questTrackerFrame:SetScript("OnDragStop", function(frame)
             frame:StopMovingOrSizing()
-            -- Return to highlight state
-            if frame.NineSlice and addon.SetNinesliceState then
-                addon.SetNinesliceState(frame, false)
+            frame:SetScript("OnUpdate", nil)
+            -- Re-apply green tint after drop
+            if addon.ApplySelectionTint then
+                addon.ApplySelectionTint(frame)
             end
             -- Calculate position relative to screen quadrant (same logic as movers system)
             local screenWidth = UIParent:GetRight()
@@ -616,6 +628,7 @@ function QuestTrackerModule:HideEditorTest(savePosition)
         self.questTrackerFrame:EnableMouse(false)
         self.questTrackerFrame:SetScript("OnDragStart", nil)
         self.questTrackerFrame:SetScript("OnDragStop", nil)
+        self.questTrackerFrame:SetScript("OnMouseDown", nil)
         
         -- Hide nineslice overlay
         if self.questTrackerFrame.NineSlice and addon.HideNineslice then

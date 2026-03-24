@@ -259,13 +259,13 @@ function UF.UpdateClassPortrait(unit, portrait, parentFrame, elements, enabled)
 
     -- Lazy-create portrait elements on first call
     if not elements.classPortraitBg then
-        local bg = parentFrame:CreateTexture(nil, "ARTWORK", nil, 1)
+        local bg = parentFrame:CreateTexture(nil, "BACKGROUND", nil, 2)
         bg:SetAllPoints(portrait)
         bg:SetTexture(0, 0, 0, 1)
         bg:SetTexCoord(0.15, 0.85, 0.15, 0.85)
         elements.classPortraitBg = bg
 
-        local icon = parentFrame:CreateTexture(nil, "ARTWORK", nil, 2)
+        local icon = parentFrame:CreateTexture(nil, "ARTWORK", nil, -1)
         icon:SetPoint("CENTER", portrait, "CENTER", 0, 0)
         icon:SetSize(portrait:GetWidth() * 0.75, portrait:GetHeight() * 0.75)
         icon:SetTexture(UF.TEXTURES.CLASS_ICON)
@@ -275,7 +275,11 @@ function UF.UpdateClassPortrait(unit, portrait, parentFrame, elements, enabled)
     -- Set class icon tex coords from Blizzard's global table
     local coords = CLASS_ICON_TCOORDS[class]
     if coords and elements.classPortraitIcon then
-        elements.classPortraitIcon:SetTexCoord(unpack(coords))
+        -- Inset tex coords slightly to fill the circle frame without gap
+        local inset = 0.02
+        elements.classPortraitIcon:SetTexCoord(
+            coords[1] + inset, coords[2] - inset,
+            coords[3] + inset, coords[4] - inset)
         elements.classPortraitBg:Show()
         elements.classPortraitIcon:Show()
         return true

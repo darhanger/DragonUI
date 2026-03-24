@@ -413,12 +413,14 @@ local function ReplaceBlizzardPetFrame()
         moduleState.hooks.threatGlow = true
     end
     
-    -- Setup pet name positioning
+    -- Setup pet name positioning (single-line, no word wrap)
     if PetName then
         PetName:ClearAllPoints()
         PetName:SetPoint("CENTER", petFrame, "CENTER", 10, 13)
         PetName:SetJustifyH("LEFT")
         PetName:SetWidth(65)
+        PetName:SetWordWrap(false)
+        PetName:SetNonSpaceWrap(false)
         PetName:SetDrawLayer("OVERLAY")
     end
     

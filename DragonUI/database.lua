@@ -183,6 +183,9 @@ local defaults = {
                 buttons_shown = 12
             },
 
+            -- Global button spacing (gap between buttons in pixels)
+            button_spacing = 7,
+
             -- Per-bar scales
             scale_actionbar = 0.9,
             scale_rightbar = 0.9,
@@ -319,7 +322,7 @@ local defaults = {
                 button_spacing = 6 -- Spacing between stance buttons
             },
             pet = {
-
+                scale = 1.0,
                 grid = false -- Disable grid by default (matches original Dragonflight port)
             },
             vehicle = {
@@ -381,7 +384,7 @@ local defaults = {
                 enabled = true,
                 scale = 1,
                 x_position = -20,
-                y_position = -20,
+                y_position = -10,
                 text_mode = "simple", -- "simple" (centered spell name only) or "detailed" (name + time)
                 precision_time = 1,
                 precision_max = 1,
@@ -519,6 +522,7 @@ local defaults = {
             },
             tot = {
                 classcolor = false,
+                classPortrait = false, -- Show class icon instead of character portrait
                 scale = 1.0,
                 x = 25,
                 y = -15,
@@ -533,6 +537,7 @@ local defaults = {
             },
             fot = {
                 classcolor = false,
+                classPortrait = false, -- Show class icon instead of character portrait
                 scale = 1.0,
                 x = 25,
                 y = -15,
@@ -633,7 +638,10 @@ local defaults = {
                 animated_loss = true, -- Animated red health loss bar on player frame
                 builder_spender = false -- Mana gain/loss glow feedback (experimental)
             }
-        }
+        },
+
+        -- LAYOUT PRESETS (user-saved UI snapshots within this profile)
+        presets = {}
     }
 };
 

@@ -384,6 +384,9 @@ local function ShowSuccessFlash(unitType)
         return
     end
     
+    local cfg = GetConfig(unitType)
+    local holdDuration = (cfg and cfg.holdTime) or 0.3
+    
     -- Cancel any previous flash timer
     if frames.flashTimer then
         frames.flashTimer:SetScript("OnUpdate", nil)
@@ -401,9 +404,10 @@ local function ShowSuccessFlash(unitType)
         local flashFrame = flashTimerFrames[unitType]
         flashFrame.elapsed = 0
         flashFrame.unitType = unitType
+        flashFrame.holdDuration = holdDuration
         flashFrame:SetScript("OnUpdate", function(self, elapsed)
             self.elapsed = self.elapsed + elapsed
-            if self.elapsed >= 0.5 then
+            if self.elapsed >= self.holdDuration then
                 self:SetScript("OnUpdate", nil)
                 local f = CastbarModule.frames[self.unitType]
                 if f then
@@ -424,7 +428,7 @@ local function ShowSuccessFlash(unitType)
         -- Store flash timer so we can cancel it if new cast starts
         frames.flashTimer = flashFrame
     else
-        FadeOutCastbar(unitType, 0.5)
+        FadeOutCastbar(unitType, (cfg and cfg.holdTime) or 0.3)
     end
 end
 
@@ -1119,7 +1123,7 @@ function CastbarModule:HandleCastStop_Simple(unitType, wasInterrupted, isChannel
         end
         
         SetCastText(unitType, INTERRUPTED)
-        FadeOutCastbar(unitType, 1)
+        FadeOutCastbar(unitType, (cfg and cfg.holdTimeInterrupt) or 0.8)
     else
         -- Normal completion - show success flash
         if frames.spark then frames.spark:Hide() end
@@ -1579,7 +1583,14 @@ local function ShowPlayerCastbarTest()
     
     if frames.container then
         frames.container:Show()
-        CastbarModule:ShowCastbar("player", "Fire ball", 0.5, 1, 1.5, false, false)
+        -- Use a very long duration so the preview doesn't expire during editor mode
+        CastbarModule:ShowCastbar("player", "Fire ball", 0.5, 1, 86400, false, false)
+        -- Freeze the bar at 50% — disable OnUpdate animation flags
+        if frames.castbar then
+            frames.castbar.castingEx = false
+            frames.castbar.channelingEx = false
+            frames.castbar:SetValue(0.5)
+        end
     end
 end
 

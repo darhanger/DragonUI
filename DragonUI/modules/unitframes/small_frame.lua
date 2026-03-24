@@ -57,6 +57,8 @@ function UF.SmallFrame.Create(opts)
         background = nil,
         border = nil,
         elite = nil,
+        classPortraitBg = nil,
+        classPortraitIcon = nil,
     }
 
     local updateCache = {
@@ -163,6 +165,76 @@ function UF.SmallFrame.Create(opts)
         else
             frameElements.elite:Hide()
         end
+    end
+
+
+    -- ========================================================================
+    -- CLASS PORTRAIT
+    -- ========================================================================
+
+    local function UpdateSmallFrameClassPortrait()
+        local config = GetConfig()
+        if not config then return end
+
+        local enabled = config.classPortrait
+        local portrait = frames.portrait
+        if not portrait or not frames.main then return end
+
+        if not enabled then
+            if frameElements.classPortraitBg then frameElements.classPortraitBg:Hide() end
+            if frameElements.classPortraitIcon then frameElements.classPortraitIcon:Hide() end
+            if portrait then portrait:SetAlpha(1) end
+            return
+        end
+
+        if not UnitExists(opts.unitToken) or not UnitIsPlayer(opts.unitToken) then
+            if frameElements.classPortraitBg then frameElements.classPortraitBg:Hide() end
+            if frameElements.classPortraitIcon then frameElements.classPortraitIcon:Hide() end
+            if portrait then portrait:SetAlpha(1) end
+            return
+        end
+
+        local _, classFileName = UnitClass(opts.unitToken)
+        if not classFileName or not CLASS_ICON_TCOORDS or not CLASS_ICON_TCOORDS[classFileName] then
+            if frameElements.classPortraitBg then frameElements.classPortraitBg:Hide() end
+            if frameElements.classPortraitIcon then frameElements.classPortraitIcon:Hide() end
+            if portrait then portrait:SetAlpha(1) end
+            return
+        end
+
+        local coords = CLASS_ICON_TCOORDS[classFileName]
+        local portraitSize = portrait:GetWidth()
+        if portraitSize < 1 then portraitSize = 32 end
+
+        -- Lazy-create background circle
+        if not frameElements.classPortraitBg then
+            frameElements.classPortraitBg = frames.main:CreateTexture(nil, "BACKGROUND", nil, 2)
+            frameElements.classPortraitBg:SetTexture("Interface\\CHARACTERFRAME\\TempPortraitAlphaMask")
+            frameElements.classPortraitBg:SetVertexColor(0, 0, 0, 1)
+        end
+
+        -- Lazy-create class icon
+        if not frameElements.classPortraitIcon then
+            frameElements.classPortraitIcon = frames.main:CreateTexture(nil, "ARTWORK", nil, -1)
+            frameElements.classPortraitIcon:SetTexture(UF.TEXTURES.CLASS_ICON)
+        end
+
+        -- Position & show  (small vertical offset aligns with border circle)
+        frameElements.classPortraitBg:ClearAllPoints()
+        frameElements.classPortraitBg:SetPoint("CENTER", portrait, "CENTER", 0, -2)
+        frameElements.classPortraitBg:SetSize(portraitSize, portraitSize)
+        frameElements.classPortraitBg:Show()
+
+        frameElements.classPortraitIcon:ClearAllPoints()
+        frameElements.classPortraitIcon:SetPoint("CENTER", portrait, "CENTER", 0, -2)
+        frameElements.classPortraitIcon:SetSize(portraitSize, portraitSize)
+        local inset = 0.02
+        frameElements.classPortraitIcon:SetTexCoord(
+            coords[1] + inset, coords[2] - inset,
+            coords[3] + inset, coords[4] - inset)
+        frameElements.classPortraitIcon:Show()
+
+        portrait:SetAlpha(0)
     end
 
 
@@ -332,6 +404,7 @@ function UF.SmallFrame.Create(opts)
                     if frameElements.background then frameElements.background:Show() end
                     if frameElements.border then frameElements.border:Show() end
                     UpdateClassification()
+                    UpdateSmallFrameClassPortrait()
                 end
             end)
             Module.portraitHooked = true
@@ -513,6 +586,9 @@ function UF.SmallFrame.Create(opts)
         SetupBarHooks()
         SetupAdditionalHooks()
 
+        -- Apply class portrait if enabled
+        UpdateSmallFrameClassPortrait()
+
         -- Run caller-supplied extra initialization
         if opts.extraInit then
             opts.extraInit(Module, config)
@@ -581,6 +657,7 @@ function UF.SmallFrame.Create(opts)
                     frames.main:Show()
                 end
                 UpdateClassification()
+                UpdateSmallFrameClassPortrait()
             end
 
         -- ----------------------------------------------------------------
@@ -598,6 +675,7 @@ function UF.SmallFrame.Create(opts)
             end
 
             UpdateClassification()
+            UpdateSmallFrameClassPortrait()
 
         -- ----------------------------------------------------------------
         -- UNIT_TARGET
@@ -623,6 +701,7 @@ function UF.SmallFrame.Create(opts)
                     end
                 end
                 UpdateClassification()
+                UpdateSmallFrameClassPortrait()
             end
 
         -- ----------------------------------------------------------------

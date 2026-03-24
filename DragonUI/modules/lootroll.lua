@@ -231,17 +231,31 @@ function LootRollModule:ShowEditorTest()
         frame.editorText:Show()
     end
 
+    -- Click to select in editor panel
+    frame:SetScript("OnMouseDown", function(f, button)
+        if button == "LeftButton" and addon.SelectEditorFrame then
+            addon.SelectEditorFrame(f)
+        end
+    end)
+
     frame:SetScript("OnDragStart", function(f)
         f:StartMoving()
-        if f.NineSlice and addon.SetNinesliceState then
-            addon.SetNinesliceState(f, true)
+        -- Ensure selected
+        if addon.selectedEditorFrame ~= f and addon.SelectEditorFrame then
+            addon.SelectEditorFrame(f)
+        end
+        -- Clear green tint while dragging (show default drag nineslice)
+        if addon.ClearSelectionTint then
+            addon.ClearSelectionTint(f)
         end
     end)
 
     frame:SetScript("OnDragStop", function(f)
         f:StopMovingOrSizing()
-        if f.NineSlice and addon.SetNinesliceState then
-            addon.SetNinesliceState(f, false)
+        f:SetScript("OnUpdate", nil)
+        -- Re-apply green tint after drop (frame stays selected)
+        if addon.ApplySelectionTint then
+            addon.ApplySelectionTint(f)
         end
 
         -- Calculate position relative to screen quadrant
@@ -304,6 +318,7 @@ function LootRollModule:HideEditorTest()
     frame:EnableMouse(false)
     frame:SetScript("OnDragStart", nil)
     frame:SetScript("OnDragStop", nil)
+    frame:SetScript("OnMouseDown", nil)
 
     if frame.NineSlice and addon.HideNineslice then
         addon.HideNineslice(frame)

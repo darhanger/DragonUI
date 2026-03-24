@@ -69,7 +69,7 @@ local function AddCommonControls(parent, unitKey, refreshFunc, opts)
     C:AddSlider(parent, {
         label = LO["Scale"],
         dbPath = "unitframe." .. unitKey .. ".scale",
-        min = 0.5, max = 2.0, step = 0.1,
+        min = 0.5, max = 2.0, step = 0.01,
         width = 200,
         callback = refreshFunc,
     })
@@ -345,7 +345,7 @@ local function BuildPetSection(scroll)
     C:AddSlider(s, {
         label = LO["Scale"],
         dbPath = "unitframe.pet.scale",
-        min = 0.5, max = 2.0, step = 0.1,
+        min = 0.5, max = 2.0, step = 0.01,
         width = 200,
         callback = refreshPet,
     })
@@ -427,7 +427,7 @@ local function BuildToTSection(scroll)
     C:AddSlider(tot, {
         label = LO["Scale"],
         dbPath = "unitframe.tot.scale",
-        min = 0.5, max = 2.0, step = 0.1,
+        min = 0.5, max = 2.0, step = 0.01,
         width = 200,
         callback = refreshToT,
     })
@@ -435,6 +435,12 @@ local function BuildToTSection(scroll)
     C:AddToggle(tot, {
         label = LO["Class Color Health"],
         dbPath = "unitframe.tot.classcolor",
+        callback = refreshToT,
+    })
+
+    C:AddToggle(tot, {
+        label = LO["Class Portrait"],
+        dbPath = "unitframe.tot.classPortrait",
         callback = refreshToT,
     })
 
@@ -475,7 +481,7 @@ local function BuildToTSection(scroll)
     C:AddSlider(fot, {
         label = LO["Scale"],
         dbPath = "unitframe.fot.scale",
-        min = 0.5, max = 2.0, step = 0.1,
+        min = 0.5, max = 2.0, step = 0.01,
         width = 200,
         callback = refreshToF,
     })
@@ -483,6 +489,12 @@ local function BuildToTSection(scroll)
     C:AddToggle(fot, {
         label = LO["Class Color Health"],
         dbPath = "unitframe.fot.classcolor",
+        callback = refreshToF,
+    })
+
+    C:AddToggle(fot, {
+        label = LO["Class Portrait"],
+        dbPath = "unitframe.fot.classPortrait",
         callback = refreshToF,
     })
 
@@ -518,7 +530,7 @@ local function BuildPartySection(scroll)
     C:AddSlider(s, {
         label = LO["Scale"],
         dbPath = "unitframe.party.scale",
-        min = 0.5, max = 2.0, step = 0.1,
+        min = 0.5, max = 2.0, step = 0.01,
         width = 200,
         callback = refreshParty,
     })

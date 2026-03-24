@@ -149,11 +149,41 @@ local function BuildProfilesTab(scroll)
                 button1 = LO["Yes"],
                 button2 = LO["No"],
                 OnAccept = function()
-                    if addon.db then
-                        addon.db:ResetProfile()
-                        print("|cFF00FF00[DragonUI]|r " .. LO["Profile reset to defaults."])
+                    if not addon.db then return end
+                    -- Preserve presets before reset
+                    local savedPresets = addon.db.profile.presets
+                    if savedPresets then
+                        savedPresets = addon.DeepCopy(savedPresets)
                     end
-                    ReloadUI()
+                    addon.db:ResetProfile()
+                    -- Ask about presets only if there were any
+                    if savedPresets and next(savedPresets) then
+                        addon.db.profile.presets = savedPresets
+                        StaticPopupDialogs["DRAGONUI_RESET_PRESETS"] = StaticPopupDialogs["DRAGONUI_RESET_PRESETS"] or {
+                            text = LO["Also delete all saved layout presets?"],
+                            button1 = LO["Yes"],
+                            button2 = LO["No"],
+                            OnAccept = function()
+                                if addon.db and addon.db.profile then
+                                    addon.db.profile.presets = {}
+                                end
+                                print("|cFF00FF00[DragonUI]|r " .. LO["Profile reset to defaults."])
+                                ReloadUI()
+                            end,
+                            OnCancel = function()
+                                print("|cFF00FF00[DragonUI]|r " .. LO["Profile reset to defaults."] .. " " .. (LO["Presets kept."] or "Presets kept."))
+                                ReloadUI()
+                            end,
+                            timeout = 0,
+                            whileDead = true,
+                            hideOnEscape = false,
+                            preferredIndex = 3,
+                        }
+                        StaticPopup_Show("DRAGONUI_RESET_PRESETS")
+                    else
+                        print("|cFF00FF00[DragonUI]|r " .. LO["Profile reset to defaults."])
+                        ReloadUI()
+                    end
                 end,
                 timeout = 0,
                 whileDead = true,

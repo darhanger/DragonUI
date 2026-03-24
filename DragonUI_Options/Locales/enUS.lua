@@ -919,3 +919,39 @@ L["Animated Health Loss"] = true
 L["Show animated red health loss bar on player frame when taking damage."] = true
 L["Builder/Spender Feedback"] = true
 L["Show mana gain/loss glow feedback on player mana bar (experimental)."] = true
+
+-- LAYOUT PRESETS
+L["Layout Presets"] = true
+L["Save and restore complete UI layouts. Each preset captures all positions, scales, and settings."] = true
+L["No presets saved yet."] = true
+L["Save New Preset"] = true
+L["Save your current UI layout as a new preset."] = true
+L["Preset"] = true
+L["Enter a name for this preset:"] = true
+L["Save"] = true
+L["Load"] = true
+L["Load preset '%s'? This will overwrite your current layout settings."] = true
+L["Load Preset"] = true
+L["Delete preset '%s'? This cannot be undone."] = true
+L["Delete Preset"] = true
+L["Duplicate Preset"] = true
+L["Preset saved: "] = true
+L["Preset loaded: "] = true
+L["Preset deleted: "] = true
+L["Preset duplicated: "] = true
+L["Also delete all saved layout presets?"] = true
+L["Presets kept."] = true
+
+-- PRESET IMPORT / EXPORT
+L["Export Preset"] = true
+L["Import Preset"] = true
+L["Import a preset from a text string shared by another player."] = true
+L["Import"] = true
+L["Select All"] = true
+L["Close"] = true
+L["Enter a name for the imported preset:"] = true
+L["Imported Preset"] = true
+L["Preset imported: "] = true
+L["Invalid preset string."] = true
+L["Not a valid DragonUI preset string."] = true
+L["Failed to export preset."] = true

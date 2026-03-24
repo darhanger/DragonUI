@@ -157,7 +157,7 @@ function UF.TargetStyle.Create(opts)
 
                 -- Lazy-create background circle
                 if not classPortraitBg then
-                    classPortraitBg = BlizzFrame:CreateTexture(nil, "BACKGROUND", nil, 1)
+                    classPortraitBg = BlizzFrame:CreateTexture(nil, "BACKGROUND", nil, 2)
                     classPortraitBg:SetTexture(
                         "Interface\\CHARACTERFRAME\\TempPortraitAlphaMask")
                     classPortraitBg:SetVertexColor(0, 0, 0, 1)
@@ -165,21 +165,24 @@ function UF.TargetStyle.Create(opts)
 
                 -- Lazy-create class icon
                 if not classPortraitIcon then
-                    classPortraitIcon = BlizzFrame:CreateTexture(nil, "ARTWORK", nil, 1)
+                    classPortraitIcon = BlizzFrame:CreateTexture(nil, "ARTWORK", nil, -1)
                     classPortraitIcon:SetTexture(UF.TEXTURES.CLASS_ICON)
                 end
 
-                -- Position & show
+                -- Position & show  (nudge keeps icon inside border circle)
                 classPortraitBg:ClearAllPoints()
-                classPortraitBg:SetPoint("CENTER", Portrait, "CENTER", 0, 0)
-                classPortraitBg:SetSize(56, 56)
+                classPortraitBg:SetPoint("CENTER", Portrait, "CENTER", 0, 1)
+                classPortraitBg:SetSize(54, 54)
                 classPortraitBg:Show()
 
                 classPortraitIcon:ClearAllPoints()
-                classPortraitIcon:SetPoint("CENTER", Portrait, "CENTER", 0, 0)
-                classPortraitIcon:SetSize(56, 56)
+                classPortraitIcon:SetPoint("CENTER", Portrait, "CENTER", 0, 1)
+                classPortraitIcon:SetSize(54, 54)
+                -- Inset tex coords slightly so class cell fills circle cleanly
+                local inset = 0.02
                 classPortraitIcon:SetTexCoord(
-                    coords[1], coords[2], coords[3], coords[4])
+                    coords[1] + inset, coords[2] - inset,
+                    coords[3] + inset, coords[4] - inset)
                 classPortraitIcon:Show()
 
                 Portrait:SetAlpha(0)
@@ -702,7 +705,7 @@ function UF.TargetStyle.Create(opts)
         Portrait:ClearAllPoints()
         Portrait:SetSize(56, 56)
         Portrait:SetPoint("TOPRIGHT", BlizzFrame, "TOPRIGHT", -47, -15)
-        Portrait:SetDrawLayer("ARTWORK", 1)
+        Portrait:SetDrawLayer("ARTWORK", 0)
 
         -- ---- Configure health bar ----
         HealthBar:ClearAllPoints()

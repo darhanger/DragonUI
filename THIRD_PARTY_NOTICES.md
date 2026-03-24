@@ -10,6 +10,11 @@ This file exists because the addon bundles components with licenses that differ 
 
 Because GPL-2.0 is not compatible with MIT for a combined work, this library is loaded as a standalone component through LibStub. A full copy of the GPL-2.0 text is included in `LICENSES/GPL-2.0.txt`.
 
+## zlib License — LibDeflate
+
+`DragonUI/libs/LibDeflate/LibDeflate.lua` is licensed under the zlib License.
+Copyright (C) 2018-2020 Haoqian He. See the embedded license header in the source file.
+
 ## Bundled Fonts
 
 | Font | Path | License | License File |

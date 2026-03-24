@@ -224,6 +224,10 @@ local function HideNineslice(frame)
     end
 end
 
+-- Forward declarations for editor system (defined/assigned later)
+local ApplySelectionTint, ClearSelectionTint
+local editorPanel, selectedEditorFrame
+
 -- Create a UI frame with editor mode support
 function addon.CreateUIFrame(width, height, frameName)
     local frame = CreateFrame("Frame", 'DragonUI_' .. frameName, UIParent)
@@ -235,31 +239,37 @@ function addon.CreateUIFrame(width, height, frameName)
     
     frame:SetScript("OnDragStart", function(self, button)
         self:StartMoving()
-        -- Show selected state while dragging
-        if self.NineSlice then
-            SetNinesliceState(self, true)
+        -- Ensure this frame is the selected one
+        if selectedEditorFrame ~= self then
+            addon.SelectEditorFrame(self)
         end
+        -- While dragging: remove green tint, show default drag nineslice
+        ClearSelectionTint(self)
     end)
     
     frame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
         
-        -- Return to highlight state
-        if self.NineSlice then
-            SetNinesliceState(self, false)
-        end
-        
         -- AUTO-SAVE: Find this frame in EditableFrames and save position automatically
         for name, frameData in pairs(addon.EditableFrames) do
             if frameData.frame == self then
                 -- Save position automatically
-                if #frameData.configPath == 2 then
+                if frameData.configPath and #frameData.configPath == 2 then
                     addon.SaveUIFramePosition(frameData.frame, frameData.configPath[1], frameData.configPath[2])
-                else
+                elseif frameData.configPath then
                     addon.SaveUIFramePosition(frameData.frame, frameData.configPath[1])
                 end
                 break
             end
+        end
+        -- Re-apply green tint now that drag is done (frame stays selected)
+        ApplySelectionTint(self)
+    end)
+    
+    -- Click without drag also selects the frame
+    frame:SetScript("OnMouseDown", function(self, button)
+        if button == "LeftButton" then
+            addon.SelectEditorFrame(self)
         end
     end)
 
@@ -279,7 +289,8 @@ function addon.CreateUIFrame(width, height, frameName)
         local L = addon.L
         local fontString = frame:CreateFontString(nil, "OVERLAY", 'GameFontNormal')
         fontString:SetPoint("CENTER", frame, "CENTER", 0, 0)
-        fontString:SetText((L and L[frameName]) or frameName)
+        local ok, translated = pcall(function() return L and L[frameName] end)
+        fontString:SetText((ok and translated) or frameName)
         fontString:Hide()
         frame.editorText = fontString
     end
@@ -501,6 +512,289 @@ function addon:RegisterEditableFrame(frameInfo)
     self.EditableFrames[frameInfo.name] = frameData
 end
 
+-- ============================================================================
+-- EDITOR CONTROL PANEL (Real-time X/Y + Nudge Buttons)
+-- ============================================================================
+
+-- Update the coordinate display with current frame position.
+-- Uses GetCenter() for screen-relative coords that always reflect the
+-- actual visual position (GetPoint offsets can be stale during StartMoving).
+-- Skips update while the user is actively typing in an EditBox.
+local function UpdateEditorPanelCoords()
+    if not editorPanel or not selectedEditorFrame then return end
+    local cx, cy = selectedEditorFrame:GetCenter()
+    if cx and cy then
+        local ux, uy = UIParent:GetCenter()
+        local xStr = string.format("%.1f", cx - (ux or 0))
+        local yStr = string.format("%.1f", cy - (uy or 0))
+        -- Only update text if the EditBox is not focused (user may be typing)
+        if not editorPanel.xValue:HasFocus() then
+            editorPanel.xValue:SetText(xStr)
+        end
+        if not editorPanel.yValue:HasFocus() then
+            editorPanel.yValue:SetText(yStr)
+        end
+    end
+end
+
+-- Apply coordinates typed by the user into the X/Y EditBoxes
+local function ApplyTypedCoordinates()
+    if not selectedEditorFrame or not editorPanel then return end
+    local xText = editorPanel.xValue:GetText()
+    local yText = editorPanel.yValue:GetText()
+    local newX = tonumber(xText)
+    local newY = tonumber(yText)
+    if not newX or not newY then return end
+    -- Position is relative to UIParent CENTER (matches what we display)
+    selectedEditorFrame:ClearAllPoints()
+    selectedEditorFrame:SetPoint("CENTER", UIParent, "CENTER", newX, newY)
+    -- Auto-save
+    if addon.EditableFrames then
+        for _, frameData in pairs(addon.EditableFrames) do
+            if frameData.frame == selectedEditorFrame and frameData.configPath then
+                if #frameData.configPath == 2 then
+                    addon.SaveUIFramePosition(frameData.frame, frameData.configPath[1], frameData.configPath[2])
+                else
+                    addon.SaveUIFramePosition(frameData.frame, frameData.configPath[1])
+                end
+                break
+            end
+        end
+    end
+    -- Clear focus so live polling resumes
+    editorPanel.xValue:ClearFocus()
+    editorPanel.yValue:ClearFocus()
+end
+
+-- Move the selected frame by dx, dy pixels and auto-save
+local function NudgeSelectedFrame(dx, dy)
+    if not selectedEditorFrame then return end
+    local point, relativeTo, relativePoint, posX, posY = selectedEditorFrame:GetPoint(1)
+    if not point then return end
+    selectedEditorFrame:ClearAllPoints()
+    selectedEditorFrame:SetPoint(point, relativeTo, relativePoint, (posX or 0) + dx, (posY or 0) + dy)
+    -- Auto-save position
+    if addon.EditableFrames then
+        for _, frameData in pairs(addon.EditableFrames) do
+            if frameData.frame == selectedEditorFrame and frameData.configPath then
+                if #frameData.configPath == 2 then
+                    addon.SaveUIFramePosition(frameData.frame, frameData.configPath[1], frameData.configPath[2])
+                else
+                    addon.SaveUIFramePosition(frameData.frame, frameData.configPath[1])
+                end
+                break
+            end
+        end
+    end
+    UpdateEditorPanelCoords()
+end
+
+-- Create the floating control panel (called once, lazily)
+local function CreateEditorControlPanel()
+    if editorPanel then return editorPanel end
+
+    local panel = CreateFrame("Frame", "DragonUI_EditorPanel", UIParent)
+    panel:SetSize(180, 80)
+    panel:SetPoint("TOP", UIParent, "TOP", 0, -10)
+    panel:SetFrameStrata("TOOLTIP")
+    panel:SetFrameLevel(200)
+    panel:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 },
+    })
+    panel:SetBackdropColor(0.1, 0.1, 0.1, 0.9)
+    panel:SetBackdropBorderColor(0.4, 0.8, 1, 0.8)
+
+    -- Make the panel draggable so it can be moved out of the way
+    panel:EnableMouse(true)
+    panel:SetMovable(true)
+    panel:RegisterForDrag("LeftButton")
+    panel:SetScript("OnDragStart", panel.StartMoving)
+    panel:SetScript("OnDragStop", panel.StopMovingOrSizing)
+
+    -- Frame name label (top row)
+    local nameLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    nameLabel:SetPoint("TOP", panel, "TOP", 0, -8)
+    nameLabel:SetTextColor(0.4, 0.8, 1)
+    nameLabel:SetText("\226\128\148")
+    panel.nameLabel = nameLabel
+
+    -- X row
+    local xLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    xLabel:SetPoint("TOPLEFT", panel, "TOPLEFT", 10, -26)
+    xLabel:SetText("X:")
+
+    local xValue = CreateFrame("EditBox", nil, panel)
+    xValue:SetSize(55, 18)
+    xValue:SetPoint("LEFT", xLabel, "RIGHT", 2, 0)
+    xValue:SetFontObject(GameFontHighlightSmall)
+    xValue:SetJustifyH("RIGHT")
+    xValue:SetAutoFocus(false)
+    xValue:SetNumeric(false)  -- allow negative numbers and decimals
+    xValue:SetText("\226\128\148")
+    xValue:SetFrameLevel(panel:GetFrameLevel() + 3)
+    xValue:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 8, edgeSize = 8,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 },
+    })
+    xValue:SetBackdropColor(0, 0, 0, 0.6)
+    xValue:SetBackdropBorderColor(0.5, 0.5, 0.5, 0.6)
+    xValue:SetTextInsets(2, 2, 0, 0)
+    xValue:SetScript("OnEnterPressed", function(self) ApplyTypedCoordinates(); self:ClearFocus() end)
+    xValue:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    panel.xValue = xValue
+
+    local xMinus = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    xMinus:SetSize(24, 20)
+    xMinus:SetPoint("LEFT", xValue, "RIGHT", 8, 0)
+    xMinus:SetText("<")
+    xMinus:SetFrameLevel(panel:GetFrameLevel() + 5)
+    xMinus:SetScript("OnClick", function() NudgeSelectedFrame(-1, 0) end)
+
+    local xPlus = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    xPlus:SetSize(24, 20)
+    xPlus:SetPoint("LEFT", xMinus, "RIGHT", 4, 0)
+    xPlus:SetText(">")
+    xPlus:SetFrameLevel(panel:GetFrameLevel() + 5)
+    xPlus:SetScript("OnClick", function() NudgeSelectedFrame(1, 0) end)
+
+    -- Y row
+    local yLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    yLabel:SetPoint("TOPLEFT", xLabel, "BOTTOMLEFT", 0, -8)
+    yLabel:SetText("Y:")
+
+    local yValue = CreateFrame("EditBox", nil, panel)
+    yValue:SetSize(55, 18)
+    yValue:SetPoint("LEFT", yLabel, "RIGHT", 2, 0)
+    yValue:SetFontObject(GameFontHighlightSmall)
+    yValue:SetJustifyH("RIGHT")
+    yValue:SetAutoFocus(false)
+    yValue:SetNumeric(false)
+    yValue:SetText("\226\128\148")
+    yValue:SetFrameLevel(panel:GetFrameLevel() + 3)
+    yValue:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 8, edgeSize = 8,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 },
+    })
+    yValue:SetBackdropColor(0, 0, 0, 0.6)
+    yValue:SetBackdropBorderColor(0.5, 0.5, 0.5, 0.6)
+    yValue:SetTextInsets(2, 2, 0, 0)
+    yValue:SetScript("OnEnterPressed", function(self) ApplyTypedCoordinates(); self:ClearFocus() end)
+    yValue:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    panel.yValue = yValue
+
+    local yMinus = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    yMinus:SetSize(24, 20)
+    yMinus:SetPoint("LEFT", yValue, "RIGHT", 8, 0)
+    yMinus:SetText("v")
+    yMinus:SetFrameLevel(panel:GetFrameLevel() + 5)
+    yMinus:SetScript("OnClick", function() NudgeSelectedFrame(0, -1) end)
+
+    local yPlus = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    yPlus:SetSize(24, 20)
+    yPlus:SetPoint("LEFT", yMinus, "RIGHT", 4, 0)
+    yPlus:SetText("^")
+    yPlus:SetFrameLevel(panel:GetFrameLevel() + 5)
+    yPlus:SetScript("OnClick", function() NudgeSelectedFrame(0, 1) end)
+
+    -- Continuous coordinate polling while the panel is visible.
+    -- This is simpler and more reliable than per-frame OnUpdate scripts
+    -- since it works for every frame type (CreateUIFrame, lootroll, quest, etc.)
+    panel:SetScript("OnUpdate", function()
+        UpdateEditorPanelCoords()
+    end)
+
+    panel:Hide()
+    editorPanel = panel
+    return panel
+end
+
+-- Apply a green tint to the nineslice to visually mark the "selected" frame
+ApplySelectionTint = function(frame)
+    local slice = frame and frame.NineSlice
+    if not slice then return end
+    if slice.Center then slice.Center:SetVertexColor(0.2, 1.0, 0.3, 0.5) end
+    for _, key in ipairs({"TopLeftCorner", "TopRightCorner", "BottomLeftCorner", "BottomRightCorner",
+                          "TopEdge", "BottomEdge", "LeftEdge", "RightEdge"}) do
+        if slice[key] then slice[key]:SetVertexColor(0.2, 1.0, 0.3) end
+    end
+end
+
+-- Remove the selection tint (restore default texture color)
+ClearSelectionTint = function(frame)
+    local slice = frame and frame.NineSlice
+    if not slice then return end
+    if slice.Center then slice.Center:SetVertexColor(1, 1, 1, 1) end
+    for _, key in ipairs({"TopLeftCorner", "TopRightCorner", "BottomLeftCorner", "BottomRightCorner",
+                          "TopEdge", "BottomEdge", "LeftEdge", "RightEdge"}) do
+        if slice[key] then slice[key]:SetVertexColor(1, 1, 1) end
+    end
+end
+
+-- Select a frame for coordinate display and nudging
+function addon.SelectEditorFrame(frame)
+    -- Deselect previous
+    if selectedEditorFrame and selectedEditorFrame ~= frame then
+        if selectedEditorFrame.NineSlice then
+            ClearSelectionTint(selectedEditorFrame)
+            SetNinesliceState(selectedEditorFrame, false)
+        end
+    end
+
+    selectedEditorFrame = frame
+    addon.selectedEditorFrame = frame
+
+    -- Show selected nineslice state with green tint
+    if frame.NineSlice then
+        SetNinesliceState(frame, true)
+        ApplySelectionTint(frame)
+    end
+
+    -- Resolve display name from editorText (avoids AceLocale strict errors)
+    local panel = CreateEditorControlPanel()
+    local displayName
+    if frame.editorText and frame.editorText.GetText then
+        displayName = frame.editorText:GetText()
+    end
+    if not displayName or displayName == "" then
+        for name, _ in pairs(addon.EditableFrames) do
+            if addon.EditableFrames[name].frame == frame then
+                displayName = name
+                break
+            end
+        end
+    end
+    panel.nameLabel:SetText(displayName or "Frame")
+    UpdateEditorPanelCoords()
+    panel:Show()
+end
+
+-- Expose tint helpers and selectedEditorFrame for external modules
+addon.ApplySelectionTint = function(f) ApplySelectionTint(f) end
+addon.ClearSelectionTint = function(f) ClearSelectionTint(f) end
+addon.selectedEditorFrame = nil  -- updated below via SelectEditorFrame
+
+-- Clear selection state
+function addon.DeselectEditorFrame()
+    if selectedEditorFrame and selectedEditorFrame.NineSlice then
+        ClearSelectionTint(selectedEditorFrame)
+        SetNinesliceState(selectedEditorFrame, false)
+    end
+    selectedEditorFrame = nil
+    addon.selectedEditorFrame = nil
+    if editorPanel then
+        editorPanel.nameLabel:SetText("\226\128\148")
+        editorPanel.xValue:SetText("\226\128\148")
+        editorPanel.yValue:SetText("\226\128\148")
+    end
+end
+
 -- Show all frames in editor mode
 function addon:ShowAllEditableFrames()
     for name, frameData in pairs(self.EditableFrames) do
@@ -524,10 +818,23 @@ function addon:ShowAllEditableFrames()
     end
     local L = addon.L
     print("|cFF00FF00[DragonUI]|r " .. (L and L["All editable frames shown for editing"] or "All editable frames shown for editing"))
+
+    -- Show editor control panel
+    CreateEditorControlPanel()
+    if editorPanel then
+        addon.DeselectEditorFrame()
+        editorPanel:Show()
+    end
 end
 
 -- Hide all frames and save positions
 function addon:HideAllEditableFrames(refresh)
+    -- Hide editor control panel and clear selection
+    addon.DeselectEditorFrame()
+    if editorPanel then
+        editorPanel:Hide()
+    end
+
     for name, frameData in pairs(self.EditableFrames) do
         if frameData.frame then
             addon.ShowUIFrame(frameData.frame) -- Hide green overlay

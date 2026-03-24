@@ -69,7 +69,7 @@ local function BuildGeneralTab(scroll)
         C:AddSlider(scales, {
             dbPath = bar.path,
             label = bar.label,
-            min = 0.5, max = 2.0, step = 0.1,
+            min = 0.5, max = 2.0, step = 0.01,
             width = 250,
             callback = RefreshBars,
         })
@@ -313,6 +313,17 @@ end
 -- ============================================================================
 
 local function BuildLayoutTab(scroll)
+    -- ---- Global Button Spacing ----
+    local spacingSection = C:AddSection(scroll, LO["Button Spacing"])
+
+    C:AddSlider(spacingSection, {
+        dbPath = "mainbars.button_spacing",
+        label = LO["Button Spacing"],
+        min = 0, max = 20, step = 1,
+        width = 250,
+        callback = RefreshBars,
+    })
+
     -- ---- Main Bar ----
     local mainSection = C:AddSection(scroll, LO["Main Bar Layout"])
 

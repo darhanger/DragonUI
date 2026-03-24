@@ -1451,13 +1451,14 @@ local function UpdatePlayerDragonDecoration()
                 if not dragonFrame.ClassPortraitOverlay then
                     local cpf = CreateFrame("Frame", nil, PlayerFrame)
                     cpf:SetSize(56, 56)
-                    cpf.bg = cpf:CreateTexture(nil, "BACKGROUND", nil, 1)
+                    cpf.bg = cpf:CreateTexture(nil, "BACKGROUND", nil, 2)
                     cpf.bg:SetTexture("Interface\\CHARACTERFRAME\\TempPortraitAlphaMask")
                     cpf.bg:SetVertexColor(0, 0, 0, 1)
                     cpf.bg:SetAllPoints()
                     cpf.icon = cpf:CreateTexture(nil, "OVERLAY", nil, 7)
                     cpf.icon:SetTexture(CLASS_ICON_TEXTURE)
-                    cpf.icon:SetAllPoints()
+                    cpf.icon:SetSize(56, 56)
+                    cpf.icon:SetPoint("CENTER", cpf, "CENTER", 0, 0)
                     dragonFrame.ClassPortraitOverlay = cpf
                 end
                 dragonFrame.ClassPortraitOverlay:SetFrameLevel(PlayerFrame:GetFrameLevel() + 2)
@@ -1467,7 +1468,10 @@ local function UpdatePlayerDragonDecoration()
                 local _, classFileName = UnitClass("player")
                 if classFileName and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[classFileName] then
                     local cCoords = CLASS_ICON_TCOORDS[classFileName]
-                    dragonFrame.ClassPortraitOverlay.icon:SetTexCoord(cCoords[1], cCoords[2], cCoords[3], cCoords[4])
+                    local inset = 0.02
+                    dragonFrame.ClassPortraitOverlay.icon:SetTexCoord(
+                        cCoords[1] + inset, cCoords[2] - inset,
+                        cCoords[3] + inset, cCoords[4] - inset)
                     dragonFrame.ClassPortraitOverlay.icon:Show()
                     dragonFrame.ClassPortraitOverlay.bg:Show()
                 end
@@ -1970,14 +1974,14 @@ local function UpdatePlayerClassPortrait()
             
             -- Create black background circle if it doesn't exist
             if not classPortraitBg then
-                classPortraitBg = PlayerFrame:CreateTexture(nil, "BACKGROUND", nil, 1)
+                classPortraitBg = PlayerFrame:CreateTexture(nil, "BACKGROUND", nil, 2)
                 classPortraitBg:SetTexture("Interface\\CHARACTERFRAME\\TempPortraitAlphaMask")
                 classPortraitBg:SetVertexColor(0, 0, 0, 1)  -- Black background
             end
             
             -- Create class icon texture if it doesn't exist (separate from portrait)
             if not classPortraitIcon then
-                classPortraitIcon = PlayerFrame:CreateTexture(nil, "ARTWORK", nil, 1)
+                classPortraitIcon = PlayerFrame:CreateTexture(nil, "ARTWORK", nil, -1)
                 classPortraitIcon:SetTexture(CLASS_ICON_TEXTURE)
             end
             
@@ -1987,11 +1991,15 @@ local function UpdatePlayerClassPortrait()
             classPortraitBg:SetSize(56, 56)
             classPortraitBg:Show()
             
-            -- Position and size the icon (same as background with circular icons)
+            -- Position and size the icon
             classPortraitIcon:ClearAllPoints()
             classPortraitIcon:SetPoint("CENTER", PlayerPortrait, "CENTER", 0, 0)
             classPortraitIcon:SetSize(56, 56)
-            classPortraitIcon:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
+            -- Inset tex coords slightly so class cell fills circle cleanly
+            local inset = 0.02
+            classPortraitIcon:SetTexCoord(
+                coords[1] + inset, coords[2] - inset,
+                coords[3] + inset, coords[4] - inset)
             classPortraitIcon:Show()
             
             -- Hide the original portrait
