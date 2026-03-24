@@ -753,10 +753,14 @@ end
         return hasWatchedFaction
     end
 
+    -- Forward declaration so GetDualBarVerticalOffset can reference it before its definition
+    local IsWidgetAtDefaultPosition
+
     -- Helper: get the vertical offset that bars above XP/Rep need when both are visible.
     -- Returns 0 when only one bar (or none) is shown.
     local function GetDualBarVerticalOffset()
         if not AreBothXpRepBarsVisible() then return 0 end
+        if not IsWidgetAtDefaultPosition("xpbar") or not IsWidgetAtDefaultPosition("repbar") then return 0 end
         local barH = GetXpBarHeight()
         return barH + 2 -- bar height + 2px gap
     end
@@ -778,7 +782,7 @@ end
     -- Also accepts positions saved with the dual-bar offset baked in, so that
     -- saving via editor mode while both XP+Rep bars are visible doesn't
     -- permanently break offset detection.
-    local function IsWidgetAtDefaultPosition(widgetName)
+    IsWidgetAtDefaultPosition = function(widgetName)
         local known = defaultBottomPositions[widgetName]
         if not known then return false end
         local w = addon.db and addon.db.profile and addon.db.profile.widgets
