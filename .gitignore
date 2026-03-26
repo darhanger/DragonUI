@@ -17,3 +17,12 @@ Reference/
 docs/
 mcp/
 .venv/
+
+# Local test/debug scripts
+test_*.lua
+debug_*.lua
+
+# Node/Python temp files
+__pycache__/
+*.pyc
+*.pyo
