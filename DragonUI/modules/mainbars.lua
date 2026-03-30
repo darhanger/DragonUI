@@ -896,6 +896,16 @@ end
         f.TextPercent:SetTextColor(1, 1, 1, 1)
         f.TextPercent:SetPoint("LEFT", f.Text, "RIGHT", 0, 0)
 
+        -- Compatibility: forward right-click to Blizzard XP bar handler
+        -- so server-side XP rate dropdowns still work when using custom DFUI bar.
+        f.Bar:SetScript("OnMouseDown", function(self, button)
+            if button ~= "RightButton" or not MainMenuExpBar then return end
+            local handler = MainMenuExpBar:GetScript("OnMouseDown")
+            if handler then
+                handler(MainMenuExpBar, button)
+            end
+        end)
+
         -- Tooltip (borrowed from DragonflightUI)
         f.Bar:SetScript("OnEnter", function(self)
             GameTooltip_AddNewbieTip(self, XPBAR_LABEL, 1.0, 1.0, 1.0, NEWBIE_TOOLTIP_XPBAR, 1)
