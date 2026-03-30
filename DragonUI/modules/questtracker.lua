@@ -326,7 +326,13 @@ function QuestTrackerModule:Initialize()
             hideTest = function()
                 QuestTrackerModule:HideEditorTest(true)
             end,
+            onShow = function()
+                -- Clamp quest tracker to screen when in editor mode
+                self.questTrackerFrame:SetClampedToScreen(true)
+            end,
             onHide = function()
+                -- Remove screen clamp when exiting editor mode
+                self.questTrackerFrame:SetClampedToScreen(false)
                 -- Position is already saved by OnDragStop
                 -- Just update WatchFrame position after editor mode
                 UpdateQuestTrackerPosition()
